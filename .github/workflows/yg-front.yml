@@ -39,8 +39,8 @@ jobs:
       - name: Rush install
         run: node common/scripts/install-run-rush.js install
 
-      - name: Build web-client dependency graph
-        run: node common/scripts/install-run-rush.js build --to @hcengineering/prod
+      - name: Build web-client + front-server dependency graphs
+        run: node common/scripts/install-run-rush.js build --to @hcengineering/prod --to @hcengineering/pod-front
 
       - name: Compute versions
         run: |
