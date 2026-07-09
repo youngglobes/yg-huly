@@ -24,6 +24,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # full history so `git describe --tags` resolves the version
+          fetch-tags: true    # tags are needed by show_version.js / show_tag.js
 
       - name: Free up disk space
         run: |
