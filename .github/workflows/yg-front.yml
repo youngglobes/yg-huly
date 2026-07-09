@@ -1,0 +1,69 @@
+name: Build custom front image (yg)
+
+# Builds ONLY the Huly `front` image from this fork (with the CreateIssue.svelte
+# mode:'full' change) and pushes it to GitHub Container Registry.
+# Base version pinned to v0.7.426 to match the self-host backend/data model.
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - yg/action-item-in-create
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-front:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/front
+      TAG: v0.7.426-yg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          docker image prune -af || true
+          df -h
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Rush install
+        run: node common/scripts/install-run-rush.js install
+
+      - name: Build web-client dependency graph
+        run: node common/scripts/install-run-rush.js build --to @hcengineering/prod
+
+      - name: Compute versions
+        run: |
+          echo "MODEL_VERSION=$(node common/scripts/show_version.js)" >> "$GITHUB_ENV"
+          echo "VERSION=$(node common/scripts/show_tag.js)" >> "$GITHUB_ENV"
+          echo "Model: $(node common/scripts/show_version.js)  Version: $(node common/scripts/show_tag.js)"
+
+      - name: Build web client (dev/prod webpack -> dist)
+        working-directory: dev/prod
+        run: node ../../common/scripts/install-run-rushx.js package
+
+      - name: Build front server bundle + package dist
+        working-directory: pods/front
+        run: |
+          node ../../common/scripts/install-run-rushx.js bundle
+          node ../../common/scripts/install-run-rushx.js package
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push image
+        working-directory: pods/front
+        run: |
+          docker build -t "${IMAGE}:${TAG}" .
+          docker push "${IMAGE}:${TAG}"
+          echo "Pushed ${IMAGE}:${TAG}"
