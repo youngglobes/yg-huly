@@ -65,6 +65,7 @@
   export let enableAttachments: boolean = true
   export let isScrollable = true
   export let kitOptions: Partial<EditorKitOptions> = {}
+  export let enableInlineTodo = false
   export let fullWidth = false
 
   export let useDirectAttachDelete = false
@@ -431,6 +432,7 @@
     {focusable}
     {kind}
     {kitOptions}
+    {enableInlineTodo}
     {isScrollable}
     {boundary}
     {extraActions}

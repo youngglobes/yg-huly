@@ -48,6 +48,7 @@
   export let boundary: HTMLElement | undefined = undefined
   export let readonly: boolean = false
   export let kitOptions: Partial<EditorKitOptions> = {}
+  export let enableInlineTodo = false
 
   export let attachFile: FileAttachFunction | undefined = undefined
 
@@ -298,7 +299,9 @@
         },
         inlineCommands: inlineCommandsConfig(
           handleCommandSelected,
-          attachFile == null ? ['drawing-board', 'todo-list', 'image'] : ['drawing-board', 'todo-list']
+          enableInlineTodo
+            ? (attachFile == null ? ['drawing-board', 'image'] : ['drawing-board'])
+            : (attachFile == null ? ['drawing-board', 'todo-list', 'image'] : ['drawing-board', 'todo-list'])
         ),
         ...kitOptions,
         leftMenu: {
