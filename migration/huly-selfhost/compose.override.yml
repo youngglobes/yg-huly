@@ -1,0 +1,19 @@
+services:
+  mail:
+    image: hardcoreeng/mail:${HULY_VERSION}
+    container_name: mail
+    env_file:
+      - .mail.env
+    environment:
+      - PORT=8097
+    restart: unless-stopped
+    networks:
+      - huly_net
+
+  account:
+    environment:
+      - MAIL_URL=http://mail:8097
+
+  transactor:
+    environment:
+      - MAIL_URL=http://mail:8097

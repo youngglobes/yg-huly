@@ -12,7 +12,7 @@ services:
 
   cockroach:
     image: cockroachdb/cockroach:latest-v24.2
-    command: start-single-node --accept-sql-without-tls
+    command: start-single-node --accept-sql-without-tls --max-offset=4.9s
     environment:
       - COCKROACH_DATABASE=${CR_DATABASE}
       - COCKROACH_USER=${CR_USERNAME}
@@ -203,7 +203,7 @@ services:
       - huly_net
 
   front:
-    image: hardcoreeng/front:${HULY_VERSION}
+    image: ghcr.io/youngglobes/front:v0.7.426-yg
     environment:
       - SERVER_PORT=8080
       - SERVER_SECRET=${SECRET}
