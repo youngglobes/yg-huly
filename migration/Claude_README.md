@@ -4,12 +4,13 @@ Guidance for developers (and Claude) working in this repo.
 
 ## What this repo is
 
-Operational repo for migrating **Huly** from the hosted SaaS (huly.app) to a **self-hosted**
-deployment on our own server. It is *not* an application codebase — it is a vendored copy of
-Huly's self-host stack plus custom scripts, config, and runbooks that drive the migration.
+The deployment/ops layer of this fork: a vendored copy of Huly's self-host stack plus custom
+scripts, config, and runbooks. Everything under `migration/` is ours and rides along cleanly
+when rebasing on upstream (upstream has no `migration/` path).
 
-The Huly **platform source** is a separate repo: our fork `youngglobes/yg-huly`, whose CI
-builds the custom `front` image (see [Custom image](#custom-image)).
+The rest of this repo (the root) is the Huly **platform source** — `youngglobes/yg-huly`, a
+fork of `hcengineering/platform`. Feature customizations and version upgrades happen at the
+root; deployment/ops changes happen here (see [CI & deployment](#ci--deployment)).
 
 **Status:** self-host is live and proven on the server; a full backup restore (86 projects,
 6546 issues, ~34 accounts) has been validated; OTP email works via Resend. The remaining
@@ -47,6 +48,28 @@ milestone is the production cutover — see `notes/cutover-runbook.md`.
     (gitignored, server coordinates — not in version control). New here? Copy the committed
     template: `cp notes/server-access.example.md notes/server-access.md` and fill in the
     real values (ask the team).
+
+## CI & deployment <a id="ci--deployment"></a>
+
+**There is no automated deployment.** Pushing to `develop` deploys nothing — the server is
+updated by hand. The two paths:
+
+- **App code (custom front feature):** branch `yg/action-item-in-create` → its CI workflow
+  (`yg-front.yml`, on that branch only) builds `ghcr.io/youngglobes/front:v0.7.426-yg` →
+  the server's `compose.yml` pins that tag. Deploy = on the server:
+  `docker compose pull front && docker compose up -d front`.
+- **Deploy config (this `migration/` folder):** the live copy is `<DEPLOY_DIR>` on the server.
+  Changes are applied there directly (SSH edit or `scp` from here) and mirrored into this
+  folder in the same change, so repo == server. When they drift, **the server is the source
+  of truth** — reconcile by syncing repo ← server.
+
+**Upstream CI is disabled on this fork** (Actions → workflow → "Disable workflow", done
+2026-07-10): `main.yml` (build + Playwright uitest/uitest-pg/uitest-qms/uitest-workspaces +
+docker/dist/npm jobs) is upstream Huly's release pipeline, triggered on every push to
+`develop` — ~12 heavy jobs to UI-test docs changes, and its publish jobs fail without
+upstream secrets. Disabled via the UI (not a commit) so there's no diff against upstream at
+rebase time. Re-enable the same way if ever needed; `baseimage.yaml`/`publish-npm.yml`
+likewise if they fire.
 
 ## Secrets & config (important)
 
