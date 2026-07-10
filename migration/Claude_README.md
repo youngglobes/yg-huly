@@ -51,17 +51,25 @@ milestone is the production cutover — see `notes/cutover-runbook.md`.
 
 ## CI & deployment <a id="ci--deployment"></a>
 
-**There is no automated deployment.** Pushing to `develop` deploys nothing — the server is
-updated by hand. The two paths:
+**Deployment is automated (since 2026-07-10).** Two CD paths, both ours, both gated by the
+same post-deploy health check (front + accounts over https on the origin):
 
-- **App code (custom front feature):** branch `yg/action-item-in-create` → its CI workflow
-  (`yg-front.yml`, on that branch only) builds `ghcr.io/youngglobes/front:v0.7.426-yg` →
-  the server's `compose.yml` pins that tag. Deploy = on the server:
-  `docker compose pull front && docker compose up -d front`.
-- **Deploy config (this `migration/` folder):** the live copy is `<DEPLOY_DIR>` on the server.
-  Changes are applied there directly (SSH edit or `scp` from here) and mirrored into this
-  folder in the same change, so repo == server. When they drift, **the server is the source
-  of truth** — reconcile by syncing repo ← server.
+- **Deploy config:** push to `develop` touching `migration/huly-selfhost/**` →
+  `.github/workflows/yg-deploy.yml` rsyncs the **git-tracked** files to `<DEPLOY_DIR>`,
+  runs `docker compose up -d`, restarts nginx (it resolves upstream IPs only at startup),
+  and health-checks. It never deletes, so server-only secrets (`huly_v7.conf`, `.mail.env`,
+  `ssl/`, `.huly.nginx`) are untouched. Version bumps count too: changing image tags in
+  `compose.yml` makes `up -d` pull the new tags.
+- **App code (custom front feature):** push to `yg/action-item-in-create` → `yg-front.yml`
+  (on that branch) builds + pushes `ghcr.io/youngglobes/front:v0.7.426-yg`, then its deploy
+  job makes the server `docker compose pull front && up -d front` + nginx restart.
+  Code NEVER deploys from `develop` — the stack is pinned to v0.7.426 and `develop` tracks
+  newer upstream code (version mismatch would corrupt the workspace).
+
+Required repo **Actions secrets**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private
+half of the server's `~/.ssh/github_deploy`; public half is in `authorized_keys`).
+Manual fallback still works (SSH + `docker compose up -d`); if repo and server drift,
+**the server is the source of truth** — reconcile by syncing repo ← server.
 
 **Upstream CI is disabled on this fork** (Actions → workflow → "Disable workflow", done
 2026-07-10): `main.yml` (build + Playwright uitest/uitest-pg/uitest-qms/uitest-workspaces +

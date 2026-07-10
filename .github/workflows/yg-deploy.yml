@@ -1,0 +1,72 @@
+# YoungGlobes: deploy self-host config to the server on push to develop.
+#
+# Scope: ONLY migration/huly-selfhost/** (compose, nginx-adjacent scripts, backup job).
+# Platform code is NEVER deployed from develop — the running stack is pinned to
+# v0.7.426 and code ships exclusively via the pinned front image built on
+# yg/action-item-in-create (see yg-front.yml there).
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   DEPLOY_HOST     server IP/hostname
+#   DEPLOY_USER     ssh user (owns the deploy dir)
+#   DEPLOY_SSH_KEY  private key for ~/.ssh/github_deploy (authorized on the server)
+#
+# Safety: syncs only git-tracked files and never deletes, so server-only secrets
+# (huly_v7.conf, .mail.env, ssl/, .huly.nginx) are untouched. nginx is restarted
+# after up -d because it resolves upstream container IPs only at startup.
+name: yg-deploy
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'migration/huly-selfhost/**'
+  workflow_dispatch:
+
+concurrency:
+  group: yg-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf 'Host server\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking accept-new\n' \
+            "$DEPLOY_HOST" "${{ secrets.DEPLOY_USER }}" >> ~/.ssh/config
+
+      - name: Sync tracked config files to the server
+        run: |
+          cd migration/huly-selfhost
+          git ls-files . > /tmp/deploy-files.txt
+          echo "syncing $(wc -l < /tmp/deploy-files.txt) tracked files:"
+          cat /tmp/deploy-files.txt
+          rsync -av --files-from=/tmp/deploy-files.txt ./ server:/home/developer/huly-selfhost/
+
+      - name: Apply (compose up -d + nginx restart)
+        run: |
+          ssh server 'cd /home/developer/huly-selfhost \
+            && docker compose up -d \
+            && docker compose restart nginx'
+
+      - name: Health check
+        run: |
+          ssh server '
+            set -e
+            for i in $(seq 1 12); do
+              code=$(curl -sk -o /dev/null -w "%{http_code}" -m 10 https://localhost/ || true)
+              acc=$(curl -sk -o /dev/null -w "%{http_code}" -m 10 -X POST https://localhost/_accounts \
+                     -H "Content-Type: application/json" -d "{\"method\":\"version\",\"params\":{}}" || true)
+              echo "attempt $i: front=$code accounts=$acc"
+              [ "$code" = "200" ] && [ "$acc" != "502" ] && [ "$acc" != "000" ] && { echo "HEALTHY"; exit 0; }
+              sleep 5
+            done
+            echo "UNHEALTHY after deploy"; exit 1'
