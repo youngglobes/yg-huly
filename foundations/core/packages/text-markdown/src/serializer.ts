@@ -94,6 +94,35 @@ export const storeNodes: Record<string, NodeProcessor> = {
       state.renderContent(node)
     })
   },
+  // The Notion-style layout blocks below have no markdown equivalent - they degrade
+  // to plain constructs on export (and are not reconstructed when parsing back).
+  callout: (state, node) => {
+    state.wrapBlock('> ', null, node, () => {
+      const emoji = nodeAttrs(node).emoji
+      if (emoji !== undefined && emoji !== null && `${emoji}` !== '') {
+        state.write(`${emoji} `)
+      }
+      state.renderContent(node)
+    })
+  },
+  toggle: (state, node) => {
+    state.renderContent(node)
+  },
+  toggleSummary: (state, node) => {
+    state.write('**')
+    state.renderInline(node)
+    state.write('**')
+    state.closeBlock(node)
+  },
+  toggleContent: (state, node) => {
+    state.renderContent(node)
+  },
+  columnList: (state, node) => {
+    state.renderContent(node)
+  },
+  column: (state, node) => {
+    state.renderContent(node)
+  },
   codeBlock: (state, node) => {
     state.write('```' + `${nodeAttrs(node).language ?? ''}` + '\n')
     // TODO: Check for node.textContent

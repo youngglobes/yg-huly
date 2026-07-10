@@ -43,7 +43,20 @@ import {
 import { ExtensionFactory, extensionKit } from '../kit'
 import { BackgroundColor, TextColor } from '../marks/colors'
 import { InlineCommentMark } from '../marks/inlineComment'
-import { CodeBlockExtension, codeBlockOptions, CommentNode, MarkdownNode, TodoItemNode, TodoListNode } from '../nodes'
+import {
+  CalloutNode,
+  CodeBlockExtension,
+  codeBlockOptions,
+  ColumnListNode,
+  ColumnNode,
+  CommentNode,
+  MarkdownNode,
+  TodoItemNode,
+  TodoListNode,
+  ToggleContentNode,
+  ToggleNode,
+  ToggleSummaryNode
+} from '../nodes'
 
 import { CodeExtension, codeOptions } from '../marks/code'
 import { MermaidExtension, mermaidOptions } from '../nodes/mermaid'
@@ -78,6 +91,16 @@ export const CommonKitFactory = (e: ExtensionFactory) =>
     }),
 
     typography: e(Typography),
+
+    // Notion-style layout blocks. Kept in the common kit so both the server-side
+    // schema (static HTML rendering, collaborator) and every client editor can
+    // parse documents containing them; clients extend these with editing UX.
+    callout: e(CalloutNode),
+    toggle: e(ToggleNode),
+    toggleSummary: e(ToggleSummaryNode),
+    toggleContent: e(ToggleContentNode),
+    columnList: e(ColumnListNode),
+    column: e(ColumnNode),
 
     dropcursor: e(Dropcursor),
     gapcursor: e(Gapcursor),

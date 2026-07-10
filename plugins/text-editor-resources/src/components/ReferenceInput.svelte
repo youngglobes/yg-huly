@@ -139,6 +139,12 @@
       case 'todo-list':
         editor?.getEditor()?.chain().insertContentAt(pos, { type: 'paragraph' }).toggleTaskList().run()
         break
+      case 'callout':
+        editor?.getEditor()?.commands.insertCallout(pos)
+        break
+      case 'toggle':
+        editor?.getEditor()?.commands.insertToggle(pos)
+        break
       case 'mermaid':
         editor?.getEditor()?.commands.insertContentAt(pos, { type: 'mermaid' })
         break
@@ -228,7 +234,7 @@
           // Enable the checklist extensions (off in 'compact' mode) and the "/" command
           // menu so messages get the same block palette as description editors.
           lists: { todoItem: true, todoList: true },
-          inlineCommands: inlineCommandsConfig(handleInlineCommand, ['image', 'drawing-board']),
+          inlineCommands: inlineCommandsConfig(handleInlineCommand, ['image', 'drawing-board', 'columns-2', 'columns-3']),
           hooks: {
             emptyContent: {
               onChange: (a) => (isEmpty = a)

@@ -196,6 +196,18 @@
       case 'todo-list':
         editor.getEditor()?.chain().insertContentAt(pos, { type: 'paragraph' }).toggleTaskList().run()
         break
+      case 'callout':
+        editor.getEditor()?.commands.insertCallout(pos)
+        break
+      case 'toggle':
+        editor.getEditor()?.commands.insertToggle(pos)
+        break
+      case 'columns-2':
+        editor.getEditor()?.commands.insertColumnList(pos, 2)
+        break
+      case 'columns-3':
+        editor.getEditor()?.commands.insertColumnList(pos, 3)
+        break
       case 'drawing-board':
         editor.getEditor()?.commands.insertContentAt(pos, { type: 'drawingBoard', attrs: { id: generateId() } })
         break
@@ -335,6 +347,10 @@
             { id: 'code-block', label: textEditor.string.CodeBlock, icon: view.icon.CodeBlock },
             { id: 'separator-line', label: textEditor.string.SeparatorLine, icon: view.icon.SeparatorLine },
             { id: 'todo-list', label: textEditor.string.TodoItem, icon: view.icon.TodoList },
+            { id: 'callout', label: textEditor.string.Callout, icon: view.icon.Bubble },
+            { id: 'toggle', label: textEditor.string.Toggle, icon: view.icon.DetailsFilled },
+            { id: 'columns-2', label: textEditor.string.TwoColumns, icon: view.icon.MasterDetail },
+            { id: 'columns-3', label: textEditor.string.ThreeColumns, icon: view.icon.MasterDetail },
             { id: 'drawing-board', label: textEditor.string.DrawingBoard, icon: scribbleIcon },
             { id: 'mermaid', label: textEditor.string.MermaidDiargram, icon: view.icon.Model }
           ],

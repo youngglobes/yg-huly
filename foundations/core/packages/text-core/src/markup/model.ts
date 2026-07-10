@@ -42,7 +42,13 @@ export enum MarkupNodeType {
   mermaid = 'mermaid',
   comment = 'comment',
   markdown = 'markdown',
-  embed = 'embed'
+  embed = 'embed',
+  callout = 'callout',
+  toggle = 'toggle',
+  toggleSummary = 'toggleSummary',
+  toggleContent = 'toggleContent',
+  columnList = 'columnList',
+  column = 'column'
 }
 
 /** @public */

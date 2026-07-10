@@ -36,6 +36,7 @@ import 'katex/dist/katex.min.css'
 
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import { CalloutExtension, ColumnListExtension, ToggleExtension } from '../components/extension/blocks/blocks'
 import { CodeBlockHighlighExtension, codeBlockHighlightOptions } from '../components/extension/codeSnippets/codeblock'
 import { MermaidExtension, mermaidOptions } from '../components/extension/codeSnippets/mermaid'
 import { DrawingBoardExtension } from '../components/extension/drawingBoard'
@@ -119,6 +120,12 @@ const StaticEditorKit = extensionKit(
       ),
       inlineNote: e(NoteExtension, context.mode === 'full'), // Semi-deprecated, should be removed in the future
       commentNode: e(CommentNode, false),
+
+      // Notion-style layout blocks: schema comes from the common kit; these overrides
+      // add the editing UX (node views, insert commands, keyboard behavior)
+      callout: e(CalloutExtension),
+      toggle: e(ToggleExtension),
+      columnList: e(ColumnListExtension),
 
       // =====================================================
       // Extensions and kits designed for client-side use only

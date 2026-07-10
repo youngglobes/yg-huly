@@ -13,6 +13,7 @@
 // limitations under the License.
 //
 
+export * from './blocks'
 export * from './image'
 export * from './reference'
 export * from './emoji'

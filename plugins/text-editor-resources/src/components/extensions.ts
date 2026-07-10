@@ -92,6 +92,10 @@ const inlineCommandsIds = [
   'code-block',
   'separator-line',
   'todo-list',
+  'callout',
+  'toggle',
+  'columns-2',
+  'columns-3',
   'drawing-board',
   'mermaid'
 ] as const
@@ -113,6 +117,10 @@ export function inlineCommandsConfig (
           { id: 'code-block', label: textEditor.string.CodeBlock, icon: view.icon.CodeBlock },
           { id: 'separator-line', label: textEditor.string.SeparatorLine, icon: view.icon.SeparatorLine },
           { id: 'todo-list', label: textEditor.string.TodoItem, icon: view.icon.TodoList },
+          { id: 'callout', label: textEditor.string.Callout, icon: view.icon.Bubble },
+          { id: 'toggle', label: textEditor.string.Toggle, icon: view.icon.DetailsFilled },
+          { id: 'columns-2', label: textEditor.string.TwoColumns, icon: view.icon.MasterDetail },
+          { id: 'columns-3', label: textEditor.string.ThreeColumns, icon: view.icon.MasterDetail },
           { id: 'drawing-board', label: textEditor.string.DrawingBoard, icon: IconScribble as any },
           { id: 'mermaid', label: textEditor.string.MermaidDiargram, icon: view.icon.Model }
         ].filter(({ id }) => !excludedCommands.includes(id as InlineCommandId))
