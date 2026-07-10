@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Markup } from '@hcengineering/core'
-  import { IntlString } from '@hcengineering/platform'
+  import { generateId, Markup } from '@hcengineering/core'
+  import { Asset, IntlString } from '@hcengineering/platform'
   import presentation, { MessageViewer, getFileUrl, getImageSize, imageSizeToRatio } from '@hcengineering/presentation'
   import { EmptyMarkup } from '@hcengineering/text'
   import textEditor, { RefAction } from '@hcengineering/text-editor'
@@ -10,6 +10,7 @@
     IconCheck,
     IconClose,
     IconEdit,
+    IconScribble,
     Label,
     PopupAlignment,
     ShowMore,
@@ -27,6 +28,8 @@
   import view from '@hcengineering/view'
   import { type FileAttachFunction } from './extension/types'
   import { inlineCommandsConfig } from './extensions'
+
+  const scribbleIcon: Asset = IconScribble as any
 
   export let label: IntlString | undefined = undefined
   export let content: Markup
@@ -190,6 +193,12 @@
       case 'separator-line':
         editor.editorHandler.insertSeparatorLine()
         break
+      case 'todo-list':
+        editor.getEditor()?.chain().insertContentAt(pos, { type: 'paragraph' }).toggleTaskList().run()
+        break
+      case 'drawing-board':
+        editor.getEditor()?.commands.insertContentAt(pos, { type: 'drawingBoard', attrs: { id: generateId() } })
+        break
       case 'mermaid':
         editor.getEditor()?.commands.insertContentAt(pos, { type: 'mermaid' })
         break
@@ -285,6 +294,12 @@
       kitOptions={{
         emoji: true,
         textColorStyling: true,
+        // These are off in 'compact' mode by default, but this editor backs rich fields
+        // (e.g. issue descriptions in the create dialog) that should offer the same blocks
+        // as the 'full' mode editors rendering the same content later.
+        drawingBoard: true,
+        mathematics: true,
+        lists: { todoItem: true, todoList: true },
         hooks: {
           focus: {
             onCanBlur: (value) => (canBlur = value),
@@ -300,8 +315,8 @@
         inlineCommands: inlineCommandsConfig(
           handleCommandSelected,
           enableInlineTodo
-            ? (attachFile == null ? ['drawing-board', 'image'] : ['drawing-board'])
-            : (attachFile == null ? ['drawing-board', 'todo-list', 'image'] : ['drawing-board', 'todo-list'])
+            ? (attachFile == null ? ['image'] : [])
+            : (attachFile == null ? ['todo-list', 'image'] : ['todo-list'])
         ),
         ...kitOptions,
         leftMenu: {
@@ -319,6 +334,8 @@
             { id: 'table', label: textEditor.string.Table, icon: view.icon.Table2 },
             { id: 'code-block', label: textEditor.string.CodeBlock, icon: view.icon.CodeBlock },
             { id: 'separator-line', label: textEditor.string.SeparatorLine, icon: view.icon.SeparatorLine },
+            { id: 'todo-list', label: textEditor.string.TodoItem, icon: view.icon.TodoList },
+            { id: 'drawing-board', label: textEditor.string.DrawingBoard, icon: scribbleIcon },
             { id: 'mermaid', label: textEditor.string.MermaidDiargram, icon: view.icon.Model }
           ],
           handleSelect: handleCommandSelected
