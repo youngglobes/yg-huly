@@ -142,21 +142,35 @@
   async function updateCategories (objects: Contact[], categories: AssigneeCategory[] | undefined) {
     const refs = objects.map((e) => e._id)
 
-    for (const category of [currentUserCategory, assigned, ...(categories ?? []), otherCategory]) {
+    function rebuildContacts (): void {
+      const next: Contact[] = []
+      categorizedPersons.forEach((p, k) => {
+        const c = objects.find((e) => e._id === k)
+        if (c) {
+          next.push(c)
+        }
+      })
+      contacts = next
+    }
+
+    // Seed every candidate into the catch-all "Other" bucket first (synchronous, no I/O) so the full
+    // list is usable right away, instead of staying empty until every category below resolves - some
+    // categories (e.g. "previous assignees", computed from an issue's tx history) are per-issue server
+    // queries that can be slow. Each category then promotes its members out of "Other" as it resolves,
+    // in the same priority order as before (earlier category wins), converging to the same end state.
+    for (const contact of await otherCategory.func(refs)) {
+      categorizedPersons.set(contact, otherCategory)
+    }
+    rebuildContacts()
+
+    for (const category of [currentUserCategory, assigned, ...(categories ?? [])]) {
       const res = await category.func(refs)
       for (const contact of res) {
-        if (categorizedPersons.has(contact)) continue
+        if (categorizedPersons.get(contact) !== otherCategory) continue
         categorizedPersons.set(contact, category)
       }
+      rebuildContacts()
     }
-    contacts = []
-    categorizedPersons.forEach((p, k) => {
-      const c = objects.find((e) => e._id === k)
-      if (c) {
-        contacts.push(c)
-      }
-      contacts = contacts
-    })
   }
 
   let selection = 0
