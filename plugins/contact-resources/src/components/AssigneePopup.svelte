@@ -141,15 +141,20 @@
 
   async function updateCategories (objects: Contact[], categories: AssigneeCategory[] | undefined) {
     const refs = objects.map((e) => e._id)
+    const categoryOrder = [currentUserCategory, assigned, ...(categories ?? []), otherCategory]
 
+    // The ListView renders a category header wherever two adjacent items differ in category, so the
+    // list must be emitted grouped by category (in priority order) - not in map insertion order,
+    // which would interleave groups as people get promoted out of "Other" below.
     function rebuildContacts (): void {
       const next: Contact[] = []
-      categorizedPersons.forEach((p, k) => {
-        const c = objects.find((e) => e._id === k)
-        if (c) {
-          next.push(c)
+      for (const category of categoryOrder) {
+        for (const c of objects) {
+          if (categorizedPersons.get(c._id) === category) {
+            next.push(c)
+          }
         }
-      })
+      }
       contacts = next
     }
 
