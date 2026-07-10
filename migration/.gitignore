@@ -1,0 +1,15 @@
+backup/*.zip
+backup/extracted/
+notes/secrets*
+notes/server-access.md
+
+# session artifacts (screenshots, playwright)
+*.png
+.playwright-mcp/
+
+# huly-selfhost generated artifacts & secrets (regenerable via ./setup.sh)
+huly-selfhost/huly_v7.conf
+huly-selfhost/.huly.secret
+huly-selfhost/.cr.secret
+huly-selfhost/.rp.secret
+huly-selfhost/.huly.nginx
