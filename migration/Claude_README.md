@@ -35,9 +35,9 @@ milestone is the production cutover — see `notes/cutover-runbook.md`.
 ## Key facts
 
 - **Version pin:** `v0.7.426` — **must match the backup's source version**. Set in `huly_v7.conf`.
-- **Custom image:** `ghcr.io/youngglobes/front:v0.7.426-yg` (public GHCR) — adds the
-  "action item list in New Issue" feature. Rebuilt per Huly version by `youngglobes/yg-huly`
-  CI (`yg/action-item-in-create` branch). <a id="custom-image"></a>
+- **Custom image:** `ghcr.io/youngglobes/front:v0.7.426-yg` (public GHCR) — carries all our
+  frontend customizations (action-item list in New Issue, assignee-popup perf fix, …).
+  Built + auto-deployed from the **`yg_develop`** branch. <a id="custom-image"></a>
 - **Workspace slug:** `yg`.
 - **Email:** **Resend SMTP** (not AWS SES — SES was paused and abandoned). Config lives in
   server-only `.mail.env`. Details + gotchas in `docs/backup-restore-guide.md` and the runbook.
@@ -60,11 +60,26 @@ same post-deploy health check (front + accounts over https on the origin):
   and health-checks. It never deletes, so server-only secrets (`huly_v7.conf`, `.mail.env`,
   `ssl/`, `.huly.nginx`) are untouched. Version bumps count too: changing image tags in
   `compose.yml` makes `up -d` pull the new tags.
-- **App code (custom front feature):** push to `yg/action-item-in-create` → `yg-front.yml`
-  (on that branch) builds + pushes `ghcr.io/youngglobes/front:v0.7.426-yg`, then its deploy
-  job makes the server `docker compose pull front && up -d front` + nginx restart.
+- **App code (front customizations):** push to **`yg_develop`** → `yg-front.yml` (on that
+  branch) builds + pushes `ghcr.io/youngglobes/front:v0.7.426-yg`, then its deploy job makes
+  the server `docker compose pull front && up -d front` + nginx restart.
   Code NEVER deploys from `develop` — the stack is pinned to v0.7.426 and `develop` tracks
   newer upstream code (version mismatch would corrupt the workspace).
+
+**Branch strategy — pick your base by the type of work:**
+
+| Work | Branch off / merge into | What happens on merge |
+|---|---|---|
+| Ops/config (compose, scripts, nginx) | `develop` (files under `migration/huly-selfhost/`) | `yg-deploy` → server |
+| Frontend fix/feature for the LIVE product | **`yg_develop`** (v0.7.426-pinned + our patches) | image build → auto-deploy |
+| Docs/notes | `develop` | nothing deploys |
+| Upstream version upgrades | rebase `yg_develop` onto the new version tag | rebuild + redeploy |
+
+⚠️ Do NOT merge product code fixes into `develop` expecting them to ship — they won't
+(`develop` = upstream tracking + ops only). That happened once (assignee-popup fix) and the
+commit had to be cherry-picked onto `yg_develop` to actually reach the server.
+`yg/action-item-in-create` was the old single-issue name for this branch — retired into
+`yg_develop` (same lineage).
 
 Required repo **Actions secrets**: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY` (private
 half of the server's `~/.ssh/github_deploy`; public half is in `authorized_keys`).
