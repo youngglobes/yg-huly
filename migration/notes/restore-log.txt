@@ -1,0 +1,14 @@
+Restore completed 2026-07-07T09:47:39Z: workspace "yg", source v0.7.426 -> local v0.7.426.
+  Admin: pravin@drupaldevelopersstudio.com | accounts restored (default) | upgrade-workspace OK.
+  Backup: backup/extracted (7.1G, 1921 files, source ws w-pravin-yg-66963f1f-9fa7509b69-7e3364).
+  Note: redpanda OOM-crashed once pre-restore (restarted); one transient CockroachDB HLC clock-skew retry mid-restore (self-healed).
+Post-restore fix 2026-07-07T09:52:50Z: workspace "yg" existed + active but had 0 memberships (selectWorkspace was empty).
+  Cause: restore-workspace.sh:122 calls `assign-workspace <workspace> <email>` but tool signature is `assign-workspace <email> <workspace>` (args reversed) -> assign silently failed.
+  Fix: ./run-tool.sh assign-workspace pravin@drupaldevelopersstudio.com yg ; set-user-role ... OWNER. Membership + OWNER role confirmed in global_account.workspace_members.
+  TODO before production restore: fix the reversed args in restore-workspace.sh:122.
+Fix 2026-07-07T10:27:11Z: after login, workspace page spun forever. Cause: transactor (started 08:48) predated the current redpanda instance (restarted 09:11 after its OOM crash); its kafkajs client held a dead connection -> "KafkaJSConnectionError: Connection timeout" -> "Failed to process session operation" -> websocket died. TCP to redpanda:9092 was OK and cluster Healthy:true, masking it.
+  Fix: docker compose restart transactor fulltext -> "Consumer has joined the group", 0 errors.
+  RUNBOOK RULE: whenever redpanda restarts, also restart transactor + fulltext (they do not reconnect to the queue on their own).
+Fix 2026-07-07T10:44:18Z: browser showed "remote wall time is too far ahead (1.49s)" blocking workspace load. Root cause: WSL2 clock running slow (drifted 0.68s->1.49s over session), exceeding CockroachDB default 500ms max clock offset. hwclock not installed; sudo unavailable via non-TTY.
+  Fix (compose.yml, tracked): cockroach command += --max-offset=4.9s (CockroachDB caps this <5s; 30s was rejected). Recreated cockroach + restarted transactor/fulltext/account/workspace. Clean query, 0 errors.
+  NOTE: 4.9s tolerates current drift but is the hard cap; if the stack runs many hours the drift can approach 5s again. Permanent reset: `wsl --shutdown` from Windows PowerShell (resyncs WSL clock), then docker compose up -d.

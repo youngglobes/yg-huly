@@ -1,0 +1,967 @@
+# Huly Self-Hosted
+
+Please use this README if you want to deploy Huly on your server with `docker compose`. I'm using a Basic Droplet on Digital Ocean with Ubuntu 24.04, but these instructions can be easily adapted for any Linux distribution.
+
+If you prefer Kubernetes deployment, there is a sample Kubernetes configuration under [kube](kube) directory.
+
+## System Requirements
+
+Huly is resource-heavy. Use a server that meets or exceeds the following:
+
+- **Minimum:** 2 vCPUs and 8 GB RAM
+- **Recommended:** 4 vCPUs and 16 GB RAM or more
+
+> [!WARNING]
+> Servers below the minimum may stop responding or fail.
+
+
+## Platform Repository
+
+The Huly platform source code is available on GitHub: **[hcengineering/platform](https://github.com/hcengineering/platform)**
+
+> [!NOTE]
+> For self-hosted deployments, use production versions (`v*` tags). For example: `v0.7.310`, `v0.7.307`, `v0.6.501`
+> See all available versions on [GitHub Releases](https://github.com/hcengineering/platform/releases).
+
+## Updating to a new Huly version
+
+Before updating, **always review `MIGRATION.md`** in this repository:
+
+- **Open `MIGRATION.md`** and find the section for your target version (for example `v0.7.423`).
+- **If the section says "No changes required"**, you can upgrade just by updating container versions.
+- **If there are additional steps**, follow them carefully (backup, config changes, service additions/removals, etc.) **before** or **during** the update.
+- **If you are upgrading from any 0.6.x version to 0.7.x**, you **must** follow the dedicated migration steps in the `v0.7` section of `MIGRATION.md` (especially `v0.7.204`) instead of doing a direct in-place upgrade.
+
+To update an existing self-hosted deployment to a new Huly version:
+
+1. **Stop the stack (optional but recommended for major upgrades):**
+   ```bash
+   cd huly-selfhost
+   docker compose down
+   ```
+2. **Update the `huly-selfhost` repository:**
+   ```bash
+   git pull
+   ```
+3. **Set the new Huly version in `.env`:**
+   - Edit the `.env` file in the project root and update:
+     - `HULY_VERSION` to the desired platform version tag (for example `v0.7.423`)
+     - `DESKTOP_CHANNEL` to the same version without the leading `v` (for example `0.7.423`) if you use the desktop app.
+4. **Pull updated container images:**
+   ```bash
+   docker compose pull
+   ```
+5. **Start the updated stack:**
+   ```bash
+   docker compose up -d
+   ```
+
+## Disable default content in new workspaces
+
+By default, Huly can initialize new workspaces with predefined content. To disable that behavior, set `INIT_REPO_DIR` in the `workspace` service to a non-existing path:
+
+```yaml
+workspace:
+  image: hardcoreeng/workspace:${HULY_VERSION}
+  environment:
+    # ...
+    - INIT_REPO_DIR=/no-init-scripts
+```
+
+## Architecture Overview
+
+For detailed information about the Huly self-hosted architecture, services, and their interactions, see [ARCHITECTURE_OVERVIEW.md](ARCHITECTURE_OVERVIEW.md).
+
+## Quick Start (Local Testing)
+
+For fast local verification without going through the full setup process:
+
+```bash
+git clone https://github.com/hcengineering/huly-selfhost.git
+cd huly-selfhost
+./setup.sh --quick
+```
+
+This will:
+- Use `localhost:8087` as the host address
+- Skip all configuration prompts
+- Use default Docker volumes
+- Automatically start all services
+
+Access Huly at **http://localhost:8087** (wait ~60 seconds for services to initialize). To stop all services, run `docker compose down` from the `huly-selfhost` folder.
+
+> [!NOTE]
+> Quick start is intended for local testing only. For production deployments, follow the full setup instructions below.
+
+## Installing `nginx` and `docker`
+
+First, update repositories cache:
+
+```bash
+sudo apt update
+```
+
+Now, install `nginx`:
+
+```bash
+sudo apt install nginx
+```
+
+Install docker using the [recommended method](https://docs.docker.com/engine/install/ubuntu/) from docker website.
+Afterwards perform [post-installation steps](https://docs.docker.com/engine/install/linux-postinstall/). Pay attention to 3rd step with `newgrp docker` command, it needed for correct execution in setup script.
+
+## Clone the `huly-selfhost` repository and configure `nginx`
+
+Next, let's clone the `huly-selfhost` repository and configure Huly.
+
+```bash
+git clone https://github.com/hcengineering/huly-selfhost.git
+cd huly-selfhost
+./setup.sh
+```
+
+This will generate a [huly_v7.conf](./huly_v7.conf) file with your chosen values and create your nginx config.
+
+To add the generated configuration to your Nginx setup, run the following:
+
+```bash
+sudo ln -s $(pwd)/nginx.conf /etc/nginx/sites-enabled/huly.conf
+```
+
+> [!NOTE]
+> If you change `HOST_ADDRESS`, `SECURE`, `HTTP_PORT` or `HTTP_BIND` be sure to update your [nginx.conf](./nginx.conf)
+> by running:
+> ```bash
+> ./nginx.sh
+> ```
+>You can safely execute this script after adding your custom configurations like ssl. It will only overwrite the
+> necessary settings.
+
+Finally, let's reload `nginx` and start Huly with `docker compose`.
+
+```bash
+sudo nginx -s reload
+sudo docker compose up -d
+```
+
+Now, launch your web browser and enjoy Huly! To stop all services, run `docker compose down` from the `huly-selfhost` project directory.
+
+> [!IMPORTANT]
+> Provided configrations include deployments of CockroachDB and Redpanda which might not be production-ready. Please inspect them carefully before using in production. For more information on the recommended deployment configurations, please refer to the [CockroachDB](https://www.cockroachlabs.com/docs/stable/recommended-production-settings) and [Redpanda](https://docs.redpanda.com/24.3/deploy/) documentation.
+
+## Troubleshooting
+
+### Huly opens, but user sign-up fails
+
+If the UI loads but sign-up fails, check logs for the `account` service first:
+
+```bash
+docker compose logs -f account
+```
+
+This usually reveals issues with account callbacks, URL configuration, or connectivity to dependent services.
+
+### SSL errors (for example: `SSL wrong version number`)
+
+This usually means HTTPS/WSS is enabled in configuration, but the endpoint is serving plain HTTP/WS or has invalid TLS setup.
+
+- Verify your Nginx TLS configuration and certificates (`ssl_certificate`, `ssl_certificate_key`).
+- Confirm your domain points to the correct host and that port `443` is reachable.
+- For local/testing deployments, disable secure mode by setting `SECURE=` in `huly_v7.conf`, then regenerate/reload config and restart containers.
+
+## Volume Configuration
+
+By default, Huly uses Docker named volumes to store persistent data (database, Elasticsearch indices, and uploaded files). You can optionally configure custom host paths for these volumes during the setup process.
+
+### During Setup
+
+When running `./setup.sh`, you'll be prompted to specify custom paths for:
+
+- **Elasticsearch volume**: Search index data storage  
+- **Files volume**: User-uploaded files and attachments
+- **CockroachDB data volume**: Data storage for workspaces and accounts
+- **CockroachDB certs volume**: Certificates for CockroachDB
+- **Redpanda data volume**: Data storage for Kafka
+
+You can either:
+- Press Enter to use the default Docker named volumes
+- Specify an absolute path on your host system (e.g., `/var/huly/db`)
+- Enter `default` to clear an existing custom path and revert to Docker named volumes
+
+> [!NOTE]
+> When using custom paths, pay attention to the permissions of the directory. each folder needs to be owned by the user defined in the setup script
+> for example: `chown -R 1000:1000 /var/huly/db` (this is the user most services uses) but for example redpanda uses user 101
+
+### Quick Reset to Default Volumes
+
+To quickly reset all volumes back to default Docker named volumes without prompts:
+
+```bash
+./setup.sh --reset-volumes
+```
+
+### Manual Configuration
+
+You can also manually configure volume paths by editing the `huly_v7.conf` file:
+
+```bash
+# Docker volume paths - specify custom paths for persistent data storage
+# Leave empty to use default Docker named volumes
+VOLUME_ELASTIC_PATH=/path/to/elasticsearch
+VOLUME_FILES_PATH=/path/to/files
+VOLUME_CR_DATA_PATH=/path/to/cockroachdb/data
+VOLUME_CR_CERTS_PATH=/path/to/cockroachdb/certs
+VOLUME_REDPANDA_PATH=/path/to/redpanda/data
+```
+
+To revert to default volumes, simply leave the paths empty:
+
+```bash
+VOLUME_ELASTIC_PATH=
+VOLUME_FILES_PATH=
+VOLUME_CR_DATA_PATH=
+VOLUME_CR_CERTS_PATH=
+VOLUME_REDPANDA_PATH=
+```
+
+After modifying the configuration, restart the services:
+
+```bash
+docker compose down
+docker compose up -d
+```
+
+> [!WARNING]
+> When changing from named volumes to host paths (or vice versa), make sure to migrate your data appropriately to avoid data loss.
+
+## Redpanda Configuration
+
+When using a production deployment of Redpanda with topics auto-creation turned off, you'll need to manually create the following topics:
+
+- fulltext
+- process
+- tx
+- users
+- workspace
+
+## Generating Public and Private VAPID keys for front-end
+
+You'll need `Node.js` installed on your machine. Installing `npm` on Debian based distro:
+
+```
+sudo apt-get install npm
+```
+
+Install web-push using npm
+
+```bash
+sudo npm install -g web-push
+```
+
+Generate VAPID Keys. Run the following command to generate a VAPID key pair:
+
+```
+web-push generate-vapid-keys
+```
+
+It will generate both keys that looks like this:
+
+```bash
+=======================================
+
+Public Key:
+sdfgsdgsdfgsdfggsdf
+
+Private Key:
+asdfsadfasdfsfd
+
+=======================================
+```
+
+Keep these keys secure, as you will need them to set up your push notification service on the server.
+
+Add these keys into `compose.yaml` in section `services:ses:environment`:
+
+```yaml
+- PUSH_PUBLIC_KEY=your public key
+- PUSH_PRIVATE_KEY=your private key
+```
+
+As the browser must access the public key for web push notifications setup, you also need to provide it to the front-end service.
+
+Add the public key into `compose.yaml` in section `services:front:environment`:
+
+```yaml
+- PUSH_PUBLIC_KEY=your public key
+```
+
+## Web Push Notifications
+
+> [!NOTE]
+> In version 0.7.x and later, the legacy `ses` service has been replaced with the **`notification`** service for web push notifications and the `mail` service for sending emails using SES. New deployments should use the `notification` service.
+
+To enable web push notifications in Huly, you need to configure the `notification` service with the VAPID keys and point `transactor` to it.
+
+### Step 1: Configure the Transactor Service
+
+Add `WEB_PUSH_URL` to the `transactor` container:
+
+```yaml
+transactor:
+  ...
+  environment:
+    - WEB_PUSH_URL=http://notification:8091
+  ...
+```
+
+### Step 2: Configure the Notification Service
+
+Add the `notification` container to your `docker-compose.yaml` file with the generated VAPID keys:
+
+```yaml
+notification:
+  image: hardcoreeng/notification:${HULY_VERSION}
+  environment:
+    - PORT=8091
+    - SOURCE=mail@example.com
+    - STATS_URL=http://stats:4900
+    - PUSH_PUBLIC_KEY=${PUSH_PUBLIC_KEY}
+    - PUSH_PRIVATE_KEY=${PUSH_PRIVATE_KEY}
+  restart: unless-stopped
+  networks:
+    - huly_net
+```
+
+## Mail Service
+
+The Mail Service is responsible for sending email notifications and confirmation emails during user login or signup processes. It can be configured to send emails through either an SMTP server or Amazon SES (Simple Email Service), but not both at the same time.
+
+### General Configuration
+
+1. Add the `mail` container to the `docker-compose.yaml` file. Specify the email address you will use to send emails as "SOURCE":
+
+    ```yaml
+    mail:
+      image: hardcoreeng/mail:${HULY_VERSION}
+      container_name: mail
+      ports:
+        - 8097:8097
+      environment:
+        - PORT=8097
+        - SOURCE=<EMAIL_FROM>
+      restart: unless-stopped
+      networks:
+        - huly_net
+    ```
+
+2. Add the mail container URL to the `transactor` and `account` containers:
+
+    ```yaml
+    account:
+      ...
+      environment:
+        - MAIL_URL=http://mail:8097
+      ...
+    transactor:
+      ...
+      environment:
+        - MAIL_URL=http://mail:8097
+      ...
+    ```
+
+3. In `Settings -> Notifications`, set up email notifications for the events you want to be notified about. Note that this is a user-specific setting, not company-wide; each user must set up their own notification preferences.
+
+### SMTP Configuration
+
+To integrate with an external SMTP server, update the `docker-compose.yaml` file with the following environment variables:
+
+1. Add SMTP configuration to the environment section:
+
+    ```yaml
+    mail:
+      ...
+      environment:
+        ...
+        - SMTP_HOST=<SMTP_SERVER_URL>
+        - SMTP_PORT=<SMTP_SERVER_PORT>
+        - SMTP_USERNAME=<SMTP_USER>
+        - SMTP_PASSWORD=<SMTP_PASSWORD>
+    ```
+
+2. Replace `<SMTP_SERVER_URL>` and `<SMTP_SERVER_PORT>` with your SMTP server's hostname and port. It's recommended to use a secure port, such as `587`.
+
+3. Replace `<SMTP_USER>` and `<SMTP_PASSWORD>` with credentials for an account that can send emails via your SMTP server. If your service provider supports it, consider using an application API key as `<SMTP_USER>` and a token as `<SMTP_PASSWORD>` for enhanced security.
+
+### Amazon SES Configuration
+
+1. Set up Amazon Simple Email Service in AWS: [AWS SES Setup Guide](https://docs.aws.amazon.com/ses/latest/dg/setting-up.html)
+
+2. Create a new IAM policy with the following permissions:
+
+    ```json
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "ses:SendEmail",
+            "ses:SendRawEmail"
+          ],
+          "Resource": "*"
+        }
+      ]
+    }
+    ```
+
+3. Create a separate IAM user for SES API access, assigning the newly created policy to this user.
+
+4. Configure SES environment variables in the `mail` container:
+
+    ```yaml
+    mail:
+      ...
+      environment:
+        ...
+        - SES_ACCESS_KEY=<SES_ACCESS_KEY>
+        - SES_SECRET_KEY=<SES_SECRET_KEY>
+        - SES_REGION=<SES_REGION>
+    ```
+
+### Verifying Mail Service
+
+To verify that the mail service is running correctly:
+
+```bash
+# Check if the mail container is running
+sudo docker ps | grep mail
+
+# View mail service logs
+sudo docker logs mail
+
+# Follow mail service logs in real-time
+sudo docker logs -f mail
+```
+
+### Troubleshooting SMTP Issues
+
+If you're experiencing issues with email delivery, see the [SMTP Troubleshooting Guide](guides/smtp-troubleshooting.md) for comprehensive debugging steps and solutions.
+
+### Notes
+
+1. SMTP and SES configurations cannot be used simultaneously.
+2. `SES_URL` is not supported in version v0.6.470 and later, please use `MAIL_URL` instead.
+
+## Gmail Integration
+
+Huly supports Gmail integration allowing users to connect their Gmail accounts and manage emails directly within the platform.
+
+For detailed setup instructions, see the [Gmail Configuration Guide](guides/gmail-configuration.md).
+
+
+## Love Service (Audio & Video calls)
+
+Huly audio and video calls are created on top of LiveKit insfrastructure. In order to use Love service in your
+self-hosted Huly, perform the following steps:
+
+1. Set up [LiveKit Cloud](https://cloud.livekit.io) account
+2. Add `love` container to the docker-compose.yaml
+
+    ```yaml
+      love:
+        image: hardcoreeng/love:${HULY_VERSION}
+        container_name: love
+        ports:
+          - 8096:8096
+        environment:
+          - PORT=8096
+          - SECRET=${SECRET}
+          - ACCOUNTS_URL=http://account:3000
+          - DB_URL=${CR_DB_URL}
+          - STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+          - STORAGE_PROVIDER_NAME=minio
+          - LIVEKIT_HOST=<LIVEKIT_HOST>
+          - LIVEKIT_API_KEY=<LIVEKIT_API_KEY>
+          - LIVEKIT_API_SECRET=<LIVEKIT_API_SECRET>
+        restart: unless-stopped
+        networks:
+          - huly_net
+    ```
+
+3. Configure `front` service:
+
+    ```yaml
+      front:
+        ...
+        environment:
+          - LIVEKIT_WS=<LIVEKIT_HOST>
+        ...
+    ```
+
+4. Uncomment love section in `.huly.nginx` file and reload nginx
+
+Note that the `LIVEKIT_HOST` should include the protocol (`wss://` by default if using livekit cloud).
+
+## HulyPulse (Push / real-time updates)
+
+HulyPulse provides WebSocket push notifications and real-time updates.
+It will allow the following functions to work:
+- The knock and invite features in video calls
+- Information about who is viewing/editing objects right now
+- Shows that someone is typing a message in a chat.
+
+Since Huly platform version `v0.7.375`, HulyPulse supports an **in-memory backend**.
+By default, templates in this repository use:
+
+- `HULY_BACKEND=memory`
+
+This mode does not require Redis and is suitable for single-node or small self-hosted deployments.
+
+### Enabling HulyPulse (in-memory backend)
+
+1. Enable HulyPulse in `compose.yml`:
+   - Uncomment the `hulypulse` service.
+
+2. Configure the `transactor` service:
+
+    ```yaml
+    transactor:
+      ...
+      environment:
+        - PULSE_URL=http://hulypulse:8099
+      ...
+    ```
+
+3. Configure the `front` service:
+
+    ```yaml
+    front:
+      ...
+      environment:
+        - PULSE_URL=http${SECURE:+s}://${HOST_ADDRESS}/_pulse
+      ...
+    ```
+
+4. Uncomment the `/_pulse` location in `.huly.nginx` and reload nginx:
+
+    ```bash
+    sudo nginx -s reload
+    ```
+
+5. Recreate and start the stack from the `huly-selfhost` folder:
+
+    ```bash
+    docker compose up -d --force-recreate
+    ```
+
+### Using Redis as backend (optional)
+
+Redis can be used as an alternative backend for HulyPulse – for example, in multi-node or higher-availability setups.
+
+1. Enable Redis and HulyPulse in `compose.yml`:
+   - Uncomment the `redis` service.
+   - Uncomment the `hulypulse` service.
+   - In the `hulypulse` environment, switch to Redis:
+
+     ```yaml
+     - HULY_BACKEND=redis
+     - HULY_REDIS_MODE=direct
+     - HULY_REDIS_URLS=redis://redis:6379
+     # or with password:
+     # - HULY_REDIS_URLS=redis://:YOUR_PASSWORD@redis:6379
+     ```
+
+2. Redis is configured with a 512 MB memory limit by default in the provided `compose.yml`. Adjust limits, password, and URLs as needed for your production setup. The image tag uses `HULY_PULSE_VERSION` if set (default `0.1.29`).
+
+## Print Service
+
+1. Add `print` container to the docker-compose.yaml
+
+    ```yaml
+      print:
+        image: hardcoreeng/print:${HULY_VERSION}
+        container_name: print
+        ports:
+          - 4005:4005
+        environment:
+          - STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+          - STATS_URL=http://stats:4900
+          - SECRET=${SECRET}
+          - ACCOUNTS_URL=http://account:3000
+          - FRONT_URL=http${SECURE:+s}://${HOST_ADDRESS}
+        restart: unless-stopped
+        networks:
+          - huly_net
+    ```
+
+2. Configure `front` service:
+
+    ```yaml
+      front:
+        ...
+        environment:
+          - PRINT_URL=http${SECURE:+s}://${HOST_ADDRESS}/_print
+        ...
+    ```
+
+3. Uncomment print section in `.huly.nginx` file and reload nginx
+
+## Export Service
+
+1. Add `exports` container to `compose.yml`
+
+```yml
+exports:
+    image: hardcoreeng/export:${HULY_VERSION}
+    ports:
+      - 4009:4009
+    environment:
+      - STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+      - SECRET=${SECRET}
+      - DB_URL=${CR_DB_URL}
+      - ACCOUNTS_URL=http://account:3000
+      - SERVICE_ID=export-service
+      - PORT=4009
+    restart: unless-stopped
+    networks:
+      - huly_net
+```
+2. Configure `front` service
+
+```yml
+front:
+  ...
+  environment:
+    ...
+    - EXPORT_URL=https://${HOST_ADDRESS}/_export
+```
+3. Uncomment `_export` route in `.huly.nginx`
+
+
+## AI Service
+
+Huly provides AI-powered chatbot that provides several services:
+
+- chat with AI
+- text message translations in the chat
+- live translations for virtual office voice and video chats
+
+1. Set up OpenAI account
+2. Enable MongoDB service (required by aibot):
+   - Uncomment the `mongodb` service in `compose.yml`
+   - Uncomment the `mongodb` volume entry in the `volumes` section of `compose.yml`
+   - MongoDB is used by the aibot service for storing conversation data
+3. Add `aibot` container to the docker-compose.yaml
+
+    ```yaml
+      aibot:
+        image: hardcoreeng/ai-bot:${HULY_VERSION}
+        ports:
+          - 4010:4010
+        environment:
+          - STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+          - SERVER_SECRET=${SECRET}
+          - ACCOUNTS_URL=http://account:3000
+          - DB_URL=${CR_DB_URL}
+          - MONGO_URL=mongodb://mongodb:27017
+          - STATS_URL=http://stats:4900
+          - FIRST_NAME=Bot
+          - LAST_NAME=Huly AI
+          - PASSWORD=<PASSWORD>
+          - OPENAI_API_KEY=<OPENAI_API_KEY>
+          - OPENAI_BASE_URL=<OPENAI_BASE_URL>
+          # optional if you use love service
+          - LOVE_ENDPOINT=http://love:8096
+        restart: unless-stopped
+        networks:
+          - huly_net
+    ```
+
+3. Configure `front` service:
+
+    ```yaml
+      front:
+        ...
+        environment:
+          # this should be available outside of the cluster
+          - AI_URL=http${SECURE:+s}://${HOST_ADDRESS}/_aibot
+        ...
+    ```
+
+4. Configure `transactor` service:
+
+    ```yaml
+      transactor:
+        ...
+        environment:
+          # this should be available inside of the cluster
+          - AI_BOT_URL=http://aibot:4010
+        ...
+    ```
+5. Uncomment aibot section in `.huly.nginx` file and reload nginx
+
+> [!NOTE]
+> You can also add the `AI_OPENAI_MODEL`, `AI_OPENAI_TRANSLATE_MODEL`, `AI_OPENAI_SUMMARY_MODEL` environment variables to the aibot service to use a different model, by default it uses `gpt-4o-mini` for all of them
+
+## Configure Google Calendar Service
+
+To integrate Google Calendar with Huly, follow these steps:
+
+### Google side
+
+1. Set up a Google Cloud project and enable the Google Calendar API in Google Cloud Console.
+2. Create OAuth 2.0 credentials. Use `Web application` as the application type and `https://${HOST_ADDRESS}/_calendar/signin/code` (SET REAL VALUE INSTEAD OF ${HOST_ADDRESS}, https is required!!!) as Authorised redirect URIs. Save your credentials!
+3. Add these scopes `./auth/calendar.calendarlist.readonly` `./auth/userinfo.email` `./auth/calendar.calendars.readonly` `./auth/calendar.events`
+
+### Docker-compose side
+
+Add `calendar` container to the docker-compose.yaml
+
+```yaml
+  calendar:
+    image: hardcoreeng/calendar:${HULY_VERSION}
+    ports:
+      - 8095:8095
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017
+      - MONGO_DB=%calendar-service
+      - Credentials=<JSON_STRING_CREDENTIALS_FROM_GOOGLE_CONSOLE>
+      - WATCH_URL=https://${HOST_ADDRESS}/_calendar/push
+      - ACCOUNTS_URL=http://account:3000
+      - STATS_URL=http://stats:4900
+      - SECRET=${SECRET}
+      - KVS_URL=http://kvs:8094
+    restart: unless-stopped
+    networks:
+      - huly_net
+```
+
+## Configure OpenID Connect (OIDC)
+
+You can configure a Huly instance to authorize users (sign-in/sign-up) using an OpenID Connect identity provider (IdP).
+
+### On the IdP side
+1. Create a new OpenID application.
+   * Use `{huly_account_svc}/auth/openid/callback` as the sign-in redirect URI. The `huly_account_svc` is the hostname for the account service of the deployment, which should be accessible externally from the client/browser side. In the provided example setup, the account service runs on port 3000.
+
+   **URI Example:**
+   - `http://huly.mydomain.com:3000/auth/openid/callback`
+
+2. Configure user access to the application as needed.
+
+### On the Huly side
+
+For the account service, set the following environment variables as provided by the IdP:
+
+* OPENID_CLIENT_ID
+* OPENID_CLIENT_SECRET
+* OPENID_ISSUER
+
+Ensure you have configured or add the following environment variable to the front service:
+
+* ACCOUNTS_URL (This should contain the URL of the account service, accessible from the client side.)
+
+You will need to expose your account service port (e.g. 3000) in your nginx.conf.
+
+Note: Once all the required environment variables are configured, you will see an additional button on the
+sign-in/sign-up pages.
+
+## Configure GitHub OAuth
+
+You can also configure a Huly instance to use GitHub OAuth for user authorization (sign-in/sign-up).
+
+### On the GitHub side
+1. Create a new GitHub OAuth application.
+   * Use `{huly_account_svc}/_accounts/auth/github/callback` as the sign-in redirect URI. The `huly_account_svc` is the hostname for the account service of the deployment, which should be accessible externally from the client/browser side.
+
+
+   **URI Example:**
+   - `http://huly.mydomain.com/_accounts/auth/github/callback`
+
+### On the Huly side
+
+Specify the following environment variables for the account service:
+
+* `GITHUB_CLIENT_ID`
+* `GITHUB_CLIENT_SECRET`
+
+Ensure you have configured or add the following environment variable to the front service:
+
+* `ACCOUNTS_URL` (The URL of the account service, accessible from the client side.)
+
+Notes:
+
+* The `ISSUER` environment variable is not required for GitHub OAuth.
+* Once all the required environment variables are configured, you will see an additional button on the sign-in/sign-up
+  pages.
+
+## Disable Sign-Up
+
+You can disable public sign-ups for a deployment. When configured, sign-ups will only be permitted through an invite
+link to a specific workspace.
+
+To implement this, set the following environment variable for both the front and account services:
+
+```yaml
+  account:
+    # ...
+    environment:
+      - DISABLE_SIGNUP=true
+    # ...
+  front:
+    # ...
+    environment:
+      - DISABLE_SIGNUP=true
+    # ...
+```
+
+_Note: When setting up a new deployment, either create the initial account before disabling sign-ups or use the
+development tool to create the first account._
+
+## GitHub Service
+
+Huly provides GitHub integration for bi-directional synchronization of issues, pull requests, comments, and reviews.
+
+### Prerequisites
+
+Set up a GitHub Application for your deployment.
+Please refer to [GitHub Apps documentation](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app) for full instructions on how to register your app.
+
+During registration of the GitHub app, the following secrets should be obtained:
+
+- `GITHUB_APPID` - The application ID number (e.g., `123456`), found under **General → About** in the GitHub App settings.
+- `GITHUB_APP_SLUG` - The app slug from its public URL: `github.com/apps/<slug>`. For example, if the URL is `github.com/apps/my-huly-dev`, the slug is `my-huly-dev`.
+- `GITHUB_CLIENTID` - The client ID shown on the same page (e.g., `Iv1.11a1aaa11aa11111`).
+- `GITHUB_CLIENT_SECRET` - A client secret generated in the **Client secrets** section of the General page.
+- `GITHUB_PRIVATE_KEY` - A private key for authentication. GitHub will generate and download a `.pem` file. This is an RSA key containing multiple lines — copy the entire content into the environment variable as-is.
+- `GITHUB_WEBHOOK_SECRET` - The webhook secret you set when configuring the webhook URL (see step 5 below).
+
+### Configure Permissions
+
+Set the following permissions for the app:
+
+- Commit statuses: _Read and write_
+- Contents: _Read and write_
+- Custom properties: _Read and write_
+- Discussions: _Read and write_
+- Issues: _Read and write_
+- Metadata: _Read-only_
+- Pages: _Read and write_
+- Projects: _Read and write_
+- Pull requests: _Read and write_
+- Webhooks: _Read and write_
+
+### Subscribe to Events
+
+Enable the following event subscriptions:
+
+- Issues
+- Pull request
+- Pull request review
+- Pull request review comment
+- Pull request review thread
+
+### Docker Configuration
+
+1. Add the `github` container to the `compose.yml`:
+
+```yaml
+github:
+  image: hardcoreeng/github:${HULY_VERSION}
+  ports:
+    - 3500:3500
+  environment:
+    - PORT=3500
+    - STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+    - SERVER_SECRET=${SECRET}
+    - ACCOUNTS_URL=http://account:3000
+    - STATS_URL=http://stats:4900
+    - APP_ID=${GITHUB_APPID}
+    - CLIENT_ID=${GITHUB_CLIENTID}
+    - CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+    - PRIVATE_KEY=${GITHUB_PRIVATE_KEY}
+    - COLLABORATOR_URL=ws${SECURE:+s}://${HOST_ADDRESS}/_collaborator
+    - WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET}
+    - FRONT_URL=http${SECURE:+s}://${HOST_ADDRESS}
+    - BOT_NAME=${GITHUB_APP_SLUG}[bot]
+  restart: unless-stopped
+  networks:
+    - huly_net
+```
+
+2. Configure the `front` service:
+
+```yaml
+  front:
+   ...
+   environment:
+    # this should be available outside of the cluster
+    - GITHUB_URL=http${SECURE:+s}://${HOST_ADDRESS}/_github
+    - GITHUB_APP=${GITHUB_APP_SLUG}
+    - GITHUB_CLIENTID=${GITHUB_CLIENTID}
+   ...
+```
+
+3. Uncomment the github section in `.huly.nginx` file and reload nginx
+
+4. Configure Callback URL and Setup URL (with redirect on update set) to your host: `http${SECURE:+s}://${HOST_ADDRESS}/github`
+
+5. Configure Webhook URL to `http${SECURE:+s}://${HOST_ADDRESS}/_github/api/webhook` and set a webhook secret (use the same value as `GITHUB_WEBHOOK_SECRET` above)
+
+## Telegram Bot Service
+
+Telegram Bot Service is responsible for sending notifications from Huly to Telegram (private chats or groups). The service works as an external notification channel and does not provide interactive control or command execution for Huly.
+
+### Prerequisites
+
+1. Create a Telegram bot using **@BotFather**.
+2. Obtain the **BOT_TOKEN**.
+3. Determine the **CHAT_ID**:
+   - for private messages — send a message to the bot and retrieve `chat_id` using the `getUpdates` method
+   - for group chats — add the bot to the group and use the group `chat_id` (usually a negative value)
+
+### Docker Configuration
+
+1. Add the `telegram-bot` service to `compose.yml`:
+
+```yaml
+  telegram-bot:
+    image: hardcoreeng/telegram-bot:${HULY_VERSION}
+    container_name: telegram-bot
+    restart: unless-stopped
+    environment:
+      - PORT=4020
+      - DB_URL=${CR_DB_URL}
+      - BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ACCOUNTS_URL=http://account:3000
+      - SECRET=${SECRET}
+      - SERVICE_ID=telegram-bot-service
+      - STORAGE_CONFIG=minio|minio?accessKey=minioadmin&secretKey=minioadmin
+      - QUEUE_CONFIG=redpanda:9092
+      - QUEUE_REGION=
+    networks:
+      - huly_net
+```
+
+2. Configure the `front` service:
+
+```yaml
+front:
+  ...
+  environment:
+    - TELEGRAM_BOT_URL=http${SECURE:+s}://${HOST_ADDRESS}/_telegram
+  ...
+```
+
+3. Uncomment the _telegram section in the .huly.nginx file.
+
+### Notifications Setup
+
+After the service is running:
+
+1. Go to **Settings → Notifications**.
+2. Enable Telegram notifications.
+3. Specify the `CHAT_ID` where notifications should be delivered.
+
+> **Note**  
+> Notification settings are user-specific. Each user must configure Telegram notifications individually.
