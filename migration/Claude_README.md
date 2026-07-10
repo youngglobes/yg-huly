@@ -1,4 +1,4 @@
-# CLAUDE.md — Huly Migration
+# Claude_README — Huly Migration
 
 Guidance for developers (and Claude) working in this repo.
 

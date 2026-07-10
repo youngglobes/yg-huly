@@ -1,7 +1,7 @@
 # Server Access — Huly Self-Host (TEMPLATE)
 
 > **Template — safe to commit.** Copy this file to `notes/server-access.md` (which is
-> gitignored) and fill in the real values. The tracked docs (`CLAUDE.md`,
+> gitignored) and fill in the real values. The tracked docs (`Claude_README.md`,
 > `docs/backup-restore-guide.md`, `notes/cutover-runbook.md`) reference the `<PLACEHOLDER>`
 > tokens below; the filled-in copy is where they resolve.
 >
