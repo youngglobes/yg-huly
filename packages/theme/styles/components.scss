@@ -2537,7 +2537,12 @@
 }
 
 /* Kanban - global style */
-.kanban-container .card-container .antiButton.link-bordered { padding: 0 .5rem !important; }
+.kanban-container .card-container .antiButton.link-bordered {
+  padding: 0 .5rem !important;
+  background-color: var(--theme-kanban-chip-BackgroundColor, transparent) !important;
+  border-color: var(--theme-kanban-chip-BorderColor, var(--theme-button-border)) !important;
+  border-radius: .375rem !important;
+}
 .kanban-container .card-container .card-labels > *:not(.labels-container),
 .kanban-container .card-container .card-labels.labels .labels-container > * {
   margin: .25rem .25rem 0 0;

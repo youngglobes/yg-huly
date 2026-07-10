@@ -48,6 +48,10 @@
     gap: var(--spacing-0_5);
     border-radius: var(--small-BorderRadius);
 
+    &.nuance {
+      padding: var(--theme-switcher-padding, 0);
+      background-color: var(--theme-switcher-BackgroundColor, transparent);
+    }
     &.subtle {
       background-color: var(--selector-BackgroundColor);
     }

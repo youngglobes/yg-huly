@@ -207,8 +207,19 @@
   --theme-table-row-color: #1D1F23;
 
   --theme-kanban-card-bg-color: rgba(222, 222, 240, .055);
-  --theme-kanban-card-border: rgba(255, 255, 255, .06);
-  --theme-kanban-card-footer: rgba(217, 217, 217, .07);
+  --theme-kanban-card-border: rgba(255, 255, 255, .08);
+  --theme-kanban-card-footer: transparent;
+  --theme-kanban-card-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+  --theme-kanban-card-shadow-hover: 0 2px 6px rgba(0, 0, 0, .3);
+
+  --theme-switcher-padding: .25rem;
+  --theme-switcher-BackgroundColor: rgba(255, 255, 255, .06);
+  --theme-switcher-selected-BackgroundColor: rgba(255, 255, 255, .12);
+  --theme-switcher-selected-TextColor: var(--global-primary-TextColor);
+  --theme-switcher-selected-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+
+  --theme-kanban-chip-BackgroundColor: rgba(255, 255, 255, .05);
+  --theme-kanban-chip-BorderColor: rgba(255, 255, 255, .1);
 
   --theme-editbox-focus-color: rgba(255, 255, 255, .04);
   --theme-editbox-focus-border: #5190EC;
@@ -541,9 +552,20 @@
   --theme-table-header-color: #EFEFF2;
   --theme-table-row-color: #F4F4F6;
 
-  --theme-kanban-card-bg-color: rgba(0, 0, 0, .03);
-  --theme-kanban-card-border: rgba(0, 0, 0, .04);
-  --theme-kanban-card-footer: rgba(0, 0, 0, .04);
+  --theme-kanban-card-bg-color: #FFFFFF;
+  --theme-kanban-card-border: rgba(0, 0, 0, .08);
+  --theme-kanban-card-footer: transparent;
+  --theme-kanban-card-shadow: 0 1px 3px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04);
+  --theme-kanban-card-shadow-hover: 0 4px 12px rgba(0, 0, 0, .1), 0 2px 4px rgba(0, 0, 0, .06);
+
+  --theme-switcher-padding: .25rem;
+  --theme-switcher-BackgroundColor: rgba(0, 0, 0, .05);
+  --theme-switcher-selected-BackgroundColor: #FFFFFF;
+  --theme-switcher-selected-TextColor: var(--global-primary-TextColor);
+  --theme-switcher-selected-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+
+  --theme-kanban-chip-BackgroundColor: #F4F4F5;
+  --theme-kanban-chip-BorderColor: rgba(0, 0, 0, .06);
 
   --theme-editbox-focus-color: rgba(0, 0, 0, .08);
   --theme-editbox-focus-border: #5190EC;

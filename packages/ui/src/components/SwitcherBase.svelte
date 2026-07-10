@@ -77,13 +77,14 @@
     clip: rect(0 0 0 0);
 
     &:checked + .switcher-element.nuance {
-      background-color: var(--global-accent-BackgroundColor);
+      background-color: var(--theme-switcher-selected-BackgroundColor, var(--global-accent-BackgroundColor));
+      box-shadow: var(--theme-switcher-selected-shadow, none);
 
       .icon {
-        color: var(--global-on-accent-TextColor);
+        color: var(--theme-switcher-selected-TextColor, var(--global-on-accent-TextColor));
       }
       span {
-        color: var(--global-on-accent-TextColor);
+        color: var(--theme-switcher-selected-TextColor, var(--global-on-accent-TextColor));
         font-weight: 500;
       }
     }
