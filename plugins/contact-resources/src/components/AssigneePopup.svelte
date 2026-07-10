@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { Contact, getCurrentEmployee, Person } from '@hcengineering/contact'
+  import { Contact, Employee, getCurrentEmployee, Person } from '@hcengineering/contact'
   import { DocumentQuery, FindOptions, Ref } from '@hcengineering/core'
   import type { Asset, IntlString } from '@hcengineering/platform'
   import presentation, { createQuery } from '@hcengineering/presentation'
@@ -33,8 +33,10 @@
     tooltip
   } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
+  import { get } from 'svelte/store'
   import { AssigneeCategory } from '../assignee'
   import contact from '../plugin'
+  import { employeeByIdStore } from '../utils'
   import UserInfo from './UserInfo.svelte'
 
   export let options: FindOptions<Contact> | undefined = undefined
@@ -63,21 +65,48 @@
   const dispatch = createEventDispatcher()
   const query = createQuery()
 
-  $: query.query<Contact>(
-    contact.mixin.Employee,
-    {
-      ...(docQuery ?? {}),
-      [searchField]: { $like: '%' + search + '%' },
-      _id: {
-        ...(typeof docQuery?._id === 'object' ? docQuery._id : {}),
-        $nin: ignoreUsers
-      }
-    },
-    (result) => {
-      objects = result
-    },
-    { ...(options ?? {}), limit: 200, sort: { name: 1 } }
-  )
+  // The default `{ active: true }` query (no per-issue DocRules restrictions) can be answered
+  // instantly from the already-cached, always-on employeeByIdStore (see utils.ts) instead of
+  // waiting on a fresh server round-trip on every popup open/keystroke. The live query below
+  // still runs unconditionally and reconciles the authoritative result shortly after, so this
+  // is purely a "paint immediately, then correct" optimization - it never replaces the query.
+  function isDefaultActiveQuery (q: DocumentQuery<Contact> | undefined): boolean {
+    if (q === undefined) return true
+    const keys = Object.keys(q)
+    return keys.length === 1 && keys[0] === 'active' && q.active === true
+  }
+
+  function seedFromCache (searchText: string, ignore: Ref<Person>[]): Contact[] {
+    const needle = searchText.trim().toLowerCase()
+    const ignoreSet = new Set(ignore)
+    return (Array.from(get(employeeByIdStore).values()) as Employee[])
+      .filter(
+        (e) => e.active && !ignoreSet.has(e._id) && (needle === '' || (e.name ?? '').toLowerCase().includes(needle))
+      )
+      .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+      .slice(0, 200) as unknown as Contact[]
+  }
+
+  $: {
+    if (searchField === 'name' && isDefaultActiveQuery(docQuery)) {
+      objects = seedFromCache(search, ignoreUsers)
+    }
+    query.query<Contact>(
+      contact.mixin.Employee,
+      {
+        ...(docQuery ?? {}),
+        [searchField]: { $like: '%' + search + '%' },
+        _id: {
+          ...(typeof docQuery?._id === 'object' ? docQuery._id : {}),
+          $nin: ignoreUsers
+        }
+      },
+      (result) => {
+        objects = result
+      },
+      { ...(options ?? {}), limit: 200, sort: { name: 1 } }
+    )
+  }
 
   let dataLoading = false
 
