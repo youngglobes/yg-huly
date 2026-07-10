@@ -8,7 +8,7 @@ on:
   workflow_dispatch: {}
   push:
     branches:
-      - yg/action-item-in-create
+      - yg_develop
 
 permissions:
   contents: read
