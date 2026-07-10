@@ -167,6 +167,10 @@
       categorizedPersons.set(contact, otherCategory)
     }
     rebuildContacts()
+    // The full candidate list is visible from here on - the loop below only refines grouping,
+    // so stop the search-field spinner now instead of letting it run for the slow per-issue
+    // category queries (e.g. "previous assignees") and read as "list still loading".
+    dataLoading = false
 
     for (const category of [currentUserCategory, assigned, ...(categories ?? [])]) {
       const res = await category.func(refs)
