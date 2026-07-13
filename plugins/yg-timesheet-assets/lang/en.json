@@ -1,0 +1,10 @@
+{
+  "string": {
+    "Timesheet": "My Timesheet",
+    "Week": "Week",
+    "Today": "Today",
+    "Total": "Total",
+    "NoTimeLogged": "No time logged this week",
+    "Hours": "Hours"
+  }
+}
