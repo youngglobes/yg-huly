@@ -7,8 +7,7 @@ import { type Builder, Model, Prop, TypeDate, TypeRef } from '@hcengineering/mod
 import contact from '@hcengineering/contact'
 import core, { TDoc } from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
-import { ygTimesheetId, type Timesheet } from '@hcengineering/yg-timesheet'
-import ygTimesheet from './plugin'
+import ygTimesheet, { ygTimesheetId, type Timesheet } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
 

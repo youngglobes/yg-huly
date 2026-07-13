@@ -18,7 +18,7 @@
   import { createQuery } from '@hcengineering/presentation'
   import tracker, { type Issue, type TimeSpendReport } from '@hcengineering/tracker'
   import { Label, Button, IconForward, IconBack } from '@hcengineering/ui'
-  import ygTimesheet from '../plugin'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
   import { weekRange, groupByDay, formatHours, type ReportLike, type DayGroup } from '../utils/week'
 
   const me = getCurrentEmployee()
