@@ -29,6 +29,8 @@ export default plugin(ygTimesheetId, {
     Timesheet: '' as Asset
   },
   string: {
-    Timesheet: '' as IntlString
+    Timesheet: '' as IntlString,
+    Today: '' as IntlString,
+    Total: '' as IntlString
   }
 })
