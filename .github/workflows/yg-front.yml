@@ -8,8 +8,10 @@ on:
   workflow_dispatch: {}
   push:
     branches:
+      # Only yg_develop builds/pushes the production image tags. Feature/beta branches
+      # (e.g. yg_beta) are developed + tested LOCALLY and never trigger CI, so they can
+      # never overwrite the :v0.7.426-yg tags the server consumes.
       - yg_develop
-      - yg/spike-model-trio
 
 permissions:
   contents: read
@@ -17,6 +19,8 @@ permissions:
 
 jobs:
   build-front:
+    # Defense-in-depth: only yg_develop may write the production image tags.
+    if: github.ref == 'refs/heads/yg_develop'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -109,6 +113,8 @@ jobs:
             echo "UNHEALTHY after front deploy"; exit 1'
 
   build-backend:
+    # Defense-in-depth: only yg_develop may write the production image tags.
+    if: github.ref == 'refs/heads/yg_develop'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
