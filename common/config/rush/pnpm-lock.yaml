@@ -621,6 +621,15 @@ importers:
       '@hcengineering/workbench-resources':
         specifier: workspace:^0.7.426
         version: link:../plugins/workbench-resources
+      '@hcengineering/yg-timesheet':
+        specifier: workspace:^0.7.426
+        version: link:../plugins/yg-timesheet
+      '@hcengineering/yg-timesheet-assets':
+        specifier: workspace:^0.7.426
+        version: link:../plugins/yg-timesheet-assets
+      '@hcengineering/yg-timesheet-resources':
+        specifier: workspace:^0.7.426
+        version: link:../plugins/yg-timesheet-resources
       commander:
         specifier: ^14.0.0
         version: 14.0.2
@@ -1786,6 +1795,15 @@ importers:
       '@hcengineering/workbench-resources':
         specifier: workspace:^0.7.426
         version: link:../../plugins/workbench-resources
+      '@hcengineering/yg-timesheet':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-timesheet
+      '@hcengineering/yg-timesheet-assets':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-timesheet-assets
+      '@hcengineering/yg-timesheet-resources':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-timesheet-resources
       readable-stream:
         specifier: ^4.7.0
         version: 4.7.0

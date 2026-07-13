@@ -85,6 +85,7 @@ import { hulyMailId } from '@hcengineering/huly-mail'
 import { aiAssistantId } from '@hcengineering/ai-assistant'
 import { ratingId } from '@hcengineering/rating'
 import billingPlugin, { billingId } from '@hcengineering/billing'
+import { ygTimesheetId } from '@hcengineering/yg-timesheet'
 
 import '@hcengineering/activity-assets'
 import '@hcengineering/analytics-collector-assets'
@@ -145,6 +146,7 @@ import '@hcengineering/billing-assets'
 import '@hcengineering/huly-mail-assets'
 import '@hcengineering/ai-assistant-assets'
 import '@hcengineering/rating-assets'
+import '@hcengineering/yg-timesheet-assets'
 
 import analyticsCollector, { analyticsCollectorId } from '@hcengineering/analytics-collector'
 import { coreId } from '@hcengineering/core'
@@ -308,6 +310,7 @@ function configureI18n (): void {
     async (lang: string) => await import(`@hcengineering/ai-assistant-assets/lang/${lang}.json`)
   )
   addStringsLoader(ratingId, async (lang: string) => await import(`@hcengineering/rating-assets/lang/${lang}.json`))
+  addStringsLoader(ygTimesheetId, async (lang: string) => await import(`@hcengineering/yg-timesheet-assets/lang/${lang}.json`))
 }
 
 export class PlatformBranding {
@@ -517,6 +520,7 @@ export async function configurePlatform (onWorkbenchConnect?: () => Promise<void
     () => import(/* webpackChunkName: "ai-assistant" */ '@hcengineering/ai-assistant-resources')
   )
   addLocation(ratingId, async () => await import(/* webpackChunkName: "rating" */ '@hcengineering/rating-resources'))
+  addLocation(ygTimesheetId, async () => await import('@hcengineering/yg-timesheet-resources'))
 
   setMetadata(client.metadata.FilterModel, 'ui')
   setMetadata(client.metadata.ExtraFilter, disabledFeatures)
