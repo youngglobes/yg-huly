@@ -13943,12 +13943,18 @@ importers:
       '@hcengineering/model-core':
         specifier: workspace:^0.7.426
         version: link:../core
+      '@hcengineering/model-tracker':
+        specifier: workspace:^0.7.426
+        version: link:../tracker
       '@hcengineering/model-workbench':
         specifier: workspace:^0.7.426
         version: link:../workbench
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
+      '@hcengineering/tracker':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/tracker
       '@hcengineering/ui':
         specifier: workspace:^0.7.426
         version: link:../../packages/ui
@@ -30319,6 +30325,9 @@ importers:
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
+      '@hcengineering/tracker':
+        specifier: workspace:^0.7.426
+        version: link:../tracker
       '@hcengineering/ui':
         specifier: workspace:^0.7.426
         version: link:../../packages/ui

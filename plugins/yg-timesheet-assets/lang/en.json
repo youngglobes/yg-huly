@@ -5,6 +5,21 @@
     "Today": "Today",
     "Total": "Total",
     "NoTimeLogged": "No time logged this week",
-    "Hours": "Hours"
+    "Hours": "Hours",
+    "Draft": "Draft",
+    "Submitted": "Submitted",
+    "Approved": "Approved",
+    "Rejected": "Rejected",
+    "Submit": "Submit",
+    "Recall": "Recall",
+    "Approve": "Approve",
+    "Reject": "Reject",
+    "Approvals": "Approvals",
+    "RejectReason": "Reason",
+    "Drift": "Hours changed since approval",
+    "PM": "PM",
+    "TeamLead": "Team Lead",
+    "Days": "Days",
+    "NoApprover": "No approver set for this day's projects"
   }
 }
