@@ -1777,6 +1777,11 @@
       "shouldPublish": false
     },
     {
+      "packageName": "@hcengineering/model-yg-timesheet",
+      "projectFolder": "models/yg-timesheet",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/server-guest",
       "projectFolder": "server-plugins/guest",
       "shouldPublish": false
