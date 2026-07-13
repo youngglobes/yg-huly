@@ -75,7 +75,7 @@ jobs:
   deploy-front:
     # Auto-pull the freshly pushed image on the server (same tag, new content).
     # Requires repo secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY.
-    if: github.ref == 'refs/heads/yg_develop'
+    if: success() && github.ref == 'refs/heads/yg_develop'
     needs: build-front
     runs-on: ubuntu-latest
     steps:
