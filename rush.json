@@ -1757,6 +1757,11 @@
       "shouldPublish": true
     },
     {
+      "packageName": "@hcengineering/yg-timesheet",
+      "projectFolder": "plugins/yg-timesheet",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/guest-assets",
       "projectFolder": "plugins/guest-assets",
       "shouldPublish": false
