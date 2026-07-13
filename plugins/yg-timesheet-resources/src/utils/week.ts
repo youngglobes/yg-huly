@@ -73,7 +73,7 @@ export function groupByDay (reports: ReportLike[], week: WeekRange): { days: Day
   }
   const days = week.days.map((d) => {
     const g = byKey.get(d.key) as DayGroup
-    g.issues.sort((a, b) => a.identifier.localeCompare(b.identifier))
+    g.issues.sort((a, b) => a.identifier.localeCompare(b.identifier, undefined, { numeric: true }))
     return g
   })
   return { days, weekTotal }

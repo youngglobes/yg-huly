@@ -69,4 +69,12 @@ describe('groupByDay', () => {
     const { days } = groupByDay([mk(0, 'b-id', 1, 'B'), mk(0, 'a-id', 2, 'A')], w)
     expect(days[0].issues[0].identifier).toBe('A')
   })
+  it('sorts issue identifiers numerically (PROJ-2 before PROJ-10)', () => {
+    const w = weekRange(wed)
+    const { days } = groupByDay(
+      [mk(0, 'i10', 1, 'PROJ-10'), mk(0, 'i2', 1, 'PROJ-2'), mk(0, 'i1', 1, 'PROJ-1')],
+      w
+    )
+    expect(days[0].issues.map((i) => i.identifier)).toEqual(['PROJ-1', 'PROJ-2', 'PROJ-10'])
+  })
 })

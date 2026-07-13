@@ -53,7 +53,12 @@
   )
 
   const weekdayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
-  function shift (deltaWeeks: number): void { anchor = anchor + deltaWeeks * 7 * 86400_000 }
+  function shift (deltaWeeks: number): void {
+    // Calendar-based shift (DST-safe): step whole days from this week's Monday.
+    const d = new Date(week.start)
+    d.setDate(d.getDate() + deltaWeeks * 7)
+    anchor = d.getTime()
+  }
 </script>
 
 <div class="ac-header full divide">
@@ -62,7 +67,7 @@
   </div>
   <div class="ac-header-full">
     <Button icon={IconBack} kind="ghost" on:click={() => shift(-1)} />
-    <span class="p-2">{weekdayFmt.format(week.start)} — {weekdayFmt.format(week.end - 86400_000)}</span>
+    <span class="p-2">{weekdayFmt.format(week.days[0].date)} — {weekdayFmt.format(week.days[6].date)}</span>
     <Button icon={IconForward} kind="ghost" on:click={() => shift(1)} />
     <Button kind="ghost" label={ygTimesheet.string.Today} on:click={() => (anchor = Date.now())} />
     <div class="ml-4"><Label label={ygTimesheet.string.Total} />: <b>{formatHours(weekTotal)}</b></div>
