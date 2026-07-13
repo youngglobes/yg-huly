@@ -13,6 +13,7 @@ import { serverGithubId } from '@hcengineering/server-github'
 import { serverGmailId } from '@hcengineering/server-gmail'
 import { serverGuestId } from '@hcengineering/server-guest'
 import { serverHrId } from '@hcengineering/server-hr'
+import { serverYgTimesheetId } from '@hcengineering/server-yg-timesheet'
 import { serverInventoryId } from '@hcengineering/server-inventory'
 import { serverLeadId } from '@hcengineering/server-lead'
 import { serverLoveId } from '@hcengineering/server-love'
@@ -51,6 +52,7 @@ export function registerServerPlugins (): void {
   addLocation(serverRequestId, () => import('@hcengineering/server-request-resources'))
   addLocation(serverViewId, () => import('@hcengineering/server-view-resources'))
   addLocation(serverHrId, () => import('@hcengineering/server-hr-resources'))
+  addLocation(serverYgTimesheetId, () => import('@hcengineering/server-yg-timesheet-resources'))
   addLocation(serverLoveId, () => import('@hcengineering/server-love-resources'))
   addLocation(serverGuestId, () => import('@hcengineering/server-guest-resources'))
   addLocation(serverDocumentId, () => import('@hcengineering/server-document-resources'))

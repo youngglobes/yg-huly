@@ -11,6 +11,8 @@ import type { AnyComponent } from '@hcengineering/ui'
 export interface Timesheet extends Doc {
   employee: Ref<Employee>
   weekStart: Timestamp
+  // TEMPORARY (Phase 1b spike; removed in Task 3): status enforcement spike field.
+  spikeStatus?: string
 }
 
 export const ygTimesheetId = 'yg-timesheet' as Plugin

@@ -3,7 +3,7 @@
 //
 import type { Employee } from '@hcengineering/contact'
 import { type Domain, type Ref, type Timestamp } from '@hcengineering/core'
-import { type Builder, Model, Prop, TypeDate, TypeRef } from '@hcengineering/model'
+import { type Builder, Model, Prop, TypeDate, TypeRef, TypeString } from '@hcengineering/model'
 import contact from '@hcengineering/contact'
 import core, { TDoc } from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
@@ -20,6 +20,10 @@ export class TTimesheet extends TDoc implements Timesheet {
 
   @Prop(TypeDate(), core.string.Object)
     weekStart!: Timestamp
+
+  // TEMPORARY (Phase 1b spike; removed in Task 3): status enforcement spike field.
+  @Prop(TypeString(), core.string.Object)
+    spikeStatus?: string
 }
 
 export function createModel (builder: Builder): void {

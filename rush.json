@@ -1792,6 +1792,21 @@
       "shouldPublish": false
     },
     {
+      "packageName": "@hcengineering/server-yg-timesheet",
+      "projectFolder": "server-plugins/yg-timesheet",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/server-yg-timesheet-resources",
+      "projectFolder": "server-plugins/yg-timesheet-resources",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/model-server-yg-timesheet",
+      "projectFolder": "models/server-yg-timesheet",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/server-guest",
       "projectFolder": "server-plugins/guest",
       "shouldPublish": false
