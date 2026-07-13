@@ -81,8 +81,12 @@ export function groupByDay (reports: ReportLike[], week: WeekRange): { days: Day
 
 export function formatHours (n: number): string {
   if (n === 0) return '0h'
-  const h = Math.floor(n)
-  const m = Math.round((n - h) * 60)
+  let h = Math.floor(n)
+  let m = Math.round((n - h) * 60)
+  if (m === 60) {
+    h += 1
+    m = 0
+  }
   if (h > 0 && m > 0) return `${h}h ${m}m`
   if (h > 0) return `${h}h`
   return `${m}m`
