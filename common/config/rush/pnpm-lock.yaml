@@ -13846,12 +13846,24 @@ importers:
       '@hcengineering/model-core':
         specifier: workspace:^0.7.426
         version: link:../core
+      '@hcengineering/model-workbench':
+        specifier: workspace:^0.7.426
+        version: link:../workbench
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
+      '@hcengineering/ui':
+        specifier: workspace:^0.7.426
+        version: link:../../packages/ui
+      '@hcengineering/workbench':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/workbench
       '@hcengineering/yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../../plugins/yg-timesheet
+      '@hcengineering/yg-timesheet-resources':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-timesheet-resources
     devDependencies:
       '@hcengineering/platform-rig':
         specifier: workspace:^0.7.426
@@ -61873,7 +61885,7 @@ snapshots:
   node-loader@2.0.0(webpack@5.102.1):
     dependencies:
       loader-utils: 2.0.4
-      webpack: 5.102.1
+      webpack: 5.102.1(esbuild@0.25.12)(webpack-cli@5.1.4)
 
   node-localstorage@2.2.1:
     dependencies:

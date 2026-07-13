@@ -6,7 +6,9 @@ import { type Domain, type Ref, type Timestamp } from '@hcengineering/core'
 import { type Builder, Model, Prop, TypeDate, TypeRef } from '@hcengineering/model'
 import contact from '@hcengineering/contact'
 import core, { TDoc } from '@hcengineering/model-core'
-import ygTimesheet, { type Timesheet } from '@hcengineering/yg-timesheet'
+import workbench from '@hcengineering/model-workbench'
+import { ygTimesheetId, type Timesheet } from '@hcengineering/yg-timesheet'
+import ygTimesheet from './plugin'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
 
@@ -23,4 +25,18 @@ export class TTimesheet extends TDoc implements Timesheet {
 
 export function createModel (builder: Builder): void {
   builder.createModel(TTimesheet)
+
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.Timesheet,
+      icon: ygTimesheet.icon.Timesheet,
+      alias: ygTimesheetId,
+      hidden: false,
+      position: 'top',
+      component: ygTimesheet.component.Timesheet
+    },
+    ygTimesheet.app.Timesheet
+  )
 }
