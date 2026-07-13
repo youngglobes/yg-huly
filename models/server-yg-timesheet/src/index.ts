@@ -12,6 +12,7 @@ export { serverYgTimesheetId } from '@hcengineering/server-yg-timesheet'
 export function createModel (builder: Builder): void {
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverYgTimesheet.trigger.OnTimesheetDecision,
+    isAsync: true, // sync + findAll deadlocks the tx; async runs after the response (control.apply)
     txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.Timesheet }
   })
 }
