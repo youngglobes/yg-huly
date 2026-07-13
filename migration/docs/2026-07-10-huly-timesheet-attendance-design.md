@@ -84,15 +84,35 @@ rebase-proof.
 
 ### The accepted cost: three custom images
 New model classes + server triggers mean stock images no longer suffice. CI on `yg_develop`
-builds a **trio**: `front` (exists), **`workspace`** (applies extended model on
-create/upgrade), **`transactor`** (serves model + runs triggers) — all tagged `v0.7.426-yg`,
-pinned in compose, auto-deployed by the existing pipeline. Every future Huly upgrade
-rebuilds three images instead of one. **Accepted knowingly.**
+builds a **set of four** custom images: `front` (exists), **`workspace`** (applies extended
+model on create/upgrade), **`transactor`** (serves model + runs triggers), and **`tool`**
+(the spike found the tool bundles the model too — it drives restore/upgrade, so it must carry
+the class or workspace-mutating ops break) — all tagged `v0.7.426-yg`, pinned in compose,
+auto-deployed by the existing pipeline. Every future Huly upgrade rebuilds four images instead
+of one. **Accepted knowingly.**
 
-**Phase 0 spike (gate for everything else):** extend CI to build the trio with a one-class
-`yg-timesheet` model; verify workspace upgrade applies it cleanly to a copy of production
-data; verify front/transactor serve it. If the spike fights us, we reassess before building
-features.
+### Phase 0 spike findings (2026-07-13) — GATE: GO ✅
+
+Executed on branch `yg/spike-model-trio` (merged to `yg_develop`) with a one-class
+`yg-timesheet` skeleton model. Results:
+
+- **Model compiles + wires into `model-all`** cleanly (new-files-only; upstream touch limited
+  to `rush.json`, `models/all/*`, the CI workflow).
+- **CI builds all four images** (`front`+`workspace`+`transactor`+`tool` → GHCR) in one run;
+  `deploy-front` correctly **skipped** on the spike branch (production untouched).
+- **Model is baked into the images:** transactor `model.json` contains the literal resolved
+  id `yg-timesheet:class:Timesheet`; workspace/tool bundles carry the builder code.
+- **Fresh workspace on the custom images gets the class:** the per-class domain table
+  `public.yg_timesheet` is created and indexed. *(Gate-signal correction: this Huly version
+  does not persist built-in class **definitions** as `tx` rows for any class — stock or custom
+  — so use domain-table existence, not a `tx` LIKE query, to verify a model class landed.)*
+- **Stock-tool `upgrade-workspace` survives** (class table intact, front 200) but logs ~72
+  "model transaction skipped" drift warnings → **workspace-mutating ops (restore/upgrade) MUST
+  use the custom `tool` image**, not stock; pin it in `run-tool.sh` and the re-migration runbook.
+
+**Conclusion:** the custom-model pipeline works end-to-end. Proceed to write the Phase 1
+(timesheet module) plan. Minor follow-ups: the CD deploy-front gate needs `success() &&` (fixed
+during the spike); test tool-runs should include `QUEUE_CONFIG` to avoid benign Kafka noise.
 
 ## 5. Data model
 
