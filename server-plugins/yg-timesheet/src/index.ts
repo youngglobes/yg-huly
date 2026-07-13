@@ -1,5 +1,5 @@
 //
-// YoungGlobes: server-yg-timesheet plugin ids (Phase 1b spike).
+// YoungGlobes: server-yg-timesheet plugin ids (Phase 1b).
 //
 import type { Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
@@ -15,6 +15,6 @@ export const serverYgTimesheetId = 'server-yg-timesheet' as Plugin
  */
 export default plugin(serverYgTimesheetId, {
   trigger: {
-    OnTimesheetDecision: '' as Resource<TriggerFunc>
+    OnTimesheetDayUpdate: '' as Resource<TriggerFunc>
   }
 })
