@@ -34,6 +34,32 @@ describe('groupRows', () => {
   it('groups by member', () => { expect(groupRows(rows, 'member').find((x) => x.key === 'e2')?.totalHours).toBe(4) })
   it('groups by week bucket', () => { expect(groupRows(rows, 'week')).toHaveLength(1) })
   it("detail returns one group of all rows", () => { const g = groupRows(rows, 'detail'); expect(g).toHaveLength(1); expect(g[0].rows).toHaveLength(3) })
+  it('groups by day bucket', () => {
+    const dayRows = [
+      row({ date: D(2026, 6, 13), hours: 2 }),
+      row({ date: D(2026, 6, 13), hours: 3 }),
+      row({ date: D(2026, 6, 20), hours: 4 })
+    ]
+    const g = groupRows(dayRows, 'day')
+    expect(g).toHaveLength(2)
+    const d13 = g.find((x) => x.count === 2)
+    const d20 = g.find((x) => x.count === 1)
+    expect(d13?.totalHours).toBe(5)
+    expect(d20?.totalHours).toBe(4)
+  })
+  it('groups by month bucket', () => {
+    const monthRows = [
+      row({ date: D(2026, 5, 15), hours: 2 }),
+      row({ date: D(2026, 5, 28), hours: 3 }),
+      row({ date: D(2026, 6, 1), hours: 4 })
+    ]
+    const g = groupRows(monthRows, 'month')
+    expect(g).toHaveLength(2)
+    const june = g.find((x) => x.count === 2)
+    const july = g.find((x) => x.count === 1)
+    expect(june?.totalHours).toBe(5)
+    expect(july?.totalHours).toBe(4)
+  })
 })
 
 describe('toCSV', () => {
@@ -43,5 +69,13 @@ describe('toCSV', () => {
     expect(lines[0]).toBe('Date,Employee,Project,Issue,Title,Hours,Status,Description')
     expect(lines[1]).toContain('"a,""b"""')
     expect(lines[1]).toContain(',2,')
+  })
+  it('guards a formula-like text cell with a leading apostrophe', () => {
+    const csv = toCSV([row({ title: '=HYPERLINK("http://evil","x")' })])
+    const lines = csv.trim().split('\n')
+    expect(lines[1]).toContain('"\'=HYPERLINK(""http://evil"",""x"")"')
+  })
+  it('returns just the header + newline for an empty row list', () => {
+    expect(toCSV([])).toBe('Date,Employee,Project,Issue,Title,Hours,Status,Description\n')
   })
 })

@@ -50,11 +50,19 @@ export function groupRows (rows: ReportRow[], dim: GroupDim): ReportGroup[] {
 
 const COLS = ['Date', 'Employee', 'Project', 'Issue', 'Title', 'Hours', 'Status', 'Description']
 function esc (v: string): string { return `"${v.replace(/"/g, '""')}"` }
+// Cells whose first char could be interpreted as a spreadsheet formula (=, +, -, @) or a
+// tab/CR (used in some formula-injection payloads) get apostrophe-prefixed before quoting,
+// so opening the CSV in Excel/Sheets doesn't execute attacker-controlled text as a formula.
+const RISKY_PREFIX = /^[=+\-@\t\r]/
+function escText (v: string): string {
+  return esc(RISKY_PREFIX.test(v) ? `'${v}` : v)
+}
 export function toCSV (rows: ReportRow[]): string {
   const head = COLS.join(',')
+  if (rows.length === 0) return `${head}\n`
   const body = rows.map((r) => [
-    esc(localDayKey(r.date)), esc(r.employeeName || r.employee), esc(r.projectName || r.project),
-    esc(r.identifier), esc(r.title), String(r.hours), r.status, esc(r.note)
+    esc(localDayKey(r.date)), escText(r.employeeName || r.employee), escText(r.projectName || r.project),
+    escText(r.identifier), escText(r.title), String(r.hours), r.status, escText(r.note)
   ].join(',')).join('\n')
   return `${head}\n${body}\n`
 }
