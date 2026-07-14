@@ -47,6 +47,7 @@
   {space}
   {resultQuery}
   {modeSelectorProps}
+  adaptive="default"
 >
   <svelte:fragment slot="header-tools">
     <ViewletSettingButton bind:viewOptions bind:viewlet />

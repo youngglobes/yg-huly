@@ -130,7 +130,9 @@
       gap: var(--spacing-0_5);
       padding: var(--spacing-0_25) var(--spacing-0_5);
       min-width: 0;
-      text-transform: uppercase;
+      text-transform: var(--theme-navgroup-TextTransform, uppercase);
+      font-size: var(--theme-navgroup-FontSize, inherit);
+      letter-spacing: var(--theme-navgroup-LetterSpacing, inherit);
       color: var(--global-tertiary-TextColor);
       border-radius: var(--extra-small-BorderRadius);
     }
