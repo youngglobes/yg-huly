@@ -91,6 +91,26 @@ export default plugin(ygTimesheetId, {
     Days: '' as IntlString,
     NoApprover: '' as IntlString,
     Projects: '' as IntlString,
-    Reports: '' as IntlString
+    Reports: '' as IntlString,
+    From: '' as IntlString,
+    To: '' as IntlString,
+    Project: '' as IntlString,
+    Member: '' as IntlString,
+    Status: '' as IntlString,
+    GroupBy: '' as IntlString,
+    Detail: '' as IntlString,
+    All: '' as IntlString,
+    ExportCsv: '' as IntlString,
+    TotalHours: '' as IntlString,
+    Entries: '' as IntlString,
+    NoData: '' as IntlString,
+    Date: '' as IntlString,
+    Employee: '' as IntlString,
+    Issue: '' as IntlString,
+    Description: '' as IntlString,
+    Hours: '' as IntlString,
+    Week: '' as IntlString,
+    Day: '' as IntlString,
+    Month: '' as IntlString
   }
 })

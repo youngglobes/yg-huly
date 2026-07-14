@@ -24,6 +24,24 @@
     "Days": "Days",
     "NoApprover": "No approver set for this day's projects",
     "Projects": "Projects",
-    "Reports": "Reports"
+    "Reports": "Reports",
+    "From": "From",
+    "To": "To",
+    "Project": "Project",
+    "Member": "Member",
+    "Status": "Status",
+    "GroupBy": "Group by",
+    "Detail": "Detail",
+    "All": "All",
+    "ExportCsv": "Export CSV",
+    "TotalHours": "Total hours",
+    "Entries": "Entries",
+    "NoData": "No data for the selected filters",
+    "Date": "Date",
+    "Employee": "Employee",
+    "Issue": "Issue",
+    "Description": "Description",
+    "Day": "Day",
+    "Month": "Month"
   }
 }
