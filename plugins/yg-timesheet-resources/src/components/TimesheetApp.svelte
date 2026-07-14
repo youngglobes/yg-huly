@@ -14,18 +14,43 @@
 -->
 <script lang="ts">
   import { TabList, type TabItem } from '@hcengineering/ui'
-  import ygTimesheet from '@hcengineering/yg-timesheet'
+  import { getCurrentAccount, hasAccountRole, AccountRole } from '@hcengineering/core'
+  import { getCurrentEmployee } from '@hcengineering/contact'
+  import { createQuery } from '@hcengineering/presentation'
+  import tracker, { type Project } from '@hcengineering/tracker'
+  import ygTimesheet, { type ProjectApprovers } from '@hcengineering/yg-timesheet'
+  import { getClient } from '@hcengineering/presentation'
   import Timesheet from './Timesheet.svelte'
   import ProjectApproversList from './ProjectApproversList.svelte'
   import Approvals from './Approvals.svelte'
+  import Reports from './Reports.svelte'
 
-  const tabs: TabItem[] = [
+  const me = getCurrentEmployee()
+  const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
+  const h = getClient().getHierarchy()
+
+  // isApprover = pm or teamLead on ≥1 project
+  let isApprover = false
+  const projQuery = createQuery()
+  projQuery.query(tracker.class.Project, {}, (projects: Project[]) => {
+    isApprover = projects.some((p) => {
+      if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
+      const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
+      return a.pm === me || a.teamLead === me
+    })
+  })
+
+  $: canApprove = isHRAdmin || isApprover
+  $: tabs = ([
     { id: 'my', labelIntl: ygTimesheet.string.Timesheet },
-    { id: 'approvals', labelIntl: ygTimesheet.string.Approvals },
-    { id: 'projects', labelIntl: ygTimesheet.string.Projects }
-  ]
+    ...(canApprove ? [{ id: 'approvals', labelIntl: ygTimesheet.string.Approvals }] : []),
+    ...(canApprove ? [{ id: 'reports', labelIntl: ygTimesheet.string.Reports }] : []),
+    ...(isHRAdmin ? [{ id: 'projects', labelIntl: ygTimesheet.string.Projects }] : [])
+  ] as TabItem[])
 
   let selected: string | number = 'my'
+  // if the selected tab is no longer visible, fall back to My Timesheet
+  $: if (!tabs.some((t) => t.id === selected)) selected = 'my'
 </script>
 
 <div class="flex-col h-full">
@@ -43,6 +68,8 @@
       <Timesheet />
     {:else if selected === 'approvals'}
       <Approvals />
+    {:else if selected === 'reports'}
+      <Reports />
     {:else if selected === 'projects'}
       <ProjectApproversList />
     {/if}

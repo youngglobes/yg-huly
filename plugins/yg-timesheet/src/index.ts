@@ -63,7 +63,8 @@ export default plugin(ygTimesheetId, {
     Timesheet: '' as AnyComponent,
     TimesheetApp: '' as AnyComponent,
     ProjectApproversEditor: '' as AnyComponent,
-    Approvals: '' as AnyComponent
+    Approvals: '' as AnyComponent,
+    Reports: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -89,6 +90,7 @@ export default plugin(ygTimesheetId, {
     TeamLead: '' as IntlString,
     Days: '' as IntlString,
     NoApprover: '' as IntlString,
-    Projects: '' as IntlString
+    Projects: '' as IntlString,
+    Reports: '' as IntlString
   }
 })
