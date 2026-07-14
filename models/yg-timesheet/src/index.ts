@@ -83,7 +83,7 @@ export function createModel (builder: Builder): void {
       alias: ygTimesheetId,
       hidden: false,
       position: 'top',
-      component: ygTimesheet.component.Timesheet
+      component: ygTimesheet.component.TimesheetApp
     },
     ygTimesheet.app.Timesheet
   )

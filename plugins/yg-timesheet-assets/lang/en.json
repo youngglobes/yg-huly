@@ -20,6 +20,7 @@
     "PM": "PM",
     "TeamLead": "Team Lead",
     "Days": "Days",
-    "NoApprover": "No approver set for this day's projects"
+    "NoApprover": "No approver set for this day's projects",
+    "Projects": "Projects"
   }
 }

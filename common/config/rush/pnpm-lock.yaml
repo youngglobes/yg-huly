@@ -30432,6 +30432,9 @@ importers:
       '@hcengineering/contact':
         specifier: workspace:^0.7.426
         version: link:../contact
+      '@hcengineering/contact-resources':
+        specifier: workspace:^0.7.426
+        version: link:../contact-resources
       '@hcengineering/core':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/core
