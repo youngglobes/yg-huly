@@ -99,6 +99,7 @@ export default plugin(ygTimesheetId, {
     Status: '' as IntlString,
     GroupBy: '' as IntlString,
     Detail: '' as IntlString,
+    Employees: '' as IntlString,
     All: '' as IntlString,
     ExportCsv: '' as IntlString,
     TotalHours: '' as IntlString,

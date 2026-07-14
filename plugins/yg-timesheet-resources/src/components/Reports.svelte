@@ -15,7 +15,13 @@
 <script lang="ts">
   import contact, { type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import core, { type Ref, type WithLookup } from '@hcengineering/core'
+  import core, {
+    AccountRole,
+    getCurrentAccount,
+    hasAccountRole,
+    type Ref,
+    type WithLookup
+  } from '@hcengineering/core'
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
@@ -33,6 +39,7 @@
   import {
     filterRows,
     groupRows,
+    toCSV,
     type GroupDim,
     type ReportRow,
     type ReportStatus
@@ -49,6 +56,12 @@
   let projectSel: string | undefined
   let statusSel = 'all'
   let groupBySel = 'project'
+
+  // Employees mode (all-employee data) is available only to Owner/Maintainer. Everyone
+  // else is locked to Detail (own data via the space-scoped TimeSpendReport query).
+  const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
+  let modeSel = 'detail'
+  $: mode = isHRAdmin ? modeSel : 'detail'
 
   function parseDay (s: string): number {
     const [y, m, d] = s.split('-').map((v) => Number(v))
@@ -118,8 +131,59 @@
     { lookup: { attachedTo: ygTimesheet.class.Timesheet } }
   )
 
+  // Employees mode: build rows directly from every workspace TimesheetDay (all employees).
+  // The employee lives on the parent Timesheet (attachedTo), so we $lookup it. Approved days
+  // with a snapshot expand one row per snapshot line; every other day is one totalHours row.
+  const empDayQuery = createQuery()
+  let empRows: ReportRow[] = []
+  $: empDayQuery.query(
+    ygTimesheet.class.TimesheetDay,
+    { space: core.space.Workspace, date: { $gte: from, $lt: to } },
+    (res: Array<WithLookup<TimesheetDay>>) => {
+      const out: ReportRow[] = []
+      for (const d of res) {
+        const parent = d.$lookup?.attachedTo as Timesheet | undefined
+        const employee = (parent?.employee ?? '') as string
+        const employeeName = employeeNames.get(employee) ?? employee
+        if (d.status === 'Approved' && d.snapshot != null && d.snapshot.length > 0) {
+          for (const line of d.snapshot) {
+            out.push({
+              date: d.date,
+              employee,
+              employeeName,
+              project: line.project ?? '',
+              projectName: projectNames.get(line.project) ?? line.project ?? '',
+              issue: (line.issue ?? '') as string,
+              identifier: line.identifier ?? '—',
+              title: line.title ?? '(unknown issue)',
+              hours: line.hours,
+              status: 'Approved',
+              note: line.note ?? ''
+            })
+          }
+        } else {
+          out.push({
+            date: d.date,
+            employee,
+            employeeName,
+            project: '',
+            projectName: '',
+            issue: '',
+            identifier: '',
+            title: '',
+            hours: d.totalHours,
+            status: d.status,
+            note: ''
+          })
+        }
+      }
+      empRows = out
+    },
+    { lookup: { attachedTo: ygTimesheet.class.Timesheet } }
+  )
+
   // --- Build ReportRow[] ---------------------------------------------------
-  $: allRows = reports.map((r): ReportRow => {
+  $: detailRows = reports.map((r): ReportRow => {
     const issue = r.$lookup?.attachedTo as Issue | undefined
     const project = (issue?.space ?? '') as string
     const employee = (r.employee ?? '') as string
@@ -148,7 +212,8 @@
     member: member ?? undefined,
     status: statusSel === 'all' ? undefined : (statusSel as ReportStatus)
   }
-  $: rows = filterRows(allRows, filter)
+  $: sourceRows = mode === 'employees' ? empRows : detailRows
+  $: rows = filterRows(sourceRows, filter)
   $: groups = groupRows(rows, groupBy)
   $: grandTotal = rows.reduce((s, r) => s + r.hours, 0)
 
@@ -159,6 +224,10 @@
     { id: 'Submitted', label: ygTimesheet.string.Submitted },
     { id: 'Approved', label: ygTimesheet.string.Approved },
     { id: 'Rejected', label: ygTimesheet.string.Rejected }
+  ]
+  const modeItems: DropdownIntlItem[] = [
+    { id: 'detail', label: ygTimesheet.string.Detail },
+    { id: 'employees', label: ygTimesheet.string.Employees }
   ]
   const groupItems: DropdownIntlItem[] = [
     { id: 'project', label: ygTimesheet.string.Project },
@@ -191,6 +260,17 @@
   }
 
   const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+
+  // Export the CURRENT filtered rows (post-filter, exactly what the table shows).
+  function exportCsv (): void {
+    const blob = new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'timesheet-report.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 </script>
 
 <div class="rp-root">
@@ -202,6 +282,12 @@
 
   <!-- Filter bar -->
   <div class="rp-filters">
+    {#if isHRAdmin}
+      <div class="rp-field">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.Reports} /></span>
+        <DropdownLabelsIntl items={modeItems} bind:selected={modeSel} kind="regular" />
+      </div>
+    {/if}
     <label class="rp-field">
       <span class="rp-field__label"><Label label={ygTimesheet.string.From} /></span>
       <input class="rp-date" type="date" bind:value={fromStr} />
@@ -240,8 +326,12 @@
       <DropdownLabelsIntl items={groupItems} bind:selected={groupBySel} kind="regular" />
     </div>
     <div class="rp-field rp-field--end">
-      <!-- CSV export is wired in a later task; placeholder for now. -->
-      <Button kind="regular" label={ygTimesheet.string.ExportCsv} disabled />
+      <Button
+        kind="regular"
+        label={ygTimesheet.string.ExportCsv}
+        disabled={rows.length === 0}
+        on:click={exportCsv}
+      />
     </div>
   </div>
 
