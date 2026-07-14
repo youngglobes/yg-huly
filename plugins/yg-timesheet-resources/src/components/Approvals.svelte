@@ -15,7 +15,7 @@
 <script lang="ts">
   import { getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import { EmployeeRefPresenter } from '@hcengineering/contact-resources'
-  import { type Ref } from '@hcengineering/core'
+  import core, { type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type TimeSpendReport } from '@hcengineering/tracker'
   import { Button, IconDownOutline, IconForward, Label } from '@hcengineering/ui'
@@ -31,7 +31,7 @@
   let queue: TimesheetDay[] = []
   $: query.query(
     ygTimesheet.class.TimesheetDay,
-    { space: ygTimesheet.space.Timesheets, status: 'Submitted', approvers: me },
+    { space: core.space.Workspace, status: 'Submitted', approvers: me },
     (res: TimesheetDay[]) => {
       queue = res
     },

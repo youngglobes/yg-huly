@@ -10,7 +10,7 @@
 // sends the status change (+ approvers on submit, + snapshot/totalHours on approve). It does
 // NOT stamp approvedBy — the trigger authorizes the transition and stamps that authoritatively.
 //
-import { type Ref, type TxOperations } from '@hcengineering/core'
+import core, { type Ref, type TxOperations } from '@hcengineering/core'
 import { type Employee } from '@hcengineering/contact'
 import tracker from '@hcengineering/tracker'
 import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetLine } from '@hcengineering/yg-timesheet'
@@ -35,12 +35,12 @@ export async function ensureTimesheet (
   weekStart: number
 ): Promise<Ref<Timesheet>> {
   const existing = await client.findOne(ygTimesheet.class.Timesheet, {
-    space: ygTimesheet.space.Timesheets,
+    space: core.space.Workspace,
     employee,
     weekStart
   })
   if (existing !== undefined) return existing._id
-  return await client.createDoc(ygTimesheet.class.Timesheet, ygTimesheet.space.Timesheets, {
+  return await client.createDoc(ygTimesheet.class.Timesheet, core.space.Workspace, {
     employee,
     weekStart,
     days: 0
@@ -57,7 +57,7 @@ export async function ensureDay (
   if (existing !== undefined) return existing._id
   return await client.addCollection(
     ygTimesheet.class.TimesheetDay,
-    ygTimesheet.space.Timesheets,
+    core.space.Workspace,
     tsId,
     ygTimesheet.class.Timesheet,
     'days',
@@ -87,7 +87,7 @@ export async function submitDay (
   const totalHours = reports.reduce((sum, r) => sum + r.value, 0)
   const tsId = await ensureTimesheet(client, employee, weekStartOf(date))
   const dayId = await ensureDay(client, tsId, date)
-  await client.updateDoc(ygTimesheet.class.TimesheetDay, ygTimesheet.space.Timesheets, dayId, {
+  await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
     status: 'Submitted',
     approvers,
     submittedOn: Date.now(),
@@ -98,7 +98,7 @@ export async function submitDay (
 
 /** Recall a submitted day back to Draft (clears approvers + submittedOn). */
 export async function recallDay (client: TxOperations, dayId: Ref<TimesheetDay>): Promise<void> {
-  await client.updateDoc(ygTimesheet.class.TimesheetDay, ygTimesheet.space.Timesheets, dayId, {
+  await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
     status: 'Draft',
     approvers: [],
     $unset: { submittedOn: '' }
@@ -123,7 +123,7 @@ export async function approveDay (
     hours: l.hours,
     note: l.note
   }))
-  await client.updateDoc(ygTimesheet.class.TimesheetDay, ygTimesheet.space.Timesheets, day, {
+  await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, day, {
     status: 'Approved',
     snapshot,
     totalHours
@@ -136,7 +136,7 @@ export async function rejectDay (
   dayId: Ref<TimesheetDay>,
   reason: string
 ): Promise<void> {
-  await client.updateDoc(ygTimesheet.class.TimesheetDay, ygTimesheet.space.Timesheets, dayId, {
+  await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
     status: 'Rejected',
     rejectReason: reason
   })

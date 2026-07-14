@@ -14,7 +14,7 @@
 -->
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import { type Ref } from '@hcengineering/core'
+  import core, { type Ref } from '@hcengineering/core'
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type TimeSpendReport } from '@hcengineering/tracker'
@@ -93,7 +93,7 @@
   let myTs: Timesheet | undefined
   $: tsQuery.query(
     ygTimesheet.class.Timesheet,
-    { space: ygTimesheet.space.Timesheets, employee: me, weekStart: week.start },
+    { space: core.space.Workspace, employee: me, weekStart: week.start },
     (r: Timesheet[]) => {
       myTs = r[0]
     }
@@ -105,7 +105,7 @@
   $: if (myTs !== undefined) {
     dayQuery.query(
       ygTimesheet.class.TimesheetDay,
-      { space: ygTimesheet.space.Timesheets, attachedTo: myTs._id },
+      { space: core.space.Workspace, attachedTo: myTs._id },
       (r: TimesheetDay[]) => {
         const m = new Map<string, TimesheetDay>()
         for (const d of r) m.set(localDayKey(d.date), d)
