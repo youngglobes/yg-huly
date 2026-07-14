@@ -17,10 +17,11 @@
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import Timesheet from './Timesheet.svelte'
   import ProjectApproversList from './ProjectApproversList.svelte'
+  import Approvals from './Approvals.svelte'
 
-  // Leave room to add an "Approvals" tab in Task 7 (a third entry here).
   const tabs: TabItem[] = [
     { id: 'my', labelIntl: ygTimesheet.string.Timesheet },
+    { id: 'approvals', labelIntl: ygTimesheet.string.Approvals },
     { id: 'projects', labelIntl: ygTimesheet.string.Projects }
   ]
 
@@ -40,6 +41,8 @@
   <div class="flex-grow clear-mins">
     {#if selected === 'my'}
       <Timesheet />
+    {:else if selected === 'approvals'}
+      <Approvals />
     {:else if selected === 'projects'}
       <ProjectApproversList />
     {/if}

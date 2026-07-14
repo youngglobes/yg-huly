@@ -62,7 +62,8 @@ export default plugin(ygTimesheetId, {
   component: {
     Timesheet: '' as AnyComponent,
     TimesheetApp: '' as AnyComponent,
-    ProjectApproversEditor: '' as AnyComponent
+    ProjectApproversEditor: '' as AnyComponent,
+    Approvals: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -78,8 +79,10 @@ export default plugin(ygTimesheetId, {
     Submit: '' as IntlString,
     Recall: '' as IntlString,
     Approve: '' as IntlString,
+    ApproveWeek: '' as IntlString,
     Reject: '' as IntlString,
     Approvals: '' as IntlString,
+    NothingToApprove: '' as IntlString,
     RejectReason: '' as IntlString,
     Drift: '' as IntlString,
     PM: '' as IntlString,
