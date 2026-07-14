@@ -2,7 +2,7 @@
 // YoungGlobes: timesheet plugin ids.
 //
 import type { Employee } from '@hcengineering/contact'
-import { type AttachedDoc, type Class, type Doc, type Mixin, type Ref, type Timestamp } from '@hcengineering/core'
+import { type AttachedDoc, type Class, type Doc, type Mixin, type Ref, type Space, type Timestamp } from '@hcengineering/core'
 import type { Asset, IntlString, Plugin } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { Issue, Project } from '@hcengineering/tracker'
@@ -52,6 +52,9 @@ export default plugin(ygTimesheetId, {
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>
+  },
+  space: {
+    Timesheets: '' as Ref<Space>
   },
   app: {
     Timesheet: '' as Ref<Doc>

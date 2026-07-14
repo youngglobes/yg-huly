@@ -74,6 +74,22 @@ export class TProjectApprovers extends TProject implements ProjectApprovers {
 export function createModel (builder: Builder): void {
   builder.createModel(TTimesheet, TTimesheetDay, TProjectApprovers)
 
+  // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
+  // can read others' submitted days; autoJoin so every workspace user can write their own.
+  builder.createDoc(
+    core.class.Space,
+    core.space.Model,
+    {
+      name: 'Timesheets',
+      description: 'Timesheet submit/approve workspace',
+      private: false,
+      archived: false,
+      autoJoin: true,
+      members: []
+    },
+    ygTimesheet.space.Timesheets
+  )
+
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,

@@ -26,7 +26,7 @@ export interface DayGroup {
   issues: { issueId: string, identifier: string, title: string, project: string, hours: number }[]
 }
 
-function localDayKey (ms: number): DayKey {
+export function localDayKey (ms: number): DayKey {
   const d = new Date(ms)
   const m = `${d.getMonth() + 1}`.padStart(2, '0')
   const day = `${d.getDate()}`.padStart(2, '0')
