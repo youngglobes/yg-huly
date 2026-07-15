@@ -40,9 +40,15 @@ export function priorityLabel (p: number): string {
 // CSV export — everything, including the Issue Title (the on-screen table shows the linked id
 // only). Hours are emitted as decimals (spreadsheet-friendly, matches the team's sheet); dates
 // as YYYY-MM-DD; due date blank when unset.
+//
+// The four approval columns after "Spent" are intentionally BLANK — they are manual-entry
+// placeholders (not derived from the timesheet day-approval): the TL/PM enters how long a task
+// *should* have taken, and the client-approved (billable) hours + who approved each. A future
+// increment will add a UI to capture and persist these; for now they are filled in the sheet.
 const COLS = [
-  'Date', 'Employee', 'Project', 'Huly ID', 'Issue Title',
-  'Estimated', 'Spent', 'Status', 'Priority', 'Due date', 'Notes'
+  'Date', 'Employee', 'Project', 'Huly ID', 'Issue Title', 'Estimated', 'Spent',
+  'TL/PM Approved Hours', 'TL/PM Approved By', 'Client Approved Hours', 'Client Approved By',
+  'Status', 'Priority', 'Due date', 'Notes'
 ]
 function esc (v: string): string { return `"${v.replace(/"/g, '""')}"` }
 // Cells whose first char could be interpreted as a spreadsheet formula (=, +, -, @) or a
@@ -63,6 +69,10 @@ export function toCSV (rows: ReportRow[]): string {
     escText(r.title),
     String(r.estimation),
     String(r.hours),
+    '', // TL/PM Approved Hours — manual
+    '', // TL/PM Approved By — manual
+    '', // Client Approved Hours — manual
+    '', // Client Approved By — manual
     escText(r.statusName),
     escText(priorityLabel(r.priority)),
     r.dueDate != null ? esc(localDayKey(r.dueDate)) : '""',

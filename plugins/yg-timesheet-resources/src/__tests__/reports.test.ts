@@ -38,14 +38,24 @@ describe('priorityLabel', () => {
 })
 
 describe('toCSV', () => {
-  const HEAD = 'Date,Employee,Project,Huly ID,Issue Title,Estimated,Spent,Status,Priority,Due date,Notes'
+  const HEAD =
+    'Date,Employee,Project,Huly ID,Issue Title,Estimated,Spent,' +
+    'TL/PM Approved Hours,TL/PM Approved By,Client Approved Hours,Client Approved By,' +
+    'Status,Priority,Due date,Notes'
   it('emits a header + quoted rows, escaping quotes/commas', () => {
     const csv = toCSV([row({ note: 'a,"b"', title: 'x' })])
     const lines = csv.trim().split('\n')
     expect(lines[0]).toBe(HEAD)
     expect(lines[1]).toContain('"a,""b"""')
-    // Estimated=4, Spent=2 emitted as bare decimals.
-    expect(lines[1]).toContain(',4,2,')
+    // Estimated=4, Spent=2 emitted as bare decimals, then the four blank approval columns.
+    expect(lines[1]).toContain(',4,2,,,,,')
+  })
+  it('leaves the four manual approval columns blank', () => {
+    const csv = toCSV([row({})])
+    const cells = csv.trim().split('\n')[1].split(',')
+    // indices: 0 Date,1 Employee,2 Project,3 HulyID,4 Title,5 Estimated,6 Spent,
+    //          7 TL/PM hrs,8 TL/PM by,9 Client hrs,10 Client by,11 Status,...
+    expect(cells.slice(7, 11)).toEqual(['', '', '', ''])
   })
   it('includes the issue title, priority label and formatted due date', () => {
     const csv = toCSV([row({ title: 'Fix login', priority: 1, dueDate: D(2026, 6, 31) })])
