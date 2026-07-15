@@ -145,6 +145,10 @@
   $: statusItems = [...new Set(preStatusRows.map((r) => r.statusName).filter((s) => s !== ''))]
     .sort((a, b) => a.localeCompare(b))
     .map((s): DropdownTextItem => ({ id: s, label: s }))
+  // If the chosen status is no longer among the available options (e.g. after narrowing the
+  // project), clear it — otherwise the dropdown reads as empty while the filter still hides
+  // everything, and the table shows a misleading "No data".
+  $: if (statusSel != null && !statusItems.some((i) => i.id === statusSel)) statusSel = undefined
 
   $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
   // Newest work first; ties broken by employee then issue id — stable & predictable across pages.
@@ -294,9 +298,13 @@
               <td>{r.employeeName}</td>
               <td>{r.projectName}</td>
               <td>
-                <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
-                  {r.identifier}
-                </a>
+                {#if r.identifier !== '—'}
+                  <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
+                    {r.identifier}
+                  </a>
+                {:else}
+                  <span class="rp-muted">{r.identifier}</span>
+                {/if}
               </td>
               <td class="rp-num">{formatHours(r.estimation)}</td>
               <td class="rp-num">{formatHours(r.hours)}</td>
@@ -359,6 +367,7 @@
   .rp-nowrap { white-space: nowrap; }
   .rp-link { color: var(--theme-link-color, var(--primary-button-default)); font-weight: 600; text-decoration: none; }
   .rp-link:hover { text-decoration: underline; }
+  .rp-muted { color: var(--theme-dark-color); }
   .rp-note { color: var(--theme-content-color); max-width: 24rem; }
   .rp-pager {
     display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem;
