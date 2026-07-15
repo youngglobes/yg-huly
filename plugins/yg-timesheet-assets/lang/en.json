@@ -43,6 +43,13 @@
     "Issue": "Issue",
     "Description": "Description",
     "Day": "Day",
-    "Month": "Month"
+    "Month": "Month",
+    "HulyId": "Huly ID",
+    "Estimated": "Estimated",
+    "Spent": "Spent",
+    "Priority": "Priority",
+    "DueDate": "Due date",
+    "Notes": "Notes",
+    "RowsPerPage": "Rows per page"
   }
 }

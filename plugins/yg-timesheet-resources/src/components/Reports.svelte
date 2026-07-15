@@ -12,38 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 -->
+<!--
+  PM report: a flat, paginated table with one row per logged time entry (TimeSpendReport)
+  enriched with its issue's fields — matching the team's Google-sheet tracking format.
+  The all-employee / attendance views live in the (separate) HR report.
+-->
 <script lang="ts">
   import contact, { type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import core, {
-    AccountRole,
-    getCurrentAccount,
-    hasAccountRole,
-    type Ref,
-    type WithLookup
-  } from '@hcengineering/core'
-  import { type IntlString } from '@hcengineering/platform'
+  import { type Ref, type WithLookup } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
+  import tracker, {
+    trackerId,
+    type Issue,
+    type IssueStatus,
+    type Project,
+    type TimeSpendReport
+  } from '@hcengineering/tracker'
   import {
     Button,
     DropdownLabels,
-    DropdownLabelsIntl,
-    IconDownOutline,
-    IconForward,
+    getCurrentLocation,
     Label,
-    type DropdownIntlItem,
+    navigate,
     type DropdownTextItem
   } from '@hcengineering/ui'
-  import ygTimesheet, { type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
-  import {
-    filterRows,
-    groupRows,
-    toCSV,
-    type GroupDim,
-    type ReportRow,
-    type ReportStatus
-  } from '../utils/reports'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
+  import { filterRows, priorityLabel, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
   // --- Filter state (default = current week) -------------------------------
@@ -54,14 +49,7 @@
 
   let member: Ref<Person> | null | undefined
   let projectSel: string | undefined
-  let statusSel = 'all'
-  let groupBySel = 'project'
-
-  // Employees mode (all-employee data) is available only to Owner/Maintainer. Everyone
-  // else is locked to Detail (own data via the space-scoped TimeSpendReport query).
-  const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
-  let modeSel = 'detail'
-  $: mode = isHRAdmin ? modeSel : 'detail'
+  let statusSel: string | undefined
 
   function parseDay (s: string): number {
     const [y, m, d] = s.split('-').map((v) => Number(v))
@@ -75,10 +63,9 @@
 
   $: from = parseDay(fromStr)
   $: to = nextDayStart(toStr)
-  $: groupBy = groupBySel as GroupDim
 
   // --- Queries -------------------------------------------------------------
-  // Reports for the window. Space-security auto-scopes to accessible projects.
+  // Time entries for the window. Space-security auto-scopes to accessible projects.
   const reportQuery = createQuery()
   let reports: Array<WithLookup<TimeSpendReport>> = []
   $: reportQuery.query(
@@ -111,85 +98,23 @@
     employeeNames = m
   })
 
-  // Approval-status join: TimesheetDay carries the status, but the employee lives on the
-  // parent Timesheet (attachedTo), so we $lookup it. Key = `<employeeRef>|<localDayKey>`.
-  const dayQuery = createQuery()
-  let statusByKey: Map<string, ReportStatus> = new Map()
-  $: dayQuery.query(
-    ygTimesheet.class.TimesheetDay,
-    { space: core.space.Workspace, date: { $gte: from, $lt: to } },
-    (res: Array<WithLookup<TimesheetDay>>) => {
-      const m = new Map<string, ReportStatus>()
-      for (const d of res) {
-        const parent = d.$lookup?.attachedTo as Timesheet | undefined
-        const employee = parent?.employee
-        if (employee == null) continue
-        m.set(`${employee}|${localDayKey(d.date)}`, d.status)
-      }
-      statusByKey = m
-    },
-    { lookup: { attachedTo: ygTimesheet.class.Timesheet } }
-  )
-
-  // Employees mode: build rows directly from every workspace TimesheetDay (all employees).
-  // The employee lives on the parent Timesheet (attachedTo), so we $lookup it. Approved days
-  // with a snapshot expand one row per snapshot line; every other day is one totalHours row.
-  const empDayQuery = createQuery()
-  let empRows: ReportRow[] = []
-  $: empDayQuery.query(
-    ygTimesheet.class.TimesheetDay,
-    { space: core.space.Workspace, date: { $gte: from, $lt: to } },
-    (res: Array<WithLookup<TimesheetDay>>) => {
-      const out: ReportRow[] = []
-      for (const d of res) {
-        const parent = d.$lookup?.attachedTo as Timesheet | undefined
-        const employee = (parent?.employee ?? '') as string
-        const employeeName = employeeNames.get(employee) ?? employee
-        if (d.status === 'Approved' && d.snapshot != null && d.snapshot.length > 0) {
-          for (const line of d.snapshot) {
-            out.push({
-              date: d.date,
-              employee,
-              employeeName,
-              project: line.project ?? '',
-              projectName: projectNames.get(line.project) ?? line.project ?? '',
-              issue: (line.issue ?? '') as string,
-              identifier: line.identifier ?? '—',
-              title: line.title ?? '(unknown issue)',
-              hours: line.hours,
-              status: 'Approved',
-              note: line.note ?? ''
-            })
-          }
-        } else {
-          out.push({
-            date: d.date,
-            employee,
-            employeeName,
-            project: '',
-            projectName: '',
-            issue: '',
-            identifier: '',
-            title: '',
-            hours: d.totalHours,
-            status: d.status,
-            note: ''
-          })
-        }
-      }
-      empRows = out
-    },
-    { lookup: { attachedTo: ygTimesheet.class.Timesheet } }
-  )
+  // Issue workflow-status name map (Todo / In Progress / …).
+  const statusQuery = createQuery()
+  let statusNames: Map<string, string> = new Map()
+  statusQuery.query(tracker.class.IssueStatus, {}, (res: IssueStatus[]) => {
+    const m = new Map<string, string>()
+    for (const s of res) m.set(s._id, s.name)
+    statusNames = m
+  })
 
   // --- Build ReportRow[] ---------------------------------------------------
-  $: detailRows = reports.map((r): ReportRow => {
+  $: allRows = reports.map((r): ReportRow => {
     const issue = r.$lookup?.attachedTo as Issue | undefined
     const project = (issue?.space ?? '') as string
     const employee = (r.employee ?? '') as string
     // date is non-null in practice (the query filters on a date range); coerce for typing.
     const date = r.date ?? 0
-    const status = statusByKey.get(`${employee}|${localDayKey(date)}`) ?? 'Draft'
+    const status = (issue?.status ?? '') as string
     return {
       date,
       employee,
@@ -199,75 +124,85 @@
       issue: (issue?._id ?? r.attachedTo) as string,
       identifier: issue?.identifier ?? '—',
       title: issue?.title ?? '(unknown issue)',
+      estimation: issue?.estimation ?? 0,
       hours: r.value,
-      status,
+      statusName: statusNames.get(status) ?? '',
+      priority: issue?.priority ?? 0,
+      dueDate: issue?.dueDate ?? null,
       note: r.description ?? ''
     }
   })
 
-  $: filter = {
+  // Rows filtered by everything EXCEPT status — used both to build the Status dropdown options
+  // (so selecting a status never empties its own choices) and as the base for the final filter.
+  $: baseFilter = {
     from,
     to,
     project: projectSel != null && projectSel !== '' ? projectSel : undefined,
-    member: member ?? undefined,
-    status: statusSel === 'all' ? undefined : (statusSel as ReportStatus)
+    member: (member ?? undefined) as string | undefined
+  } satisfies ReportFilter
+  $: preStatusRows = filterRows(allRows, baseFilter)
+  $: statusItems = [...new Set(preStatusRows.map((r) => r.statusName).filter((s) => s !== ''))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((s): DropdownTextItem => ({ id: s, label: s }))
+
+  $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
+  // Newest work first; ties broken by employee then issue id — stable & predictable across pages.
+  $: rows = filterRows(allRows, filter).sort(
+    (a, b) =>
+      b.date - a.date ||
+      a.employeeName.localeCompare(b.employeeName) ||
+      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+  )
+  $: totalSpent = rows.reduce((s, r) => s + r.hours, 0)
+
+  // --- Pagination ----------------------------------------------------------
+  const pageSizeItems: DropdownTextItem[] = [
+    { id: '10', label: '10' },
+    { id: '25', label: '25' },
+    { id: '50', label: '50' },
+    { id: '100', label: '100' }
+  ]
+  let pageSizeSel = '25'
+  $: pageSize = Number(pageSizeSel)
+  let page = 1
+  // Reset to page 1 whenever the filtered set or page size changes.
+  $: filterSig = `${fromStr}|${toStr}|${member ?? ''}|${projectSel ?? ''}|${statusSel ?? ''}|${pageSize}`
+  $: {
+    filterSig
+    page = 1
   }
-  $: sourceRows = mode === 'employees' ? empRows : detailRows
-  $: rows = filterRows(sourceRows, filter)
-  $: groups = groupRows(rows, groupBy)
-  $: grandTotal = rows.reduce((s, r) => s + r.hours, 0)
+  $: totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  $: safePage = Math.min(Math.max(1, page), totalPages)
+  $: pageRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize)
+  $: firstIdx = rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1
+  $: lastIdx = Math.min(safePage * pageSize, rows.length)
 
-  // --- Dropdown option lists -----------------------------------------------
-  const statusItems: DropdownIntlItem[] = [
-    { id: 'all', label: ygTimesheet.string.All },
-    { id: 'Draft', label: ygTimesheet.string.Draft },
-    { id: 'Submitted', label: ygTimesheet.string.Submitted },
-    { id: 'Approved', label: ygTimesheet.string.Approved },
-    { id: 'Rejected', label: ygTimesheet.string.Rejected }
-  ]
-  const modeItems: DropdownIntlItem[] = [
-    { id: 'detail', label: ygTimesheet.string.Detail },
-    { id: 'employees', label: ygTimesheet.string.Employees }
-  ]
-  const groupItems: DropdownIntlItem[] = [
-    { id: 'project', label: ygTimesheet.string.Project },
-    { id: 'member', label: ygTimesheet.string.Member },
-    { id: 'day', label: ygTimesheet.string.Day },
-    { id: 'week', label: ygTimesheet.string.Week },
-    { id: 'month', label: ygTimesheet.string.Month },
-    { id: 'detail', label: ygTimesheet.string.Detail }
-  ]
-
-  function statusString (s: ReportStatus): IntlString {
-    switch (s) {
-      case 'Submitted':
-        return ygTimesheet.string.Submitted
-      case 'Approved':
-        return ygTimesheet.string.Approved
-      case 'Rejected':
-        return ygTimesheet.string.Rejected
-      default:
-        return ygTimesheet.string.Draft
-    }
+  // --- Issue link ----------------------------------------------------------
+  function issueHref (identifier: string): string {
+    const loc = getCurrentLocation()
+    return `/${loc.path[0]}/${loc.path[1]}/${trackerId}/${identifier}`
   }
-
-  // --- Expand/collapse for grouped mode ------------------------------------
-  let expanded: Set<string> = new Set()
-  function toggle (key: string): void {
-    if (expanded.has(key)) expanded.delete(key)
-    else expanded.add(key)
-    expanded = expanded
+  function openIssue (e: MouseEvent, identifier: string): void {
+    // Let ctrl/cmd/middle-click fall through to the browser (open in a new tab).
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    const loc = getCurrentLocation()
+    loc.path = [loc.path[0], loc.path[1], trackerId, identifier]
+    loc.fragment = undefined
+    loc.query = undefined
+    navigate(loc)
   }
 
   const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
 
-  // Export the CURRENT filtered rows (post-filter, exactly what the table shows).
+  // Export ALL filtered rows (not just the current page), with the full column set incl. title.
   function exportCsv (): void {
     const blob = new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = 'timesheet-report.csv'
+    a.download = 'pm-timesheet-report.csv'
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -282,12 +217,6 @@
 
   <!-- Filter bar -->
   <div class="rp-filters">
-    {#if isHRAdmin}
-      <div class="rp-field">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.Reports} /></span>
-        <DropdownLabelsIntl items={modeItems} bind:selected={modeSel} kind="regular" />
-      </div>
-    {/if}
     <label class="rp-field">
       <span class="rp-field__label"><Label label={ygTimesheet.string.From} /></span>
       <input class="rp-date" type="date" bind:value={fromStr} />
@@ -319,11 +248,14 @@
     </div>
     <div class="rp-field">
       <span class="rp-field__label"><Label label={ygTimesheet.string.Status} /></span>
-      <DropdownLabelsIntl items={statusItems} bind:selected={statusSel} kind="regular" />
-    </div>
-    <div class="rp-field">
-      <span class="rp-field__label"><Label label={ygTimesheet.string.GroupBy} /></span>
-      <DropdownLabelsIntl items={groupItems} bind:selected={groupBySel} kind="regular" />
+      <DropdownLabels
+        items={statusItems}
+        bind:selected={statusSel}
+        label={ygTimesheet.string.Status}
+        autoSelect={false}
+        allowDeselect
+        kind="regular"
+      />
     </div>
     <div class="rp-field rp-field--end">
       <Button
@@ -338,7 +270,7 @@
   <!-- Results -->
   {#if rows.length === 0}
     <div class="rp-empty"><Label label={ygTimesheet.string.NoData} /></div>
-  {:else if groupBy === 'detail'}
+  {:else}
     <div class="rp-table-wrap">
       <table class="rp-table">
         <thead>
@@ -346,81 +278,56 @@
             <th><Label label={ygTimesheet.string.Date} /></th>
             <th><Label label={ygTimesheet.string.Employee} /></th>
             <th><Label label={ygTimesheet.string.Project} /></th>
-            <th><Label label={ygTimesheet.string.Issue} /></th>
-            <th class="rp-num"><Label label={ygTimesheet.string.Hours} /></th>
+            <th><Label label={ygTimesheet.string.HulyId} /></th>
+            <th class="rp-num"><Label label={ygTimesheet.string.Estimated} /></th>
+            <th class="rp-num"><Label label={ygTimesheet.string.Spent} /></th>
             <th><Label label={ygTimesheet.string.Status} /></th>
-            <th><Label label={ygTimesheet.string.Description} /></th>
+            <th><Label label={ygTimesheet.string.Priority} /></th>
+            <th><Label label={ygTimesheet.string.DueDate} /></th>
+            <th><Label label={ygTimesheet.string.Notes} /></th>
           </tr>
         </thead>
         <tbody>
-          {#each groups[0].rows as r, i (r.issue + '|' + r.date + '|' + i)}
+          {#each pageRows as r, i (r.issue + '|' + r.date + '|' + r.employee + '|' + i)}
             <tr>
-              <td>{dateFmt.format(r.date)}</td>
+              <td class="rp-nowrap">{dateFmt.format(r.date)}</td>
               <td>{r.employeeName}</td>
               <td>{r.projectName}</td>
-              <td><span class="rp-id">{r.identifier}</span> {r.title}</td>
+              <td>
+                <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
+                  {r.identifier}
+                </a>
+              </td>
+              <td class="rp-num">{formatHours(r.estimation)}</td>
               <td class="rp-num">{formatHours(r.hours)}</td>
-              <td><span class="rp-pill rp-pill--{r.status.toLowerCase()}"><Label label={statusString(r.status)} /></span></td>
+              <td class="rp-nowrap">{r.statusName}</td>
+              <td class="rp-nowrap">{priorityLabel(r.priority)}</td>
+              <td class="rp-nowrap">{r.dueDate != null ? dateFmt.format(r.dueDate) : '—'}</td>
               <td class="rp-note">{r.note}</td>
             </tr>
           {/each}
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="4"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
-            <td class="rp-num"><b>{formatHours(grandTotal)}</b></td>
-            <td colspan="2" />
+            <td colspan="5"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
+            <td class="rp-num"><b>{formatHours(totalSpent)}</b></td>
+            <td colspan="4" />
           </tr>
         </tfoot>
       </table>
     </div>
-  {:else}
-    <div class="rp-groups">
-      {#each groups as g (g.key)}
-        <div class="rp-group">
-          <button class="rp-group__head" on:click={() => toggle(g.key)}>
-            <span class="rp-group__caret">
-              {#if expanded.has(g.key)}<IconDownOutline size="small" />{:else}<IconForward size="small" />{/if}
-            </span>
-            <span class="rp-group__label">{g.label}</span>
-            <span class="rp-group__count">{g.count} <Label label={ygTimesheet.string.Entries} /></span>
-            <span class="rp-group__total">{formatHours(g.totalHours)}</span>
-          </button>
-          {#if expanded.has(g.key)}
-            <div class="rp-table-wrap">
-              <table class="rp-table rp-table--nested">
-                <thead>
-                  <tr>
-                    <th><Label label={ygTimesheet.string.Date} /></th>
-                    <th><Label label={ygTimesheet.string.Employee} /></th>
-                    <th><Label label={ygTimesheet.string.Project} /></th>
-                    <th><Label label={ygTimesheet.string.Issue} /></th>
-                    <th class="rp-num"><Label label={ygTimesheet.string.Hours} /></th>
-                    <th><Label label={ygTimesheet.string.Status} /></th>
-                    <th><Label label={ygTimesheet.string.Description} /></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {#each g.rows as r, i (r.issue + '|' + r.date + '|' + i)}
-                    <tr>
-                      <td>{dateFmt.format(r.date)}</td>
-                      <td>{r.employeeName}</td>
-                      <td>{r.projectName}</td>
-                      <td><span class="rp-id">{r.identifier}</span> {r.title}</td>
-                      <td class="rp-num">{formatHours(r.hours)}</td>
-                      <td><span class="rp-pill rp-pill--{r.status.toLowerCase()}"><Label label={statusString(r.status)} /></span></td>
-                      <td class="rp-note">{r.note}</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-          {/if}
-        </div>
-      {/each}
-      <div class="rp-grand">
-        <span><b><Label label={ygTimesheet.string.TotalHours} /></b></span>
-        <span class="rp-num"><b>{formatHours(grandTotal)}</b></span>
+
+    <!-- Pager -->
+    <div class="rp-pager">
+      <div class="rp-pager__size">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.RowsPerPage} /></span>
+        <DropdownLabels items={pageSizeItems} bind:selected={pageSizeSel} autoSelect={false} kind="regular" />
+      </div>
+      <div class="rp-pager__range">{firstIdx}–{lastIdx} / {rows.length}</div>
+      <div class="rp-pager__nav">
+        <button class="rp-arrow" disabled={safePage <= 1} on:click={() => (page = safePage - 1)}>‹</button>
+        <span class="rp-pager__page">{safePage} / {totalPages}</span>
+        <button class="rp-arrow" disabled={safePage >= totalPages} on:click={() => (page = safePage + 1)}>›</button>
       </div>
     </div>
   {/if}
@@ -440,38 +347,32 @@
     background: var(--theme-bg-color); color: var(--theme-content-color); font-size: 0.8125rem;
   }
   .rp-empty { color: var(--theme-darker-color); padding: 2rem; text-align: center; }
-  .rp-groups { padding: 1rem; overflow: auto; display: flex; flex-direction: column; gap: 0.5rem; }
-  .rp-group { border: 1px solid var(--theme-divider-color); border-radius: 0.5rem; overflow: hidden; }
-  .rp-group__head {
-    display: flex; align-items: center; gap: 0.75rem; width: 100%;
-    padding: 0.5rem 0.75rem; background: var(--theme-bg-color);
-    border: none; cursor: pointer; color: var(--theme-content-color); text-align: left;
-  }
-  .rp-group__head:hover { background: var(--theme-button-hovered); }
-  .rp-group__caret { display: inline-flex; width: 1rem; color: var(--theme-dark-color); }
-  .rp-group__label { font-weight: 600; }
-  .rp-group__count { color: var(--theme-dark-color); font-size: 0.8125rem; }
-  .rp-group__total { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
-  .rp-grand {
-    display: flex; justify-content: space-between; padding: 0.5rem 0.75rem;
-    border-top: 2px solid var(--theme-divider-color); margin-top: 0.25rem;
-  }
-  .rp-table-wrap { overflow-x: auto; padding: 1rem; }
-  .rp-table--nested { padding: 0; }
+  .rp-table-wrap { overflow: auto; flex: 1; padding: 1rem; }
   .rp-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   .rp-table th {
     text-align: left; font-weight: 600; color: var(--theme-dark-color);
     padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--theme-divider-color); white-space: nowrap;
+    position: sticky; top: 0; background: var(--theme-bg-color);
   }
   .rp-table td { padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--theme-divider-color); vertical-align: top; }
   .rp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .rp-id { color: var(--theme-dark-color); }
+  .rp-nowrap { white-space: nowrap; }
+  .rp-link { color: var(--theme-link-color, var(--primary-button-default)); font-weight: 600; text-decoration: none; }
+  .rp-link:hover { text-decoration: underline; }
   .rp-note { color: var(--theme-content-color); max-width: 24rem; }
-  .rp-pill {
-    font-size: 0.6875rem; font-weight: 600; padding: 0.0625rem 0.375rem; border-radius: 0.75rem;
-    background: var(--theme-button-default); color: var(--theme-content-color); white-space: nowrap;
+  .rp-pager {
+    display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem;
+    border-top: 1px solid var(--theme-divider-color);
   }
-  .rp-pill--submitted { background: var(--theme-warning-color); color: #fff; }
-  .rp-pill--approved { background: var(--theme-won-color); color: #fff; }
-  .rp-pill--rejected { background: var(--theme-lost-color); color: #fff; }
+  .rp-pager__size { display: flex; align-items: center; gap: 0.5rem; }
+  .rp-pager__range { color: var(--theme-dark-color); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+  .rp-pager__nav { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+  .rp-pager__page { font-size: 0.8125rem; font-variant-numeric: tabular-nums; min-width: 3rem; text-align: center; }
+  .rp-arrow {
+    width: 1.75rem; height: 1.75rem; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--theme-divider-color); border-radius: 0.25rem; cursor: pointer;
+    background: var(--theme-bg-color); color: var(--theme-content-color); font-size: 1rem; line-height: 1;
+  }
+  .rp-arrow:hover:not(:disabled) { background: var(--theme-button-hovered); }
+  .rp-arrow:disabled { opacity: 0.4; cursor: default; }
 </style>

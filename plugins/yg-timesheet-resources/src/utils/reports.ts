@@ -1,54 +1,49 @@
-import { weekRange, localDayKey } from './week'
+import { localDayKey } from './week'
 
-export type ReportStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
+// One row per time entry (TimeSpendReport) enriched with its issue's fields. A task worked
+// on across 3 days is 3 rows. This is the PM report shape (matches the team's tracking sheet).
 export interface ReportRow {
-  date: number; employee: string; employeeName: string
-  project: string; projectName: string
-  issue: string; identifier: string; title: string
-  hours: number; status: ReportStatus; note: string
+  date: number
+  employee: string
+  employeeName: string
+  project: string
+  projectName: string
+  issue: string
+  identifier: string
+  title: string
+  estimation: number // issue estimate, hours
+  hours: number // spent, hours (TimeSpendReport.value)
+  statusName: string // issue workflow status name (Todo / In Progress / …)
+  priority: number // IssuePriority enum (0..4)
+  dueDate: number | null
+  note: string // TimeSpendReport.description (the note on the logged time)
 }
-export interface ReportFilter { from: number; to: number; project?: string; member?: string; status?: ReportStatus }
-export type GroupDim = 'project' | 'member' | 'day' | 'week' | 'month' | 'detail'
-export interface ReportGroup { key: string; label: string; totalHours: number; count: number; rows: ReportRow[] }
+
+// status here = the issue's workflow-status NAME (not the timesheet approval status).
+export interface ReportFilter { from: number; to: number; project?: string; member?: string; status?: string }
 
 export function filterRows (rows: ReportRow[], f: ReportFilter): ReportRow[] {
   return rows.filter((r) =>
     r.date >= f.from && r.date < f.to &&
     (f.project == null || r.project === f.project) &&
     (f.member == null || r.employee === f.member) &&
-    (f.status == null || r.status === f.status)
+    (f.status == null || r.statusName === f.status)
   )
 }
 
-function monthKey (ms: number): string { const d = new Date(ms); return `${d.getFullYear()}-${`${d.getMonth() + 1}`.padStart(2, '0')}` }
-
-function keyLabel (r: ReportRow, dim: GroupDim): { key: string, label: string } {
-  switch (dim) {
-    case 'project': return { key: r.project, label: r.projectName || r.project }
-    case 'member': return { key: r.employee, label: r.employeeName || r.employee }
-    case 'day': return { key: localDayKey(r.date), label: localDayKey(r.date) }
-    case 'week': { const w = weekRange(r.date); return { key: String(w.start), label: localDayKey(w.start) } }
-    case 'month': return { key: monthKey(r.date), label: monthKey(r.date) }
-    default: return { key: 'all', label: 'All' }
-  }
+// IssuePriority enum order: NoPriority, Urgent, High, Medium, Low (tracker/src/index.ts).
+export const PRIORITY_LABELS = ['No priority', 'Urgent', 'High', 'Medium', 'Low']
+export function priorityLabel (p: number): string {
+  return PRIORITY_LABELS[p] ?? PRIORITY_LABELS[0]
 }
 
-export function groupRows (rows: ReportRow[], dim: GroupDim): ReportGroup[] {
-  if (dim === 'detail') {
-    const total = rows.reduce((s, r) => s + r.hours, 0)
-    return [{ key: 'all', label: 'All', totalHours: total, count: rows.length, rows: [...rows] }]
-  }
-  const byKey = new Map<string, ReportGroup>()
-  for (const r of rows) {
-    const { key, label } = keyLabel(r, dim)
-    let g = byKey.get(key)
-    if (g === undefined) { g = { key, label, totalHours: 0, count: 0, rows: [] }; byKey.set(key, g) }
-    g.totalHours += r.hours; g.count += 1; g.rows.push(r)
-  }
-  return [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
-}
-
-const COLS = ['Date', 'Employee', 'Project', 'Issue', 'Title', 'Hours', 'Status', 'Description']
+// CSV export — everything, including the Issue Title (the on-screen table shows the linked id
+// only). Hours are emitted as decimals (spreadsheet-friendly, matches the team's sheet); dates
+// as YYYY-MM-DD; due date blank when unset.
+const COLS = [
+  'Date', 'Employee', 'Project', 'Huly ID', 'Issue Title',
+  'Estimated', 'Spent', 'Status', 'Priority', 'Due date', 'Notes'
+]
 function esc (v: string): string { return `"${v.replace(/"/g, '""')}"` }
 // Cells whose first char could be interpreted as a spreadsheet formula (=, +, -, @) or a
 // tab/CR (used in some formula-injection payloads) get apostrophe-prefixed before quoting,
@@ -61,8 +56,17 @@ export function toCSV (rows: ReportRow[]): string {
   const head = COLS.join(',')
   if (rows.length === 0) return `${head}\n`
   const body = rows.map((r) => [
-    esc(localDayKey(r.date)), escText(r.employeeName || r.employee), escText(r.projectName || r.project),
-    escText(r.identifier), escText(r.title), String(r.hours), r.status, escText(r.note)
+    esc(localDayKey(r.date)),
+    escText(r.employeeName || r.employee),
+    escText(r.projectName || r.project),
+    escText(r.identifier),
+    escText(r.title),
+    String(r.estimation),
+    String(r.hours),
+    escText(r.statusName),
+    escText(priorityLabel(r.priority)),
+    r.dueDate != null ? esc(localDayKey(r.dueDate)) : '""',
+    escText(r.note)
   ].join(',')).join('\n')
   return `${head}\n${body}\n`
 }

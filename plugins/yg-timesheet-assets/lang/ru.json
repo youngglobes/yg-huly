@@ -43,6 +43,13 @@
     "Issue": "Задача",
     "Description": "Описание",
     "Day": "День",
-    "Month": "Месяц"
+    "Month": "Месяц",
+    "HulyId": "ID Huly",
+    "Estimated": "Оценка",
+    "Spent": "Затрачено",
+    "Priority": "Приоритет",
+    "DueDate": "Срок",
+    "Notes": "Заметки",
+    "RowsPerPage": "Строк на странице"
   }
 }

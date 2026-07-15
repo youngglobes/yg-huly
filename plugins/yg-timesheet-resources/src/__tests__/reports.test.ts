@@ -1,14 +1,15 @@
-import { filterRows, groupRows, toCSV, type ReportRow } from '../utils/reports'
+import { filterRows, toCSV, priorityLabel, type ReportRow } from '../utils/reports'
 
 const D = (y: number, m: number, d: number): number => new Date(y, m, d, 9, 0, 0).getTime()
 const row = (o: Partial<ReportRow>): ReportRow => ({
   date: D(2026, 6, 14), employee: 'e1', employeeName: 'Alice', project: 'p1', projectName: 'Proj 1',
-  issue: 'i1', identifier: 'A-1', title: 't1', hours: 2, status: 'Approved', note: '', ...o
+  issue: 'i1', identifier: 'A-1', title: 't1', estimation: 4, hours: 2,
+  statusName: 'In Progress', priority: 3, dueDate: null, note: '', ...o
 })
 
 describe('filterRows', () => {
   const rows = [
-    row({ date: D(2026, 6, 13), hours: 1, status: 'Draft' }),
+    row({ date: D(2026, 6, 13), hours: 1, statusName: 'Todo' }),
     row({ date: D(2026, 6, 14), hours: 2, employee: 'e2', employeeName: 'Bob', project: 'p2', projectName: 'Proj 2' }),
     row({ date: D(2026, 6, 20), hours: 3 })
   ]
@@ -16,59 +17,47 @@ describe('filterRows', () => {
     const r = filterRows(rows, { from: D(2026, 6, 14), to: D(2026, 6, 15) })
     expect(r).toHaveLength(1); expect(r[0].hours).toBe(2)
   })
-  it('filters by project + member + status', () => {
+  it('filters by project + member + status(name)', () => {
     expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), project: 'p2' })).toHaveLength(1)
     expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), member: 'e2' })).toHaveLength(1)
-    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), status: 'Draft' })).toHaveLength(1)
+    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), status: 'Todo' })).toHaveLength(1)
   })
 })
 
-describe('groupRows', () => {
-  const rows = [row({ project: 'p1', projectName: 'Proj 1', hours: 2 }), row({ project: 'p1', projectName: 'Proj 1', hours: 3 }), row({ project: 'p2', projectName: 'Proj 2', hours: 4, employee: 'e2', employeeName: 'Bob' })]
-  it('groups by project with totals + counts', () => {
-    const g = groupRows(rows, 'project')
-    const p1 = g.find((x) => x.key === 'p1')
-    expect(p1?.label).toBe('Proj 1'); expect(p1?.totalHours).toBe(5); expect(p1?.count).toBe(2)
-    expect(g).toHaveLength(2)
+describe('priorityLabel', () => {
+  it('maps the IssuePriority enum to a label', () => {
+    expect(priorityLabel(0)).toBe('No priority')
+    expect(priorityLabel(1)).toBe('Urgent')
+    expect(priorityLabel(2)).toBe('High')
+    expect(priorityLabel(3)).toBe('Medium')
+    expect(priorityLabel(4)).toBe('Low')
   })
-  it('groups by member', () => { expect(groupRows(rows, 'member').find((x) => x.key === 'e2')?.totalHours).toBe(4) })
-  it('groups by week bucket', () => { expect(groupRows(rows, 'week')).toHaveLength(1) })
-  it("detail returns one group of all rows", () => { const g = groupRows(rows, 'detail'); expect(g).toHaveLength(1); expect(g[0].rows).toHaveLength(3) })
-  it('groups by day bucket', () => {
-    const dayRows = [
-      row({ date: D(2026, 6, 13), hours: 2 }),
-      row({ date: D(2026, 6, 13), hours: 3 }),
-      row({ date: D(2026, 6, 20), hours: 4 })
-    ]
-    const g = groupRows(dayRows, 'day')
-    expect(g).toHaveLength(2)
-    const d13 = g.find((x) => x.count === 2)
-    const d20 = g.find((x) => x.count === 1)
-    expect(d13?.totalHours).toBe(5)
-    expect(d20?.totalHours).toBe(4)
-  })
-  it('groups by month bucket', () => {
-    const monthRows = [
-      row({ date: D(2026, 5, 15), hours: 2 }),
-      row({ date: D(2026, 5, 28), hours: 3 }),
-      row({ date: D(2026, 6, 1), hours: 4 })
-    ]
-    const g = groupRows(monthRows, 'month')
-    expect(g).toHaveLength(2)
-    const june = g.find((x) => x.count === 2)
-    const july = g.find((x) => x.count === 1)
-    expect(june?.totalHours).toBe(5)
-    expect(july?.totalHours).toBe(4)
+  it('falls back to No priority for an unknown value', () => {
+    expect(priorityLabel(99)).toBe('No priority')
   })
 })
 
 describe('toCSV', () => {
+  const HEAD = 'Date,Employee,Project,Huly ID,Issue Title,Estimated,Spent,Status,Priority,Due date,Notes'
   it('emits a header + quoted rows, escaping quotes/commas', () => {
     const csv = toCSV([row({ note: 'a,"b"', title: 'x' })])
     const lines = csv.trim().split('\n')
-    expect(lines[0]).toBe('Date,Employee,Project,Issue,Title,Hours,Status,Description')
+    expect(lines[0]).toBe(HEAD)
     expect(lines[1]).toContain('"a,""b"""')
-    expect(lines[1]).toContain(',2,')
+    // Estimated=4, Spent=2 emitted as bare decimals.
+    expect(lines[1]).toContain(',4,2,')
+  })
+  it('includes the issue title, priority label and formatted due date', () => {
+    const csv = toCSV([row({ title: 'Fix login', priority: 1, dueDate: D(2026, 6, 31) })])
+    const lines = csv.trim().split('\n')
+    expect(lines[1]).toContain('"Fix login"')
+    expect(lines[1]).toContain('"Urgent"')
+    expect(lines[1]).toContain('"2026-07-31"')
+  })
+  it('leaves due date blank when unset', () => {
+    const csv = toCSV([row({ dueDate: null })])
+    // trailing ...,"",note — the due-date cell is an empty quoted string.
+    expect(csv.trim().split('\n')[1]).toContain(',"",""')
   })
   it('guards a formula-like text cell with a leading apostrophe', () => {
     const csv = toCSV([row({ title: '=HYPERLINK("http://evil","x")' })])
@@ -76,6 +65,6 @@ describe('toCSV', () => {
     expect(lines[1]).toContain('"\'=HYPERLINK(""http://evil"",""x"")"')
   })
   it('returns just the header + newline for an empty row list', () => {
-    expect(toCSV([])).toBe('Date,Employee,Project,Issue,Title,Hours,Status,Description\n')
+    expect(toCSV([])).toBe(`${HEAD}\n`)
   })
 })

@@ -112,6 +112,13 @@ export default plugin(ygTimesheetId, {
     Hours: '' as IntlString,
     Week: '' as IntlString,
     Day: '' as IntlString,
-    Month: '' as IntlString
+    Month: '' as IntlString,
+    HulyId: '' as IntlString,
+    Estimated: '' as IntlString,
+    Spent: '' as IntlString,
+    Priority: '' as IntlString,
+    DueDate: '' as IntlString,
+    Notes: '' as IntlString,
+    RowsPerPage: '' as IntlString
   }
 })
