@@ -18,7 +18,7 @@
   The all-employee / attendance views live in the (separate) HR report.
 -->
 <script lang="ts">
-  import contact, { type Employee, type Person } from '@hcengineering/contact'
+  import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
   import { type Ref, type WithLookup } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
@@ -94,7 +94,8 @@
   let employeeNames: Map<string, string> = new Map()
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
     const m = new Map<string, string>()
-    for (const e of res) m.set(e._id, e.name)
+    // Person.name is stored as "Last,First"; format to display order (e.g. "Praja Owner").
+    for (const e of res) m.set(e._id, formatName(e.name))
     employeeNames = m
   })
 
