@@ -278,7 +278,9 @@
         </div>
         <div class="flex-row-reverse flex-gap-0-5" style:-webkit-app-region={'no-drag'}>
           <Settings />
-          <Clock />
+          <div class="clock-holder">
+            <Clock />
+          </div>
           <div class="flex-row-center flex-gap-0-5">
             {#if !secondRow}
               <RootBarExtension position="right" />
@@ -380,6 +382,12 @@
 
   .left-items {
     overflow-x: auto;
+  }
+
+  // Hide the status-bar clock on the login screen (no workbench mounted);
+  // keep it inside the app. Mirrors the .workbench-container idiom below.
+  #ui-root:not(:has(.workbench-container)) .clock-holder {
+    display: none;
   }
 
   @media (max-width: 480px) {
