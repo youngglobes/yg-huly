@@ -50,6 +50,13 @@
     "Priority": "Priority",
     "DueDate": "Due date",
     "Notes": "Notes",
-    "RowsPerPage": "Rows per page"
+    "RowsPerPage": "Rows per page",
+    "HumanResource": "Human Resource",
+    "HrTimesheets": "Timesheets",
+    "HrRoster": "Roster",
+    "Worker": "Worker",
+    "WorkingDays": "Working days",
+    "Target": "Target",
+    "NoEmployeeSelected": "Select an employee to view their timesheet"
   }
 }

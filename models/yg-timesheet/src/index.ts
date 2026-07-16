@@ -19,9 +19,11 @@ import contact from '@hcengineering/contact'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import tracker, { TProject } from '@hcengineering/model-tracker'
 import workbench from '@hcengineering/model-workbench'
+import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
   ygTimesheetId,
   type DayStatus,
+  type HrTimeEntry,
   type ProjectApprovers,
   type Timesheet,
   type TimesheetDay,
@@ -29,6 +31,7 @@ import ygTimesheet, {
 } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
+export { ygTimesheetOperation } from './migration'
 
 export const DOMAIN_YG_TIMESHEET = 'yg-timesheet' as Domain
 
@@ -71,8 +74,22 @@ export class TProjectApprovers extends TProject implements ProjectApprovers {
     teamLead?: Ref<Employee>
 }
 
+@Model(ygTimesheet.class.HrTimeEntry, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class THrTimeEntry extends TDoc implements HrTimeEntry {
+  @Prop(TypeRef(tracker.class.TimeSpendReport), core.string.Object) source!: Ref<TimeSpendReport>
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) employee!: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeNumber(), core.string.Object) hours!: number
+  @Prop(TypeRef(tracker.class.Project), core.string.Object) project!: Ref<Project>
+  @Prop(TypeString(), core.string.Object) projectName!: string
+  @Prop(TypeRef(tracker.class.Issue), core.string.Object) issue!: Ref<Issue>
+  @Prop(TypeString(), core.string.Object) identifier!: string
+  @Prop(TypeString(), core.string.Object) title!: string
+  @Prop(TypeString(), core.string.Object) note!: string
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TProjectApprovers)
+  builder.createModel(TTimesheet, TTimesheetDay, TProjectApprovers, THrTimeEntry)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.

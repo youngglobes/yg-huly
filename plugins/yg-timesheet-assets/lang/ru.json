@@ -50,6 +50,13 @@
     "Priority": "Приоритет",
     "DueDate": "Срок",
     "Notes": "Заметки",
-    "RowsPerPage": "Строк на странице"
+    "RowsPerPage": "Строк на странице",
+    "HumanResource": "Управление персоналом",
+    "HrTimesheets": "Табели",
+    "HrRoster": "Состав",
+    "Worker": "Сотрудник",
+    "WorkingDays": "Рабочие дни",
+    "Target": "Цель",
+    "NoEmployeeSelected": "Выберите сотрудника, чтобы увидеть табель"
   }
 }

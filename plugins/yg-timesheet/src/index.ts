@@ -5,7 +5,7 @@ import type { Employee } from '@hcengineering/contact'
 import { type AttachedDoc, type Class, type Doc, type Mixin, type Ref, type Space, type Timestamp } from '@hcengineering/core'
 import type { Asset, IntlString, Plugin } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
-import type { Issue, Project } from '@hcengineering/tracker'
+import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import type { AnyComponent } from '@hcengineering/ui'
 
 export type DayStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
@@ -43,28 +43,48 @@ export interface ProjectApprovers extends Project {
   teamLead?: Ref<Employee>
 }
 
+/** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
+export interface HrTimeEntry extends Doc {
+  source: Ref<TimeSpendReport>
+  employee: Ref<Employee>
+  date: Timestamp
+  hours: number
+  project: Ref<Project>
+  projectName: string
+  issue: Ref<Issue>
+  identifier: string
+  title: string
+  note: string
+}
+
 export const ygTimesheetId = 'yg-timesheet' as Plugin
 
 export default plugin(ygTimesheetId, {
   class: {
     Timesheet: '' as Ref<Class<Timesheet>>,
-    TimesheetDay: '' as Ref<Class<TimesheetDay>>
+    TimesheetDay: '' as Ref<Class<TimesheetDay>>,
+    HrTimeEntry: '' as Ref<Class<HrTimeEntry>>
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>
   },
   space: {
-    Timesheets: '' as Ref<Space>
+    Timesheets: '' as Ref<Space>,
+    HrData: '' as Ref<Space>
   },
   app: {
-    Timesheet: '' as Ref<Doc>
+    Timesheet: '' as Ref<Doc>,
+    HumanResource: '' as Ref<Doc>
   },
   component: {
     Timesheet: '' as AnyComponent,
     TimesheetApp: '' as AnyComponent,
     ProjectApproversEditor: '' as AnyComponent,
     Approvals: '' as AnyComponent,
-    Reports: '' as AnyComponent
+    Reports: '' as AnyComponent,
+    HrApp: '' as AnyComponent,
+    HrTimesheet: '' as AnyComponent,
+    HrRoster: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -119,6 +139,13 @@ export default plugin(ygTimesheetId, {
     Priority: '' as IntlString,
     DueDate: '' as IntlString,
     Notes: '' as IntlString,
-    RowsPerPage: '' as IntlString
+    RowsPerPage: '' as IntlString,
+    HumanResource: '' as IntlString,
+    HrTimesheets: '' as IntlString,
+    HrRoster: '' as IntlString,
+    Worker: '' as IntlString,
+    WorkingDays: '' as IntlString,
+    Target: '' as IntlString,
+    NoEmployeeSelected: '' as IntlString
   }
 })
