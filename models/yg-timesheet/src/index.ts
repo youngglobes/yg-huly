@@ -19,6 +19,7 @@ import contact from '@hcengineering/contact'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import tracker, { TProject } from '@hcengineering/model-tracker'
 import workbench from '@hcengineering/model-workbench'
+import hr from '@hcengineering/hr'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
   ygTimesheetId,
@@ -120,4 +121,25 @@ export function createModel (builder: Builder): void {
     },
     ygTimesheet.app.Timesheet
   )
+
+  // Dedicated "Human Resource" app hosting the HR Timesheets sub-module (and the Owner-only
+  // roster). Registered with NO accessLevel: HR is space-membership in ygTimesheet.space.HrData,
+  // not a workspace role. The sidebar icon is hidden from non-members by the Task-7 per-user
+  // HiddenApplication trigger; the projected HrTimeEntry data is server-private regardless.
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.HumanResource,
+      icon: ygTimesheet.icon.Timesheet, // reuse existing icon for the beta
+      alias: 'yg-hr',
+      hidden: false,
+      position: 'top',
+      component: ygTimesheet.component.HrApp
+    },
+    ygTimesheet.app.HumanResource
+  )
+
+  // Hide Huly's built-in HR app so there is one HR menu (ours).
+  builder.updateDoc(workbench.class.Application, core.space.Model, hr.app.HR, { hidden: true })
 }

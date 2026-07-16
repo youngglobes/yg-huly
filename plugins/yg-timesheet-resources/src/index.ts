@@ -5,6 +5,8 @@ import ProjectApproversList from './components/ProjectApproversList.svelte'
 import Approvals from './components/Approvals.svelte'
 import Reports from './components/Reports.svelte'
 import HrTimesheet from './components/HrTimesheet.svelte'
+import HrApp from './components/HrApp.svelte'
+import HrRoster from './components/HrRoster.svelte'
 
 export default async (): Promise<Resources> => ({
   component: {
@@ -13,6 +15,8 @@ export default async (): Promise<Resources> => ({
     ProjectApproversEditor: ProjectApproversList,
     Approvals,
     Reports,
-    HrTimesheet
+    HrTimesheet,
+    HrApp,
+    HrRoster
   }
 })
