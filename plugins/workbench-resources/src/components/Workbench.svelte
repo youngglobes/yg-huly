@@ -326,11 +326,13 @@
       windowWorkspaceName = wsUrl
     }
     const docTitle = await getWindowTitle(loc)
+    // YG Portal: title is "<page> - <brand>" (or just the brand) — do NOT prepend the raw
+    // workspace slug (avoids the awkward "yg - YG Portal").
+    const brand = getMetadata(workbench.metadata.PlatformTitle) ?? 'YG Portal'
     if (docTitle !== undefined && docTitle !== '') {
-      document.title = wsUrl == null ? docTitle : `${docTitle} - ${wsUrl}`
+      document.title = `${docTitle} - ${brand}`
     } else {
-      const title = getMetadata(workbench.metadata.PlatformTitle) ?? 'Platform'
-      document.title = wsUrl == null ? title : `${wsUrl} - ${title}`
+      document.title = brand
     }
     void broadcastEvent(workbench.event.NotifyTitle, document.title)
   }
