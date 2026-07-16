@@ -19,7 +19,6 @@ import contact from '@hcengineering/contact'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import tracker, { TProject } from '@hcengineering/model-tracker'
 import workbench from '@hcengineering/model-workbench'
-import hr from '@hcengineering/hr'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
   ygTimesheetId,
@@ -139,7 +138,6 @@ export function createModel (builder: Builder): void {
     },
     ygTimesheet.app.HumanResource
   )
-
-  // Hide Huly's built-in HR app so there is one HR menu (ours).
-  builder.updateDoc(workbench.class.Application, core.space.Model, hr.app.HR, { hidden: true })
+  // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) —
+  // Builder has no updateDoc; only a TxOperations client (migration) can update an existing app doc.
 }
