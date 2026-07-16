@@ -25,14 +25,19 @@
 import core, {
   AccountRole,
   hasAccountRole,
+  type Data,
   type Ref,
   type Tx,
-  type TxUpdateDoc
+  type TxCreateDoc,
+  type TxCUD,
+  type TxUpdateDoc,
+  TxProcessor
 } from '@hcengineering/core'
 import { type Employee } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
 import { getEmployee } from '@hcengineering/server-contact'
-import ygTimesheet, { type DayStatus, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { type DayStatus, type HrTimeEntry, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
 
 export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
@@ -139,4 +144,104 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
   return []
 }
 
-export default async () => ({ trigger: { OnTimesheetDayUpdate } })
+//
+// Mirror every TimeSpendReport into a denormalized HrTimeEntry in the private HR space, so HR
+// can read all employees' time without project membership. System-attributed; HrTimeEntry lives
+// in a different class/space so these writes never re-enter this trigger.
+//
+// Verify note (resolved against this codebase, not assumed): TimeSpendReport is an AttachedDoc on
+// Issue, but its CUD does NOT arrive wrapped in a TxCollectionCUD — that wrapper class was removed
+// from this schema version (see models/core/src/migration.ts, state "remove-collection-txes", and
+// core.class.TxCollectionCUD is not even registered — foundations/core/packages/core/src/component.ts).
+// TxCreateDoc/TxUpdateDoc/TxRemoveDoc for an AttachedDoc are flat CUD txes carrying attachedTo /
+// attachedToClass directly. This mirrors the real handling in
+// server-plugins/tracker-resources/src/index.ts (OnIssueUpdate / doTimeReportUpdate), which reads
+// `cud.attachedTo` straight off the CUD tx with no unwrapping step. There is also no
+// `TxProcessor.extractTx` in this version of @hcengineering/core — only `TxProcessor.createDoc2Doc`
+// (and updateDoc2Doc/buildDoc2Doc), used below to materialize the created report.
+//
+export async function OnTimeSpendReportChange (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (
+      tx._class !== core.class.TxCreateDoc &&
+      tx._class !== core.class.TxUpdateDoc &&
+      tx._class !== core.class.TxRemoveDoc
+    ) {
+      continue
+    }
+    const cud = tx as TxCUD<TimeSpendReport>
+    if (cud.objectClass !== tracker.class.TimeSpendReport) continue
+
+    if (cud._class === core.class.TxCreateDoc) {
+      const report = TxProcessor.createDoc2Doc(cud as TxCreateDoc<TimeSpendReport>)
+      await upsertMirror(control, report)
+    } else if (cud._class === core.class.TxUpdateDoc) {
+      const report = (
+        await control.findAll(control.ctx, tracker.class.TimeSpendReport, { _id: cud.objectId }, { limit: 1 })
+      )[0]
+      if (report !== undefined) await upsertMirror(control, report)
+    } else if (cud._class === core.class.TxRemoveDoc) {
+      const mirrors = await control.findAll(control.ctx, ygTimesheet.class.HrTimeEntry, { source: cud.objectId })
+      const del = mirrors.map((m) =>
+        control.txFactory.createTxRemoveDoc(m._class, m.space, m._id, undefined, core.account.System)
+      )
+      if (del.length > 0) await control.apply(control.ctx, del)
+    }
+  }
+  return []
+}
+
+async function upsertMirror (control: TriggerControl, report: TimeSpendReport): Promise<void> {
+  // No employee to attribute the hours to (shouldn't normally happen) — nothing meaningful to mirror.
+  const employee = report.employee
+  if (employee === null) return
+
+  const issue = (
+    await control.findAll(control.ctx, tracker.class.Issue, { _id: report.attachedTo as Ref<Issue> }, { limit: 1 })
+  )[0]
+  const project = issue !== undefined
+    ? (await control.findAll(control.ctx, tracker.class.Project, { _id: issue.space }, { limit: 1 }))[0]
+    : undefined
+
+  const data: Data<HrTimeEntry> = {
+    source: report._id,
+    employee,
+    date: report.date ?? 0,
+    hours: report.value,
+    project: (issue?.space ?? '') as Ref<Project>,
+    projectName: project?.name ?? '',
+    issue: (issue?._id ?? report.attachedTo) as Ref<Issue>,
+    identifier: issue?.identifier ?? '—',
+    title: issue?.title ?? '(unknown issue)',
+    note: report.description ?? ''
+  }
+
+  const existing = (
+    await control.findAll(control.ctx, ygTimesheet.class.HrTimeEntry, { source: report._id }, { limit: 1 })
+  )[0]
+
+  if (existing === undefined) {
+    const t = control.txFactory.createTxCreateDoc(
+      ygTimesheet.class.HrTimeEntry,
+      ygTimesheet.space.HrData,
+      data,
+      undefined,
+      undefined,
+      core.account.System
+    )
+    await control.apply(control.ctx, [t])
+  } else {
+    const t = control.txFactory.createTxUpdateDoc(
+      ygTimesheet.class.HrTimeEntry,
+      existing.space,
+      existing._id,
+      data,
+      undefined,
+      undefined,
+      core.account.System
+    )
+    await control.apply(control.ctx, [t])
+  }
+}
+
+export default async () => ({ trigger: { OnTimesheetDayUpdate, OnTimeSpendReportChange } })
