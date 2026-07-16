@@ -1006,6 +1006,7 @@
               ? 'portrait'
               : 'landscape'} border-left"
             class:fly={$deviceInfo.navigator.float}
+            data-app={currentAppAlias}
           >
             <div class="antiPanel-wrap__content hulyNavPanel-container">
               {#if currentApplication}

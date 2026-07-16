@@ -51,7 +51,7 @@
   export let size: IconSize
   export let statusSize: IconSize | undefined = undefined
   export let icon: Asset | AnySvelteComponent | undefined = undefined
-  export let variant: 'circle' | 'roundedRect' | 'none' = 'roundedRect'
+  export let variant: 'circle' | 'roundedRect' | 'none' = 'circle'
   export let borderColor: number | undefined = undefined
   export let showStatus: boolean = false
   export let adaptiveName: boolean = false

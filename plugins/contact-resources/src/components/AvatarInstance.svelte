@@ -26,7 +26,7 @@
   export let displayName: string
   export let size: IconSize
   export let icon: Asset | AnySvelteComponent | undefined = undefined
-  export let variant: 'circle' | 'roundedRect' | 'none' = 'roundedRect'
+  export let variant: 'circle' | 'roundedRect' | 'none' = 'circle'
   export let color: ColorDefinition | undefined = undefined
   export let bColor: string | undefined = undefined
   export let withStatus: boolean = false

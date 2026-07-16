@@ -34,10 +34,13 @@
     AnyComponent,
     AnySvelteComponent,
     ExpandCollapse,
+    eventToHTMLElement,
+    IconAdd,
     mouseAttractor,
     Loading,
     Label,
-    Scroller
+    Scroller,
+    showPopup
   } from '@hcengineering/ui'
   import { AttributeModel, BuildModelKey, ViewOptionModel, ViewOptions, Viewlet } from '@hcengineering/view'
   import { createEventDispatcher } from 'svelte'
@@ -596,4 +599,21 @@
       {/if}
     </ExpandCollapse>
   </Scroller>
+  {#if lastLevel && !collapsed && createItemDialog !== undefined}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <button
+      class="list-add-task"
+      on:click={(e) => {
+        if (createItemDialog === undefined) return
+        showPopup(
+          createItemDialog,
+          { ...(createItemDialogProps ?? {}), ..._newObjectProps(limited[0] ?? itemProj[0]) },
+          eventToHTMLElement(e)
+        )
+      }}
+    >
+      <IconAdd size={'small'} />
+      {#if createItemLabel}<Label label={createItemLabel} />{:else}<span>Add new task</span>{/if}
+    </button>
+  {/if}
 </div>

@@ -38,7 +38,6 @@
     Button,
     ColorDefinition,
     Component,
-    defaultBackground,
     getEventPositionElement,
     IconAdd,
     Label,
@@ -65,7 +64,6 @@
     showMenu,
     statusStore
   } from '@hcengineering/view-resources'
-  import { ChatMessagesPresenter } from '@hcengineering/chunter-resources'
   import { onMount } from 'svelte'
 
   import tracker from '../../plugin'
@@ -79,7 +77,6 @@
   import ParentNamesPresenter from './ParentNamesPresenter.svelte'
   import PriorityEditor from './PriorityEditor.svelte'
   import StatusEditor from './StatusEditor.svelte'
-  import EstimationEditor from './timereport/EstimationEditor.svelte'
   import MilestoneEditor from '../milestones/MilestoneEditor.svelte'
 
   const _class = tracker.class.Issue
@@ -253,20 +250,6 @@
     }
   }
 
-  async function shouldShowFooter (
-    config: (string | BuildModelKey)[],
-    reports: number,
-    estimations: number,
-    issue: WithLookup<Issue>
-  ): Promise<boolean> {
-    if (enabledConfig(config, 'estimation') && (reports > 0 || estimations > 0)) return true
-    if (enabledConfig(config, 'comments')) {
-      if ((issue.comments ?? 0) > 0) return true
-      if ((issue.$lookup?.attachedTo?.comments ?? 0) > 0) return true
-    }
-    if (enabledConfig(config, 'attachments') && (issue.attachments ?? 0) > 0) return true
-    return false
-  }
 
   const getAvailableCategories = async (doc: Doc): Promise<CategoryType[]> => {
     const issue = toIssue(doc)
@@ -340,13 +323,11 @@
     }}
   >
     <svelte:fragment slot="header" let:state let:count let:index>
-      {@const color = accentColors.get(`${index}${$themeStore.dark}${groupByKey}`)}
-      {@const headerBGColor = color?.background ?? defaultBackground($themeStore.dark)}
-      <div style:background={headerBGColor} class="header flex-between">
+      <div class="header flex-between">
         <div class="flex-row-center gap-1">
           <span
             class="clear-mins fs-bold overflow-label pointer-events-none"
-            style:color={color?.title ?? 'var(--theme-caption-color)'}
+            style:color={'var(--theme-caption-color)'}
           >
             {#if groupByKey === noCategory}
               <Label label={view.string.NoGrouping} />
@@ -358,7 +339,7 @@
                 size={'small'}
                 kind={'list-header'}
                 display={'kanban'}
-                colorInherit={!$themeStore.dark}
+                colorInherit={true}
                 accent
                 on:accent-color={(ev) => {
                   setAccentColor(index, ev)
@@ -385,9 +366,6 @@
     <svelte:fragment slot="card" let:object>
       {@const issue = toIssue(object)}
       {@const issueId = object._id}
-      {@const reports =
-        issue.reportedTime + (issue.childInfo ?? []).map((it) => it.reportedTime).reduce((a, b) => a + b, 0)}
-      {@const estimations = (issue.childInfo ?? []).map((it) => it.estimation).reduce((a, b) => a + b, 0)}
       {#key issueId}
         <div
           class="tracker-card"
@@ -397,11 +375,9 @@
         >
           <div class="card-header flex-between">
             <div class="flex-row-center text-sm">
-              <!-- {#if groupByKey !== 'status'} -->
               <div class="mr-1">
                 <StatusEditor value={issue} kind="list" isEditable={false} />
               </div>
-              <!-- {/if} -->
               <div class="flex-no-shrink">
                 <IssuePresenter value={issue} />
               </div>
@@ -409,51 +385,14 @@
             </div>
             <div class="flex-row-center gap-2 reverse flex-no-shrink">
               <Component is={notification.component.NotificationPresenter} props={{ value: object }} />
-              <AssigneeEditor object={issue} avatarSize={'card'} shouldShowName={false} />
             </div>
           </div>
           <div class="card-content text-md caption-color lines-limit-2">
             {object.title}
           </div>
-          <div class="card-labels">
-            {#if enabledConfig(config, 'subIssues') && issue && issue.subIssues > 0}
-              <SubIssuesSelector value={issue} {currentProject} size={'small'} />
-            {/if}
-            {#if enabledConfig(config, 'priority')}
-              <PriorityEditor
-                value={issue}
-                isEditable={true}
-                kind={'link-bordered'}
-                size={'small'}
-                justify={'center'}
-              />
-            {/if}
-            {#if enabledConfig(config, 'component')}
-              <ComponentEditor
-                value={issue}
-                {space}
-                isEditable={true}
-                kind={'link-bordered'}
-                size={'small'}
-                justify={'center'}
-              />
-            {/if}
-            {#if enabledConfig(config, 'milestone')}
-              <MilestoneEditor
-                value={issue}
-                {space}
-                isEditable={true}
-                kind={'link-bordered'}
-                size={'small'}
-                justify={'center'}
-              />
-            {/if}
-            {#if enabledConfig(config, 'dueDate')}
-              <DueDatePresenter value={issue} size={'small'} kind={'link-bordered'} />
-            {/if}
-          </div>
-          {#if enabledConfig(config, 'labels')}
-            <div class="card-labels labels">
+          <div class="card-labels metadata">
+            <AssigneeEditor object={issue} avatarSize={'smaller'} shouldShowName={false} />
+            {#if enabledConfig(config, 'labels')}
               <Component
                 is={tags.component.LabelsPresenter}
                 props={{
@@ -467,40 +406,65 @@
                   if (res.detail.full) fullFilled[issueId] = true
                 }}
               />
-            </div>
-          {/if}
-          {#await shouldShowFooter(config, reports, estimations, object) then withFooter}
-            {#if withFooter}
-              <div class="card-footer flex-between">
-                {#if enabledConfig(config, 'estimation')}
-                  <EstimationEditor kind={'list'} size={'small'} value={issue} />
-                {/if}
-                <div class="flex-row-center gap-3 reverse">
-                  {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}
-                    <AttachmentsPresenter value={object.attachments} {object} />
-                  {/if}
-                  <ChatMessagesPresenter value={object.comments} {object} />
-                  <ChatMessagesPresenter
-                    object={object.$lookup?.attachedTo}
-                    value={object.$lookup?.attachedTo?.comments}
-                    withInput={false}
-                  />
-                </div>
-              </div>
-            {:else}
-              <div class="min-h-4 max-h-4 h-4" />
             {/if}
-          {/await}
+            {#if enabledConfig(config, 'component') && issue.component != null}
+              <ComponentEditor
+                value={issue}
+                {space}
+                isEditable={true}
+                kind={'link-bordered'}
+                size={'small'}
+                justify={'center'}
+              />
+            {/if}
+            {#if enabledConfig(config, 'milestone') && issue.milestone != null}
+              <MilestoneEditor
+                value={issue}
+                {space}
+                isEditable={true}
+                kind={'link-bordered'}
+                size={'small'}
+                justify={'center'}
+              />
+            {/if}
+            {#if enabledConfig(config, 'dueDate')}
+              <DueDatePresenter value={issue} size={'small'} kind={'link-bordered'} />
+            {/if}
+            {#if enabledConfig(config, 'subIssues') && issue && issue.subIssues > 0}
+              <SubIssuesSelector value={issue} {currentProject} size={'small'} />
+            {/if}
+            {#if enabledConfig(config, 'priority')}
+              <PriorityEditor value={issue} isEditable={true} kind={'link-bordered'} size={'small'} justify={'center'} />
+            {/if}
+            {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}
+              <AttachmentsPresenter value={object.attachments} {object} />
+            {/if}
+          </div>
         </div>
       {/key}
+    </svelte:fragment>
+    <svelte:fragment slot="afterCard" let:state>
+      <button
+        class="add-task"
+        on:click={() => {
+          showPopup(
+            CreateIssue,
+            { space: currentSpace, ...(groupByKey !== noCategory ? { [groupByKey]: state } : {}) },
+            'top'
+          )
+        }}
+      >
+        <IconAdd size={'small'} />
+        <span>Add new task</span>
+      </button>
     </svelte:fragment>
   </KanbanUI>
 {/if}
 
 <style lang="scss">
   .header {
-    margin: 0 0.75rem 0.625rem;
-    padding: 0 0.5rem 0 1rem;
+    margin: 0 0.5rem 0.125rem;
+    padding: 0 0.5rem 0 0.625rem;
     height: 2.75rem;
     min-height: 2.75rem;
     border: none;
@@ -512,46 +476,55 @@
       font-weight: 500;
     }
     .tools {
-      opacity: 0;
-    }
-    &:hover .tools {
       opacity: 1;
+    }
+  }
+  .add-task {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    width: 100%;
+    margin: 0.25rem 0 0.5rem;
+    padding: 0.4375rem 0.625rem;
+    border: none;
+    background: none;
+    color: var(--theme-dark-color);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border-radius: 0.4375rem;
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--theme-button-hovered);
+      color: var(--theme-caption-color);
     }
   }
   .tracker-card {
     position: relative;
     display: flex;
     flex-direction: column;
-    min-height: 6.5rem;
-    border-radius: 0.625rem;
+    border-radius: 0.4375rem;
 
     .card-header {
-      padding: 0.75rem 1rem 0;
+      padding: 0.625rem 0.875rem 0;
     }
     .card-content {
-      margin: 0.5rem 1rem;
+      margin: 0.375rem 0.875rem;
       font-weight: 500;
     }
     /* Global styles in components.scss */
     .card-labels {
       display: flex;
       flex-wrap: nowrap;
-      margin: 0 0.75rem 0 1rem;
+      margin: 0 0.75rem 0 0.875rem;
       min-width: 0;
 
-      &.labels {
-        overflow: hidden;
-        flex-shrink: 1;
-        margin: 0 1rem;
-        width: calc(100% - 2rem);
-        border-radius: 0 0.24rem 0.24rem 0;
+      /* Single Notion-style metadata row: avatar + chips, left-clustered. */
+      &.metadata {
+        flex-wrap: wrap;
+        align-items: center;
+        margin: 0.125rem 0.875rem 0.625rem;
       }
-    }
-    .card-footer {
-      margin-top: 0.25rem;
-      padding: 0.5rem 1rem 0.875rem;
-      background-color: var(--theme-kanban-card-footer);
-      border-radius: 0 0 0.625rem 0.625rem;
     }
   }
 </style>

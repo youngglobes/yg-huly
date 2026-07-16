@@ -1,0 +1,68 @@
+//
+// Notion-style navigator — scoped to the Tracker app only.
+//
+// The panel is tagged `data-app="tracker"` in Workbench.svelte, so nothing here
+// touches any other app's navigator.
+//
+// `!important` is used deliberately on the colour/weight overrides: NavItem.svelte's
+// styles are Svelte-scoped, which stamps the scope hash on both ends of each
+// nested selector and pushes their specificity above what a plain global selector
+// can reach. Huly's own kanban overrides take the same approach.
+//
+// The look: quieter greys, roomier 14px rows, a neutral (not accent-blue) selected
+// state, hover pills, and softened section dividers — Notion's calm sidebar.
+
+.antiPanel-navigator[data-app='tracker'] {
+  .hulyNavItem-container {
+    min-height: 1.75rem;
+    border-radius: 6px;
+
+    .hulyNavItem-icon {
+      color: var(--global-tertiary-TextColor) !important;
+    }
+    .hulyNavItem-label {
+      color: var(--global-secondary-TextColor) !important;
+      font-size: 0.875rem !important;
+      font-weight: 450 !important;
+    }
+
+    // hover: text darkens, subtle grey pill
+    &:not(.selected):hover,
+    &:not(.selected).showMenu {
+      background-color: var(--global-ui-hover-highlight-BackgroundColor);
+
+      .hulyNavItem-icon,
+      .hulyNavItem-label {
+        color: var(--global-primary-TextColor) !important;
+      }
+    }
+
+    // Notion selected: neutral grey fill + dark text (no accent blue)
+    &.selected {
+      background-color: var(--global-ui-highlight-BackgroundColor);
+
+      .hulyNavItem-icon {
+        color: var(--global-primary-TextColor) !important;
+      }
+      .hulyNavItem-label:not(.description) {
+        color: var(--global-primary-TextColor) !important;
+        font-weight: 600 !important;
+      }
+    }
+  }
+
+  // group headers (Your projects, project names): smaller, muted, sentence-case
+  .hulyNavGroup-header__label {
+    font-size: 0.75rem !important;
+    font-weight: 550 !important;
+    color: var(--global-tertiary-TextColor) !important;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+  }
+
+  // soften section dividers — Notion separates with space, not hairlines
+  .hulyNavGroup-container:not(.nested, .selectableHeader, .noDivider),
+  .hulyNavGroup-container.noDivider + .hulyNavGroup-container.noDivider {
+    border-top: none;
+  }
+}
