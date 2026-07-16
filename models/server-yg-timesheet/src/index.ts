@@ -25,4 +25,14 @@ export function createModel (builder: Builder): void {
     isAsync: true,
     txMatch: { objectClass: tracker.class.TimeSpendReport }
   })
+
+  // Privacy write-guard: HrData is a plain core.class.Space (not a TypedSpace), so the security
+  // pipeline does not permission-check membership writes to it. This async guard reverts any
+  // HrData membership addition made by a non-Owner (see OnHrDataMembershipGuard). Matched narrowly
+  // on the single HrData object so it never fires for other spaces.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnHrDataMembershipGuard,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectId: ygTimesheet.space.HrData }
+  })
 }

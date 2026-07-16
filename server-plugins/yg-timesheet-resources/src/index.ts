@@ -25,8 +25,10 @@
 import core, {
   AccountRole,
   hasAccountRole,
+  type AccountUuid,
   type Data,
   type Ref,
+  type Space,
   type Tx,
   type TxCreateDoc,
   type TxCUD,
@@ -255,4 +257,90 @@ async function upsertMirror (control: TriggerControl, report: TimeSpendReport): 
   }
 }
 
-export default async () => ({ trigger: { OnTimesheetDayUpdate, OnTimeSpendReportChange } })
+//
+// Privacy write-guard: only the workspace Owner may curate the HR roster (ygTimesheet.space.HrData
+// membership). HrData is a plain core.class.Space, NOT a TypedSpace, so Huly's security pipeline does
+// not permission-check writes to it — any workspace User could `$push` their own AccountUuid into
+// HrData.members via a direct API call and thereby read every employee's HrTimeEntry. This trigger
+// reverts any membership addition made by a non-Owner, server-side.
+//
+// Same idioms as OnTimesheetDayUpdate: async, POST-APPLY state, System-attributed compensating writes
+// applied via control.apply (not returned), and the top-of-loop System loop-guard so our own $pull
+// never re-enters and re-reverts.
+//
+// The revert is precise for `$push` (both the single-value `{ $push: { members: X } }` and the
+// `{ $push: { members: { $each: [...] } } }` forms — we pull exactly what was added, so legitimate
+// pre-existing members are untouched). A raw `{ members: [...] }` set by a non-Owner cannot be
+// precisely reverted from post-apply state without destroying legitimate members, so for it the
+// load-bearing guarantee is the BACKSTOP: we always also $pull the acting account's own uuid from
+// members/owners — so no non-Owner code path can leave the actor (a non-Owner) inside HrData, which
+// is the property that actually protects read-privacy.
+//
+export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    // Idempotence guard: our own compensating $pull is written as System. Skip it so it never
+    // re-enters and re-reverts.
+    if (tx.modifiedBy === core.account.System) continue
+
+    const utx = tx as TxUpdateDoc<Space>
+    if (utx.objectClass !== core.class.Space) continue
+    if (utx.objectId !== ygTimesheet.space.HrData) continue
+
+    // Owner is authorized to curate the roster — the only role allowed to. Anything else (undefined
+    // account included) is treated as unauthorized and reverted (privacy-safe default).
+    const account = control.ctx.contextData.account
+    if (account !== undefined && hasAccountRole(account, AccountRole.Owner)) continue
+
+    const ops = utx.operations as Record<string, any>
+
+    // Collect exactly the AccountUuids the tx ADDED to each field via $push (both forms), so we can
+    // pull precisely those back out without touching legitimate pre-existing members.
+    const pullMembers = new Set<AccountUuid>()
+    const pullOwners = new Set<AccountUuid>()
+
+    const collectPush = (field: 'members' | 'owners', sink: Set<AccountUuid>): void => {
+      const v = ops.$push?.[field]
+      if (v === undefined || v === null) return
+      if (typeof v === 'object' && Array.isArray(v.$each)) {
+        for (const x of v.$each as AccountUuid[]) sink.add(x)
+      } else {
+        sink.add(v as AccountUuid)
+      }
+    }
+    collectPush('members', pullMembers)
+    collectPush('owners', pullOwners)
+
+    // Backstop: always pull the acting (non-Owner) account's own uuid too — covers a raw
+    // `{ members: [...] }` / `{ owners: [...] }` set, which we cannot precisely revert from
+    // post-apply state, and guarantees the actor is never left inside the private HR space.
+    const actorUuid = account?.uuid
+    if (actorUuid !== undefined) {
+      pullMembers.add(actorUuid)
+      pullOwners.add(actorUuid)
+    }
+
+    if (pullMembers.size === 0 && pullOwners.size === 0) continue
+
+    const pull: Record<string, any> = {}
+    if (pullMembers.size > 0) pull.members = { $in: [...pullMembers] }
+    if (pullOwners.size > 0) pull.owners = { $in: [...pullOwners] }
+
+    // Compensating write — attributed to System (7th arg) so it doesn't re-trigger the guard.
+    const t = control.txFactory.createTxUpdateDoc(
+      utx.objectClass,
+      utx.objectSpace,
+      utx.objectId,
+      { $pull: pull } as any,
+      undefined,
+      undefined,
+      core.account.System
+    )
+    await control.apply(control.ctx, [t])
+  }
+  return []
+}
+
+export default async () => ({
+  trigger: { OnTimesheetDayUpdate, OnTimeSpendReportChange, OnHrDataMembershipGuard }
+})

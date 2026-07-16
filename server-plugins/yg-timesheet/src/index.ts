@@ -16,6 +16,7 @@ export const serverYgTimesheetId = 'server-yg-timesheet' as Plugin
 export default plugin(serverYgTimesheetId, {
   trigger: {
     OnTimesheetDayUpdate: '' as Resource<TriggerFunc>,
-    OnTimeSpendReportChange: '' as Resource<TriggerFunc>
+    OnTimeSpendReportChange: '' as Resource<TriggerFunc>,
+    OnHrDataMembershipGuard: '' as Resource<TriggerFunc>
   }
 })
