@@ -12466,6 +12466,9 @@ importers:
       '@hcengineering/server-yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../../server-plugins/yg-timesheet
+      '@hcengineering/tracker':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/tracker
       '@hcengineering/yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../../plugins/yg-timesheet
@@ -36250,6 +36253,9 @@ importers:
       '@hcengineering/server-yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../yg-timesheet
+      '@hcengineering/tracker':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/tracker
       '@hcengineering/yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../../plugins/yg-timesheet

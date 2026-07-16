@@ -181,20 +181,31 @@ export async function OnTimeSpendReportChange (txes: Tx[], control: TriggerContr
       )[0]
       if (report !== undefined) await upsertMirror(control, report)
     } else if (cud._class === core.class.TxRemoveDoc) {
-      const mirrors = await control.findAll(control.ctx, ygTimesheet.class.HrTimeEntry, { source: cud.objectId })
-      const del = mirrors.map((m) =>
-        control.txFactory.createTxRemoveDoc(m._class, m.space, m._id, undefined, core.account.System)
-      )
-      if (del.length > 0) await control.apply(control.ctx, del)
+      await deleteMirror(control, cud.objectId)
     }
   }
   return []
 }
 
+// Remove any HrTimeEntry mirror(s) for a given TimeSpendReport (System-attributed). There should be
+// at most one, but findAll without a limit is defensive against a stray duplicate.
+async function deleteMirror (control: TriggerControl, source: Ref<TimeSpendReport>): Promise<void> {
+  const mirrors = await control.findAll(control.ctx, ygTimesheet.class.HrTimeEntry, { source })
+  const del = mirrors.map((m) =>
+    control.txFactory.createTxRemoveDoc(m._class, m.space, m._id, undefined, core.account.System)
+  )
+  if (del.length > 0) await control.apply(control.ctx, del)
+}
+
 async function upsertMirror (control: TriggerControl, report: TimeSpendReport): Promise<void> {
-  // No employee to attribute the hours to (shouldn't normally happen) — nothing meaningful to mirror.
+  // No employee to attribute the hours to (shouldn't normally happen). If the report previously had
+  // an employee and was cleared on update, a stale mirror would otherwise linger — so delete any
+  // existing mirror to preserve the "one current mirror per report, or none" invariant, then bail.
   const employee = report.employee
-  if (employee === null) return
+  if (employee === null || employee === undefined) {
+    await deleteMirror(control, report._id)
+    return
+  }
 
   const issue = (
     await control.findAll(control.ctx, tracker.class.Issue, { _id: report.attachedTo as Ref<Issue> }, { limit: 1 })
