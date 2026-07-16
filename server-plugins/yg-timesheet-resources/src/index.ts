@@ -27,6 +27,7 @@ import core, {
   hasAccountRole,
   type AccountUuid,
   type Data,
+  type PersonId,
   type Ref,
   type Space,
   type Tx,
@@ -35,11 +36,12 @@ import core, {
   type TxUpdateDoc,
   TxProcessor
 } from '@hcengineering/core'
-import { type Employee } from '@hcengineering/contact'
+import contact, { type Employee } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
-import { getEmployee } from '@hcengineering/server-contact'
+import { getEmployee, getSocialIdsByAccounts } from '@hcengineering/server-contact'
 import ygTimesheet, { type DayStatus, type HrTimeEntry, type TimesheetDay } from '@hcengineering/yg-timesheet'
 import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
+import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
 
 export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
@@ -341,6 +343,135 @@ export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerContr
   return []
 }
 
+//
+// COSMETIC layer (best-effort): hide the "Human Resource" app icon from the left rail for every
+// account that is NOT a member of the private HR space (ygTimesheet.space.HrData). The HrTimeEntry
+// data is already server-private (PrivateMiddleware + OnHrDataMembershipGuard); this only removes the
+// icon so non-HR users don't even see the app. If any part of this fails it must NOT block anything —
+// worst case a non-member sees an icon that opens an empty/permission-denied view.
+//
+// MECHANISM (proven by the Task-7 spike, verified against this codebase — not assumed):
+//  - The left rail (plugins/workbench-resources/src/components/Applications.svelte) hides any app whose
+//    _id appears as a `workbench.class.HiddenApplication` the CURRENT user can see. HiddenApplication is
+//    a `Preference` living in the SHARED `core.space.Workspace` — there is NO per-user space. Per-user
+//    scoping is done by `createdBy`: the server's PrivateMiddleware (foundations/server/packages/
+//    middleware/src/private.ts) rewrites every preference-domain read from a non-System account to
+//    `createdBy: { $in: <that account's socialIds> }`. So a HiddenApplication only affects the user whose
+//    social id is its `createdBy`.
+//  - To hide the HR app for user X we therefore create a HiddenApplication whose `createdBy` is one of
+//    X's social ids. `TxFactory.createTxCreateDoc` sets the tx's `createdBy = modifiedBy` (its 6th arg),
+//    and `TxProcessor.createDoc2Doc` sets `doc.createdBy = tx.createdBy` — so passing X's social id as
+//    the `modifiedBy` arg lands `doc.createdBy = X's social id`. No middleware overrides it.
+//  - PrivateMiddleware's WRITE guard permits this: writing another user's preference is allowed when the
+//    acting account is System OR an Owner. HrData membership can only be curated by an Owner (enforced by
+//    OnHrDataMembershipGuard), so on the membership-edit path the acting account is always an Owner; the
+//    backfill runs as System. Reads by System bypass the createdBy filter, so System can enumerate and
+//    remove any user's HiddenApplication when they join HR.
+//
+// LOOP-SAFETY: this trigger matches TxUpdateDoc on objectId === HrData only. Its own writes are
+// HiddenApplication creates/removes (different class + objectId), so they never re-enter this trigger.
+// We deliberately do NOT skip System-authored HrData updates: when OnHrDataMembershipGuard $pulls a
+// sneak-in non-Owner back out (a System write to HrData), we want to re-run and restore that user's hide.
+// reconcile is idempotent and converges in one extra pass, then stops (no HrData tx is emitted).
+//
+const HR_APP = ygTimesheet.app.HumanResource as unknown as Ref<Application>
+
+// Every human account in the workspace (canonical membership set = the Employee mixin's personUuid).
+async function allWorkspaceAccounts (control: TriggerControl): Promise<AccountUuid[]> {
+  const employees = await control.findAll(control.ctx, contact.mixin.Employee, {})
+  const set = new Set<AccountUuid>()
+  for (const e of employees) {
+    if (e.personUuid != null) set.add(e.personUuid)
+  }
+  return [...set]
+}
+
+// Core reconcile: given the current HR members, ensure a HiddenApplication(HR) exists (createdBy = one
+// of their social ids) for every NON-member, and none exists for any member. Idempotent. All writes go
+// through control.apply. Shared by the trigger and the backfill. Never throws out — it best-effort logs.
+async function reconcileHrHidden (control: TriggerControl, members: AccountUuid[]): Promise<void> {
+  try {
+    const memberSet = new Set(members)
+    const nonMembers = (await allWorkspaceAccounts(control)).filter((a) => !memberSet.has(a))
+
+    const nonMemberSocial = await getSocialIdsByAccounts(control, nonMembers)
+    const memberSocial = members.length > 0 ? await getSocialIdsByAccounts(control, members) : {}
+
+    // System read → PrivateMiddleware does not apply the createdBy filter, so we see EVERY user's hide.
+    const existing = await control.findAll(control.ctx, workbench.class.HiddenApplication, {
+      attachedTo: HR_APP,
+      space: core.space.Workspace
+    })
+    const existingByCreator = new Map<PersonId, HiddenApplication>()
+    for (const h of existing) {
+      if (h.createdBy != null) existingByCreator.set(h.createdBy, h)
+    }
+
+    const txes: Tx[] = []
+
+    // Seed a hide for each non-member that doesn't already have one under any of their social ids.
+    for (const acc of nonMembers) {
+      const socials = nonMemberSocial[acc] ?? []
+      if (socials.length === 0) continue // no social id to scope a pref to — cannot hide, skip (harmless)
+      if (socials.some((s) => existingByCreator.has(s))) continue // already hidden for this account
+      txes.push(
+        control.txFactory.createTxCreateDoc(
+          workbench.class.HiddenApplication,
+          core.space.Workspace,
+          { attachedTo: HR_APP } as Data<HiddenApplication>,
+          undefined,
+          undefined,
+          // 6th arg = modifiedBy → sets tx.createdBy → doc.createdBy = this account's social id.
+          socials[0]
+        )
+      )
+    }
+
+    // Remove any hide belonging to a (now-)member so the app reappears for them. System-attributed remove.
+    for (const acc of members) {
+      for (const s of memberSocial[acc] ?? []) {
+        const h = existingByCreator.get(s)
+        if (h !== undefined) {
+          txes.push(control.txFactory.createTxRemoveDoc(h._class, h.space, h._id, undefined, core.account.System))
+        }
+      }
+    }
+
+    if (txes.length > 0) await control.apply(control.ctx, txes)
+  } catch (err: any) {
+    // Best-effort cosmetic layer: never propagate. The data-privacy guarantee does not depend on this.
+    control.ctx.warn('yg-timesheet: reconcileHrHidden failed (cosmetic, ignored)', { error: err?.message ?? String(err) })
+  }
+}
+
+export async function OnHrMembershipChange (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const utx = tx as TxUpdateDoc<Space>
+    if (utx.objectClass !== core.class.Space) continue
+    if (utx.objectId !== ygTimesheet.space.HrData) continue
+
+    // Only react when membership actually changed (ignore unrelated HrData field edits).
+    const ops = utx.operations as Record<string, any>
+    const touchesMembers =
+      ops.members !== undefined || ops.$push?.members !== undefined || ops.$pull?.members !== undefined
+    if (!touchesMembers) continue
+
+    // Read post-apply members off the space and reconcile every account's hide against it.
+    const hr = (await control.findAll(control.ctx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 }))[0]
+    if (hr === undefined) continue
+    await reconcileHrHidden(control, hr.members ?? [])
+  }
+  return []
+}
+
+// One-shot seeding for existing installs (called once from the Task-8 migration). Hides the HR app for
+// all current non-members. Idempotent — safe to run repeatedly.
+export async function backfillHrHidden (control: TriggerControl): Promise<void> {
+  const hr = (await control.findAll(control.ctx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 }))[0]
+  await reconcileHrHidden(control, hr?.members ?? [])
+}
+
 export default async () => ({
-  trigger: { OnTimesheetDayUpdate, OnTimeSpendReportChange, OnHrDataMembershipGuard }
+  trigger: { OnTimesheetDayUpdate, OnTimeSpendReportChange, OnHrDataMembershipGuard, OnHrMembershipChange }
 })

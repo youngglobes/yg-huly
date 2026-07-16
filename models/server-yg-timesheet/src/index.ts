@@ -35,4 +35,13 @@ export function createModel (builder: Builder): void {
     isAsync: true,
     txMatch: { _class: core.class.TxUpdateDoc, objectId: ygTimesheet.space.HrData }
   })
+
+  // COSMETIC: hide the HR app icon from non-members of HrData by maintaining a per-user
+  // workbench.class.HiddenApplication (scoped by createdBy — see OnHrMembershipChange). Same narrow
+  // txMatch as the guard above (single HrData object). Best-effort; never blocks membership edits.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnHrMembershipChange,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectId: ygTimesheet.space.HrData }
+  })
 }
