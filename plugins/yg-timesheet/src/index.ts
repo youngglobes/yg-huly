@@ -82,7 +82,6 @@ export default plugin(ygTimesheetId, {
     ProjectApproversEditor: '' as AnyComponent,
     Approvals: '' as AnyComponent,
     Reports: '' as AnyComponent,
-    HrApp: '' as AnyComponent,
     HrTimesheet: '' as AnyComponent,
     HrRoster: '' as AnyComponent,
     HrOverview: '' as AnyComponent

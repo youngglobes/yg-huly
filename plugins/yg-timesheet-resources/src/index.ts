@@ -5,7 +5,6 @@ import ProjectApproversList from './components/ProjectApproversList.svelte'
 import Approvals from './components/Approvals.svelte'
 import Reports from './components/Reports.svelte'
 import HrTimesheet from './components/HrTimesheet.svelte'
-import HrApp from './components/HrApp.svelte'
 import HrRoster from './components/HrRoster.svelte'
 import HrOverview from './components/HrOverview.svelte'
 
@@ -17,7 +16,6 @@ export default async (): Promise<Resources> => ({
     Approvals,
     Reports,
     HrTimesheet,
-    HrApp,
     HrRoster,
     HrOverview
   }

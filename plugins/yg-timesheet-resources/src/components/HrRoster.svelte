@@ -18,11 +18,14 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
+  import { ensureHrMembership } from '../utils/hrMembership'
 
   // Owner-only editor of the private HR space's membership (HrData.members: AccountUuid[]).
   // AccountArrayEditor is Huly's standard AccountUuid[] picker: it resolves each Employee it
   // shows to its AccountUuid internally, so onChange hands back the next AccountUuid[] directly.
   const client = getClient()
+
+  void ensureHrMembership()
 
   let space: Space | undefined
   const query = createQuery()

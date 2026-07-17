@@ -38,8 +38,11 @@
   } from '@hcengineering/ui'
   import ygTimesheet, { type HrTimeEntry } from '@hcengineering/yg-timesheet'
   import { buildOverviewGrid } from '../utils/hr-report'
+  import { ensureHrMembership } from '../utils/hrMembership'
   import { hrSelectedEmployee } from '../utils/hrStore'
   import { formatHours, weekRange } from '../utils/week'
+
+  void ensureHrMembership()
 
   const DAY_TARGET = 8 // hours/day, weekdays
 

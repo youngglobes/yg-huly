@@ -2,7 +2,7 @@
 // YoungGlobes: yg-timesheet model.
 //
 import type { Employee } from '@hcengineering/contact'
-import { type Domain, type Ref, type Timestamp } from '@hcengineering/core'
+import { AccountRole, type Domain, type Ref, type Timestamp } from '@hcengineering/core'
 import {
   type Builder,
   ArrOf,
@@ -16,6 +16,7 @@ import {
   TypeString
 } from '@hcengineering/model'
 import contact from '@hcengineering/contact'
+import hr from '@hcengineering/hr'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import tracker, { TProject } from '@hcengineering/model-tracker'
 import workbench from '@hcengineering/model-workbench'
@@ -121,10 +122,15 @@ export function createModel (builder: Builder): void {
     ygTimesheet.app.Timesheet
   )
 
-  // Dedicated "Human Resource" app hosting the HR Timesheets sub-module (and the Owner-only
-  // roster). Registered with NO accessLevel: HR is space-membership in ygTimesheet.space.HrData,
-  // not a workspace role. The sidebar icon is hidden from non-members by the Task-7 per-user
-  // HiddenApplication trigger; the projected HrTimeEntry data is server-private regardless.
+  // Dedicated "Human Resource" app hosting the HR Timesheets/Overview sub-modules (and the
+  // Owner-only roster) as a native vertical navigator — mirrors models/contact's Application
+  // (navigatorModel.specials, no top-level `component`; see that file's Contacts app doc).
+  // Registered with NO accessLevel on the Application itself: HR is space-membership in
+  // ygTimesheet.space.HrData, not a workspace role — access to the Timesheets/Overview specials
+  // is DocGuest (open to any signed-in member; the underlying data is server-private regardless),
+  // while Roster is restricted to Owner (it curates HrData membership). The sidebar icon is
+  // hidden from non-members by the Task-7 per-user HiddenApplication trigger; the projected
+  // HrTimeEntry data is server-private regardless.
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,
@@ -134,7 +140,35 @@ export function createModel (builder: Builder): void {
       alias: 'yg-hr',
       hidden: false,
       position: 'top',
-      component: ygTimesheet.component.HrApp
+      navigatorModel: {
+        spaces: [],
+        specials: [
+          {
+            id: 'timesheets',
+            label: ygTimesheet.string.HrTimesheets,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.HrTimesheet,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'overview',
+            label: ygTimesheet.string.HrOverview,
+            icon: hr.icon.Structure,
+            component: ygTimesheet.component.HrOverview,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'roster',
+            label: ygTimesheet.string.HrRoster,
+            icon: contact.icon.Person,
+            component: ygTimesheet.component.HrRoster,
+            accessLevel: AccountRole.Owner,
+            position: 'bottom'
+          }
+        ]
+      }
     },
     ygTimesheet.app.HumanResource
   )

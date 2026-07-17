@@ -27,8 +27,11 @@
   import ygTimesheet, { type HrTimeEntry, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
   import { get } from 'svelte/store'
   import { buildWeekGrid, type HrEntry } from '../utils/hr-report'
+  import { ensureHrMembership } from '../utils/hrMembership'
   import { hrSelectedEmployee } from '../utils/hrStore'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
+
+  void ensureHrMembership()
 
   const DAY_TARGET = 8 // hours/day, weekdays
 
