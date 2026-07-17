@@ -16,14 +16,16 @@
   HR timesheet sub-module: a per-employee weekly grid (Project/Task rows × Mon-Sun columns)
   built from the projected HrTimeEntry data, with row/day/grand totals, an 8h/weekday target
   highlight, and a per-day approval-status row (from TimesheetDay). Mirrors Reports.svelte's
-  conventions (createQuery, employee-name map, sticky-header table, --theme-* vars).
+  conventions (createQuery, employee-name map, sticky-header table, --theme-* vars). Styled to
+  match HrOverview.svelte's "Schedule" chrome (Header + Breadcrumb + hulyHeader-container nav
+  row) and its amber/green text-color cell tokens, so both HR grids agree visually.
 -->
 <script lang="ts">
   import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
   import core, { type Ref, type WithLookup } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import { Label } from '@hcengineering/ui'
+  import ui, { Breadcrumb, ButtonIcon, Header, IconBack, IconForward, Label, ModernButton } from '@hcengineering/ui'
   import ygTimesheet, { type HrTimeEntry, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
   import { get } from 'svelte/store'
   import { buildWeekGrid, type HrEntry } from '../utils/hr-report'
@@ -112,26 +114,22 @@
   }
 </script>
 
-<div class="hrt-root">
-  <div class="ac-header full divide">
-    <div class="ac-header__wrap-title">
-      <span class="ac-header__title"><Label label={ygTimesheet.string.HrTimesheets} /></span>
+<div class="hrt-root hulyComponent">
+  <Header adaptive={'disabled'}>
+    <Breadcrumb icon={ygTimesheet.icon.Timesheet} label={ygTimesheet.string.HrTimesheets} size={'large'} isCurrent />
+  </Header>
+  <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
+    <div class="flex-row-center flex-gap-2">
+      <ButtonIcon icon={IconBack} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(-7)} />
+      <ModernButton label={ui.string.Today} kind={'tertiary'} size={'small'} on:click={() => (weekMs = Date.now())} />
+      <ButtonIcon icon={IconForward} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(7)} />
+      <div class="hulyHeader-divider short" />
+      <div class="fs-title flex-row-center">
+        {rangeFmt.format(week.days[0].date)} – {rangeFmt.format(week.days[6].date)}
+      </div>
     </div>
-  </div>
-
-  <!-- Filter / nav bar -->
-  <div class="hrt-filters">
     <div class="hrt-field">
-      <span class="hrt-field__label"><Label label={ygTimesheet.string.Employee} /></span>
       <EmployeeBox label={ygTimesheet.string.Employee} bind:value={employee} allowDeselect kind="regular" />
-    </div>
-    <div class="hrt-field hrt-field--nav">
-      <button class="hrt-arrow" on:click={() => shiftWeek(-7)}>‹</button>
-      <button class="hrt-week" on:click={() => (weekMs = Date.now())}>
-        <Label label={ygTimesheet.string.Today} />
-      </button>
-      <button class="hrt-arrow" on:click={() => shiftWeek(7)}>›</button>
-      <span class="hrt-range">{rangeFmt.format(week.days[0].date)} – {rangeFmt.format(week.days[6].date)}</span>
     </div>
   </div>
 
@@ -181,8 +179,8 @@
             {#each grid.dayTotals as t, i (i)}
               <td
                 class="hrt-num"
-                class:hrt-under={!isWeekend(i) && t < DAY_TARGET}
-                class:hrt-met={!isWeekend(i) && t >= DAY_TARGET}
+                class:amber={!isWeekend(i) && t < DAY_TARGET}
+                class:green={!isWeekend(i) && t >= DAY_TARGET}
               >
                 {formatHours(t)}
               </td>
@@ -210,25 +208,7 @@
 
 <style lang="scss">
   .hrt-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-  .hrt-filters {
-    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem;
-    padding: 0.75rem 1rem; border-bottom: 1px solid var(--theme-divider-color);
-  }
-  .hrt-field { display: flex; flex-direction: column; gap: 0.25rem; }
-  .hrt-field--nav { flex-direction: row; align-items: center; gap: 0.5rem; margin-left: 1rem; }
-  .hrt-field__label { font-size: 0.6875rem; color: var(--theme-dark-color); text-transform: uppercase; }
-  .hrt-arrow {
-    width: 1.75rem; height: 1.75rem; display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--theme-divider-color); border-radius: 0.25rem; cursor: pointer;
-    background: var(--theme-bg-color); color: var(--theme-content-color); font-size: 1rem; line-height: 1;
-  }
-  .hrt-arrow:hover { background: var(--theme-button-hovered); }
-  .hrt-week {
-    padding: 0.25rem 0.625rem; border: 1px solid var(--theme-divider-color); border-radius: 0.25rem;
-    background: var(--theme-bg-color); color: var(--theme-content-color); cursor: pointer; font-size: 0.8125rem;
-  }
-  .hrt-week:hover { background: var(--theme-button-hovered); }
-  .hrt-range { color: var(--theme-dark-color); font-size: 0.8125rem; white-space: nowrap; }
+  .hrt-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 12rem; }
   .hrt-empty { color: var(--theme-darker-color); padding: 2rem; text-align: center; }
   .hrt-empty-row { color: var(--theme-darker-color); text-align: center; padding: 1.5rem; }
   .hrt-table-wrap { overflow: auto; flex: 1; padding: 1rem; }
@@ -248,8 +228,8 @@
   .hrt-task__title { color: var(--theme-content-color); }
   .hrt-note-dot { color: var(--theme-link-color, var(--primary-button-default)); font-size: 0.5rem; margin-left: 0.1875rem; vertical-align: super; }
   .hrt-totals td { font-weight: 600; border-top: 2px solid var(--theme-divider-color); }
-  .hrt-under { background: var(--theme-warning-color, #d9822b); color: #fff; border-radius: 0.25rem; }
-  .hrt-met { background: var(--theme-won-color, #2f9e44); color: #fff; border-radius: 0.25rem; }
+  .amber { color: var(--theme-warning-color); font-weight: 500; }
+  .green { color: var(--theme-won-color); }
   .hrt-status-row td { border-top: none; padding-top: 0.25rem; }
   .hrt-pill {
     font-size: 0.6875rem; font-weight: 600; padding: 0.0625rem 0.375rem; border-radius: 0.75rem;
