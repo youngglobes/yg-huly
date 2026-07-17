@@ -24,9 +24,21 @@
   import { EmployeePresenter } from '@hcengineering/contact-resources'
   import { type Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import ui, { Breadcrumb, ButtonIcon, Header, IconBack, IconForward, Label, ModernButton, Scroller } from '@hcengineering/ui'
+  import ui, {
+    Breadcrumb,
+    ButtonIcon,
+    getCurrentLocation,
+    Header,
+    IconBack,
+    IconForward,
+    Label,
+    ModernButton,
+    navigate,
+    Scroller
+  } from '@hcengineering/ui'
   import ygTimesheet, { type HrTimeEntry } from '@hcengineering/yg-timesheet'
   import { buildOverviewGrid } from '../utils/hr-report'
+  import { hrSelectedEmployee } from '../utils/hrStore'
   import { formatHours, weekRange } from '../utils/week'
 
   const DAY_TARGET = 8 // hours/day, weekdays
@@ -68,10 +80,19 @@
   $: dayHeaders = week.days.map((d) => dowFmt.format(d.date))
   $: weekLabel = `${rangeFmt.format(week.days[0].date)} – ${rangeFmt.format(week.days[6].date)}`
 
+  // Hands the clicked employee off to the Timesheets sub-module via the shared store, then
+  // navigates there. The HR app's specials (timesheets/overview/roster) live at path[3] —
+  // the same segment `getTabDataByLocation` reads via `application.navigatorModel.specials`
+  // (see plugins/workbench-resources/src/workbench.ts) and the same segment `doNavigate`'s
+  // 'special' mode sets (plugins/workbench-resources/src/utils.ts) — so this follows that
+  // convention rather than SpecialElement/NavLink's space-nested path[4], which doesn't apply
+  // here since the HR app's specials aren't nested under a space.
   function selectEmployee (ref: Ref<Person>): void {
-    void ref
-    // TODO(Task 4): set the shared hrSelectedEmployee store + navigate to the Timesheets special
-    // so clicking a row here jumps to that employee's per-project grid.
+    hrSelectedEmployee.set(ref)
+    const loc = getCurrentLocation()
+    loc.path[3] = 'timesheets'
+    loc.path.length = 4
+    navigate(loc)
   }
 </script>
 

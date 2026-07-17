@@ -25,12 +25,19 @@
   import { createQuery } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet, { type HrTimeEntry, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
+  import { get } from 'svelte/store'
   import { buildWeekGrid, type HrEntry } from '../utils/hr-report'
+  import { hrSelectedEmployee } from '../utils/hrStore'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
   const DAY_TARGET = 8 // hours/day, weekdays
 
+  // Seed from the shared store so a click-through from Overview lands pre-loaded on that
+  // employee's grid; the local EmployeeBox picker below still works as before either way.
   let employee: Ref<Person> | undefined
+  const pre = get(hrSelectedEmployee)
+  if (pre !== undefined) employee = pre
+
   let weekMs = Date.now()
   $: week = weekRange(weekMs)
   function shiftWeek (deltaDays: number): void {
