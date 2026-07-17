@@ -125,12 +125,12 @@ export function createModel (builder: Builder): void {
   // Dedicated "Human Resource" app hosting the HR Timesheets/Overview sub-modules (and the
   // Owner-only roster) as a native vertical navigator — mirrors models/contact's Application
   // (navigatorModel.specials, no top-level `component`; see that file's Contacts app doc).
-  // Registered with NO accessLevel on the Application itself: HR is space-membership in
-  // ygTimesheet.space.HrData, not a workspace role — access to the Timesheets/Overview specials
-  // is DocGuest (open to any signed-in member; the underlying data is server-private regardless),
-  // while Roster is restricted to Owner (it curates HrData membership). The sidebar icon is
-  // hidden from non-members by the Task-7 per-user HiddenApplication trigger; the projected
-  // HrTimeEntry data is server-private regardless.
+  // App visibility (user decision 2026-07-17: "HR is done by admins/owners"): the whole app is
+  // role-gated to Owner via `accessLevel` — the workbench app-rail + AppSwitcher hide any app whose
+  // accessLevel the current account lacks (workbench-resources Workbench.svelte / AppSwitcher.svelte
+  // -> isAllowedToRole). So only Owners see the Human Resource menu; regular employees never do.
+  // This replaces the fragile per-user HiddenApplication approach. Data is ALSO server-private
+  // (ygTimesheet.space.HrData membership); Owners self-add via ensureHrMembership so they see it.
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,
@@ -140,6 +140,7 @@ export function createModel (builder: Builder): void {
       alias: 'yg-hr',
       hidden: false,
       position: 'top',
+      accessLevel: AccountRole.Owner,
       navigatorModel: {
         spaces: [],
         specials: [
