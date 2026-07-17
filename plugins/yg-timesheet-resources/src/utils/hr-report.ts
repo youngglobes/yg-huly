@@ -82,12 +82,21 @@ export function buildOverviewGrid (
 ): OverviewRow[] {
   const byEmp = new Map<string, number[]>()
   for (const emp of employees) byEmp.set(emp.ref as string, [0, 0, 0, 0, 0, 0, 0])
-  const DAY = 86_400_000
+
+  // Build day-key -> index map (DST-safe, matches buildWeekGrid pattern)
+  const dayKeyIdx = new Map<string, number>()
+  const mon = new Date(week.start)
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon)
+    d.setDate(mon.getDate() + i)
+    dayKeyIdx.set(localDayKey(d.getTime()), i)
+  }
+
   for (const en of entries) {
     const days = byEmp.get(en.employee as string)
     if (days === undefined) continue // only employees in the row set
-    const idx = Math.floor((en.date - week.start) / DAY)
-    if (idx >= 0 && idx < 7) days[idx] += en.hours
+    const idx = dayKeyIdx.get(localDayKey(en.date))
+    if (idx !== undefined) days[idx] += en.hours
   }
   return employees
     .map(({ ref, name }) => {
