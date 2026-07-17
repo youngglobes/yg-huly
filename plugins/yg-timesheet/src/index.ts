@@ -84,7 +84,8 @@ export default plugin(ygTimesheetId, {
     Reports: '' as AnyComponent,
     HrApp: '' as AnyComponent,
     HrTimesheet: '' as AnyComponent,
-    HrRoster: '' as AnyComponent
+    HrRoster: '' as AnyComponent,
+    HrOverview: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
