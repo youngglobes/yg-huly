@@ -64,3 +64,38 @@ export function buildWeekGrid (entries: HrEntry[], week: WeekRange): HrGrid {
   }
   return { rows, dayTotals, grandTotal }
 }
+
+export interface OverviewRow {
+  employee: any // Ref<Person>
+  name: string
+  days: number[] // len 7, Mon..Sun
+  weekTotal: number
+  complete: boolean
+  shortfall: number
+}
+
+export function buildOverviewGrid (
+  entries: any[],
+  employees: Array<{ ref: any, name: string }>,
+  week: { start: number },
+  target = 8
+): OverviewRow[] {
+  const byEmp = new Map<string, number[]>()
+  for (const emp of employees) byEmp.set(emp.ref as string, [0, 0, 0, 0, 0, 0, 0])
+  const DAY = 86_400_000
+  for (const en of entries) {
+    const days = byEmp.get(en.employee as string)
+    if (days === undefined) continue // only employees in the row set
+    const idx = Math.floor((en.date - week.start) / DAY)
+    if (idx >= 0 && idx < 7) days[idx] += en.hours
+  }
+  return employees
+    .map(({ ref, name }) => {
+      const days = byEmp.get(ref as string) ?? [0, 0, 0, 0, 0, 0, 0]
+      const weekTotal = days.reduce((a, b) => a + b, 0)
+      let shortfall = 0
+      for (let i = 0; i < 5; i++) shortfall += Math.max(0, target - days[i])
+      return { employee: ref, name, days, weekTotal, complete: shortfall === 0, shortfall }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
