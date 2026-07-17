@@ -1,3 +1,6 @@
+import type { Person } from '@hcengineering/contact'
+import type { Ref } from '@hcengineering/core'
+import type { HrTimeEntry } from '@hcengineering/yg-timesheet'
 import { localDayKey, type WeekRange } from './week'
 
 export interface HrEntry {
@@ -66,7 +69,7 @@ export function buildWeekGrid (entries: HrEntry[], week: WeekRange): HrGrid {
 }
 
 export interface OverviewRow {
-  employee: any // Ref<Person>
+  employee: Ref<Person>
   name: string
   days: number[] // len 7, Mon..Sun
   weekTotal: number
@@ -75,8 +78,8 @@ export interface OverviewRow {
 }
 
 export function buildOverviewGrid (
-  entries: any[],
-  employees: Array<{ ref: any, name: string }>,
+  entries: HrTimeEntry[],
+  employees: Array<{ ref: Ref<Person>, name: string }>,
   week: { start: number },
   target = 8
 ): OverviewRow[] {

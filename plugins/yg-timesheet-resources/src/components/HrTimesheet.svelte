@@ -41,7 +41,10 @@
   // employee's grid; the local EmployeeBox picker below still works as before either way.
   let employee: Ref<Person> | undefined
   const pre = get(hrSelectedEmployee)
-  if (pre !== undefined) employee = pre
+  if (pre !== undefined) {
+    employee = pre
+    hrSelectedEmployee.set(undefined)
+  }
 
   let weekMs = Date.now()
   $: week = weekRange(weekMs)

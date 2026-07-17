@@ -21,7 +21,7 @@
 -->
 <script lang="ts">
   import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
-  import { EmployeePresenter } from '@hcengineering/contact-resources'
+  import { Avatar, employeeByIdStore } from '@hcengineering/contact-resources'
   import { type Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import ui, {
@@ -97,6 +97,12 @@
     loc.path.length = 4
     navigate(loc)
   }
+
+  // Non-linking avatar lookup for the Overview name cell (see below) — reads the same
+  // employeeByIdStore that EmployeePresenter/Avatar use internally.
+  function employeeFor (ref: Ref<Person>): Employee | undefined {
+    return $employeeByIdStore.get(ref as Ref<Employee>)
+  }
 </script>
 
 <div class="hulyComponent">
@@ -128,7 +134,10 @@
         {#each rows as r (r.employee)}
           <tr class="row" on:click={() => selectEmployee(r.employee)}>
             <td class="left">
-              <EmployeePresenter value={r.employee} avatarSize={'x-small'} />
+              <div class="flex-row-center flex-gap-2">
+                <Avatar size={'x-small'} person={employeeFor(r.employee)} name={r.name} />
+                <span class="overflow-label">{r.name}</span>
+              </div>
             </td>
             {#each r.days as h, i (i)}
               <td class:amber={i < 5 && h < DAY_TARGET} class:green={i < 5 && h >= DAY_TARGET}>
