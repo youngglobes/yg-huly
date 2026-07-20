@@ -37,7 +37,7 @@
       employee: contact.mixin.Employee
     }
   }
-  function addReport (event: MouseEvent): void {
+  function addReport (): void {
     showPopup(
       TimeSpendReportPopup,
       {

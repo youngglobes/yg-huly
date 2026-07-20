@@ -8,7 +8,6 @@
 
   export let value: number | undefined = undefined
   export let disabled: boolean = false
-  export let autoFocus: boolean = false
 
   let hours: number = 0
   let minutes: number = 0
@@ -61,7 +60,6 @@
     maxWidth={'3.5rem'}
     kind={'editbox'}
     {disabled}
-    {autoFocus}
     on:change={commit}
     on:blur={commit}
   />

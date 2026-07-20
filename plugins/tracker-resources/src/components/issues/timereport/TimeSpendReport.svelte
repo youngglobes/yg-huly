@@ -34,7 +34,7 @@
   }
   $: defaultTimeReportDay = currentProject?.defaultTimeReportDay
 
-  function editSpendReport (event: MouseEvent): void {
+  function editSpendReport (): void {
     if (!issue) {
       return
     }

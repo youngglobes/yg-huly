@@ -150,10 +150,20 @@
   <div class="field">
     <div class="field-label"><Label label={tracker.string.TimeSpendReportDate} /><span class="required">*</span></div>
     <div class="flex-row-center gap-2">
-      <Button kind={'link-bordered'} on:click={() => { setDay(0) }}>
+      <Button
+        kind={'link-bordered'}
+        on:click={() => {
+          setDay(0)
+        }}
+      >
         <span slot="content"><Label label={ui.string.Today} /></span>
       </Button>
-      <Button kind={'link-bordered'} on:click={() => { setDay(-1) }}>
+      <Button
+        kind={'link-bordered'}
+        on:click={() => {
+          setDay(-1)
+        }}
+      >
         <span slot="content"><Label label={ui.string.Yesterday} /></span>
       </Button>
       <DatePresenter

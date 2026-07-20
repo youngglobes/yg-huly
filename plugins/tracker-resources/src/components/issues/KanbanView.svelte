@@ -250,7 +250,6 @@
     }
   }
 
-
   const getAvailableCategories = async (doc: Doc): Promise<CategoryType[]> => {
     const issue = toIssue(doc)
 
@@ -434,7 +433,13 @@
               <SubIssuesSelector value={issue} {currentProject} size={'small'} />
             {/if}
             {#if enabledConfig(config, 'priority')}
-              <PriorityEditor value={issue} isEditable={true} kind={'link-bordered'} size={'small'} justify={'center'} />
+              <PriorityEditor
+                value={issue}
+                isEditable={true}
+                kind={'link-bordered'}
+                size={'small'}
+                justify={'center'}
+              />
             {/if}
             {#if enabledConfig(config, 'attachments') && (object.attachments ?? 0) > 0}
               <AttachmentsPresenter value={object.attachments} {object} />
