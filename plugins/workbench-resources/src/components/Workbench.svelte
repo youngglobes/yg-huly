@@ -1042,11 +1042,13 @@
                 {currentApplication}
                 on:open={checkOnHide}
               />
-              <NavFooter>
-                {#if currentApplication && currentApplication.navFooterComponent}
+              {#if currentApplication && currentApplication.navFooterComponent}
+                <NavFooter>
                   <Component is={currentApplication.navFooterComponent} props={{ currentSpace }} />
-                {/if}
-              </NavFooter>
+                </NavFooter>
+              {:else}
+                <NavFooter />
+              {/if}
             </div>
             {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
               <Separator

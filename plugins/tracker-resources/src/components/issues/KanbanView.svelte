@@ -137,6 +137,22 @@
     ;(document.activeElement as HTMLElement)?.blur()
   })
 
+  // Blocks the global Space-bound ShowPreview action for this board's cards only,
+  // by intercepting Space in the capture phase before ActionHandler's bubble-phase
+  // listener sees it. Leaves the action itself (used by other list/table views) intact.
+  function preventKanbanSpacePreview (evt: KeyboardEvent): void {
+    if (evt.code !== 'Space') return
+    const active = document.activeElement as HTMLElement | null
+    if (active != null) {
+      const tag = active.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || active.isContentEditable) return
+    }
+    if ($focusStore.provider === listProvider) {
+      evt.preventDefault()
+      evt.stopPropagation()
+    }
+  }
+
   // Category information only
   let tasks: DocWithRank[] = []
 
@@ -285,6 +301,7 @@
   }
 </script>
 
+<svelte:window on:keydown|capture={preventKanbanSpacePreview} />
 {#if loadCategories}
   <Loading />
 {:else}

@@ -22,8 +22,8 @@
     }
     .hulyNavItem-label {
       color: var(--global-secondary-TextColor) !important;
-      font-size: 0.875rem !important;
-      font-weight: 450 !important;
+      font-size: 0.8125rem !important;
+      font-weight: 400 !important;
     }
 
     // hover: text darkens, subtle grey pill
@@ -51,13 +51,24 @@
     }
   }
 
-  // group headers (Your projects, project names): smaller, muted, sentence-case
+  // group headers (Your projects, project names): smaller, muted, sentence-case,
+  // no background pill in any state (default, hover, selected, open)
   .hulyNavGroup-header__label {
     font-size: 0.75rem !important;
     font-weight: 550 !important;
     color: var(--global-tertiary-TextColor) !important;
     letter-spacing: 0 !important;
     text-transform: none !important;
+    background-color: transparent !important;
+  }
+
+  // project names (e.g. "ABI") are nested inside the "Your projects" group's
+  // content, unlike the "Your projects" header itself — use that to make just
+  // the project name black without touching the section header
+  .hulyNavGroup-content .hulyNavGroup-header__label {
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    color: #000000 !important;
   }
 
   // soften section dividers — Notion separates with space, not hairlines
