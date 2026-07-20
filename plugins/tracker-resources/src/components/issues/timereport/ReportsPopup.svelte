@@ -17,7 +17,7 @@
   import { FindOptions } from '@hcengineering/core'
   import presentation, { Card } from '@hcengineering/presentation'
   import { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-  import { Button, eventToHTMLElement, IconAdd, Scroller, showPopup, tableSP } from '@hcengineering/ui'
+  import { Button, IconAdd, Scroller, showPopup, tableSP } from '@hcengineering/ui'
   import { TableBrowser } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
   import IssuePresenter from '../IssuePresenter.svelte'
@@ -48,7 +48,7 @@
         assignee: issue.assignee,
         defaultTimeReportDay
       },
-      eventToHTMLElement(event)
+      'center'
     )
   }
 </script>
@@ -64,7 +64,7 @@
   <svelte:fragment slot="header">
     <IssuePresenter value={issue} disabled />
   </svelte:fragment>
-  <div class="h-50">
+  <div class="reports-table">
     <Scroller fade={tableSP}>
       <TableBrowser
         _class={tracker.class.TimeSpendReport}
@@ -90,3 +90,12 @@
     <Button id="ReportsPopupAddButton" icon={IconAdd} size={'large'} on:click={addReport} />
   </svelte:fragment>
 </Card>
+
+<style lang="scss">
+  .reports-table {
+    // Was a fixed h-50, which kept a long list scrolling inside a short box.
+    height: 100%;
+    min-height: 12rem;
+    max-height: 60vh;
+  }
+</style>

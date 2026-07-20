@@ -16,7 +16,7 @@
 <script lang="ts">
   import presentation, { Card, createQuery, getClient } from '@hcengineering/presentation'
   import { Issue, Project } from '@hcengineering/tracker'
-  import { Button, EditStyle, eventToHTMLElement, IconAdd, Label, showPopup } from '@hcengineering/ui'
+  import { Button, EditStyle, IconAdd, Label, showPopup } from '@hcengineering/ui'
   import { EditBoxPopup } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import tracker from '../../../plugin'
@@ -91,7 +91,7 @@
               placeholder: tracker.string.Estimation,
               maxDigitsAfterPoint: 3
             },
-            eventToHTMLElement(evt),
+            'center',
             (res) => {
               if (typeof res === 'number') {
                 if (_value !== res) {
