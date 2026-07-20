@@ -24,6 +24,14 @@
   }
 
   // Push: recompose the fields into `value`, carrying minutes >= 60 into hours.
+  //
+  // Only reassigns when the value actually changed, so tabbing through an untouched field
+  // does not mark the form dirty (the consuming popup writes on `value.value !== data.value`).
+  //
+  // Known and accepted: a legacy value stored by the old decimal-only input (e.g. a hand-typed
+  // 0.333) is not reproducible from this widget's canonical (h*60+m)/60 form, so the first blur
+  // normalises it to exactly 20m. That matches what the widget already displays, and only
+  // reaches the database if the user saves.
   function commit (): void {
     const normalized = normalizeHoursMinutes(hours, minutes)
     hours = normalized.hours
