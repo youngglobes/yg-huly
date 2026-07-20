@@ -17,10 +17,11 @@
   import { getResource } from '@hcengineering/platform'
   import preference, { SpacePreference } from '@hcengineering/preference'
   import { createQuery, getClient, isAdminUser } from '@hcengineering/presentation'
-  import { Scroller, NavItem, Component } from '@hcengineering/ui'
+  import { Scroller, NavItem, Component, SearchInput } from '@hcengineering/ui'
   import { NavLink } from '@hcengineering/view-resources'
   import type { Application, NavigatorModel, SpecialNavModel } from '@hcengineering/workbench'
   import { getSpecialSpaceClass } from '../utils'
+  import workbench from '../plugin'
   import SpacesNav from './navigator/SpacesNav.svelte'
   import StarredNav from './navigator/StarredNav.svelte'
   import TreeSeparator from './navigator/TreeSeparator.svelte'
@@ -147,10 +148,11 @@
   }
 
   let menuSelection: boolean = false
+  let projectSearch: string = ''
 </script>
 
 {#if model}
-  <Scroller shrink>
+  <Scroller shrink noStretch>
     {#if model.specials}
       {#each specials as special, row}
         {#if row > 0 && specials[row].position !== specials[row - 1].position}
@@ -195,6 +197,12 @@
       {/each}
     {/if}
 
+    {#if model.spaces.length > 0 && currentApplication?.alias === 'tracker'}
+      <div class="project-search">
+        <SearchInput bind:value={projectSearch} placeholder={workbench.string.SearchProjects} width={'100%'} />
+      </div>
+    {/if}
+
     {#each model.spaces as m (m.label)}
       <SpacesNav
         spaces={shownSpaces.filter((it) => hierarchy.isDerived(it._class, m.spaceClass))}
@@ -205,7 +213,30 @@
         {currentSpecial}
         {currentFragment}
         deselect={menuSelection || starred.some((s) => s._id === currentSpace)}
+        search={currentApplication?.alias === 'tracker' ? projectSearch : ''}
       />
     {/each}
   </Scroller>
 {/if}
+
+<style lang="scss">
+  .project-search {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.25rem 0.75rem 0.5rem;
+    background-color: var(--theme-navpanel-color);
+
+    :global(.searchInput-wrapper) {
+      background-color: #ffffff;
+      box-shadow: inset 0 0 0 1px #000000;
+    }
+    :global(.searchInput-wrapper:hover),
+    :global(.searchInput-wrapper:active),
+    :global(.searchInput-wrapper:focus-within) {
+      background-color: #ffffff;
+      outline: none;
+      box-shadow: inset 0 0 0 1px #000000;
+    }
+  }
+</style>

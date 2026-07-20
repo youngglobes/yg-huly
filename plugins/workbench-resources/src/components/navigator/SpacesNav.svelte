@@ -45,6 +45,7 @@
   export let hasSpaceBrowser: boolean = false
   export let deselect: boolean = false
   export let separate: boolean = false
+  export let search: string = ''
 
   const client = getClient()
   const dispatch = createEventDispatcher()
@@ -132,10 +133,18 @@
     filteredSpaces = result
   }
 
+  $: searchedSpaces =
+    search.trim() === ''
+      ? spaces
+      : spaces.filter((s) => {
+          const q = search.trim().toLowerCase()
+          return s.name?.toLowerCase().includes(q) || (s as any).identifier?.toLowerCase().includes(q)
+        })
+
   $: if (visibleIf) {
-    updateSpaces(spaces, visibleIf)
+    updateSpaces(searchedSpaces, visibleIf)
   } else {
-    filteredSpaces = spaces
+    filteredSpaces = searchedSpaces
   }
   $: visibleSpace = filteredSpaces.find((fs) => fs._id === currentSpace)
   $: empty = filteredSpaces.length === 0 || filteredSpaces === undefined

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { DocumentQuery, Ref, Space, WithLookup } from '@hcengineering/core'
   import { Asset, IntlString, translateCB } from '@hcengineering/platform'
-  import { ComponentExtensions } from '@hcengineering/presentation'
-  import { Issue, TrackerEvents } from '@hcengineering/tracker'
+  import { ComponentExtensions, createQuery } from '@hcengineering/presentation'
+  import { Issue, Project, TrackerEvents } from '@hcengineering/tracker'
   import { IModeSelector, themeStore } from '@hcengineering/ui'
   import { ViewOptions, Viewlet } from '@hcengineering/view'
   import { FilterBar, SpaceHeader, ViewletContentView, ViewletSettingButton } from '@hcengineering/view-resources'
@@ -28,7 +28,21 @@
   $: if (query) updateSearchQuery(search)
   let resultQuery: DocumentQuery<Issue> = { ...searchQuery }
 
-  $: if (title) {
+  const projectQuery = createQuery()
+  let project: Project | undefined
+
+  $: if (space !== undefined) {
+    projectQuery.query(tracker.class.Project, { _id: space as Ref<Project> }, (res) => {
+      project = res[0]
+    })
+  } else {
+    projectQuery.unsubscribe()
+    project = undefined
+  }
+
+  $: if (project) {
+    label = project.name
+  } else if (title) {
     translateCB(title, {}, $themeStore.language, (res) => {
       label = res
     })
@@ -37,7 +51,7 @@
 
 <SpaceHeader
   _class={tracker.class.Issue}
-  {icon}
+  icon={project ? undefined : icon}
   bind:viewlet
   bind:search
   showLabelSelector={$$slots.label_selector}

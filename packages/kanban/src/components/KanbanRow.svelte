@@ -165,10 +165,11 @@
     border: 1px solid var(--theme-kanban-card-border);
     border-radius: 0.625rem;
     box-shadow: var(--theme-kanban-card-shadow, none);
-    transition: box-shadow 0.15s ease-in-out;
+    transition: box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
 
     &:hover {
-      box-shadow: var(--theme-kanban-card-shadow-hover, none);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), var(--theme-kanban-card-shadow, none);
+      transform: translateY(-1px);
     }
 
     &.checked {
@@ -179,32 +180,11 @@
         background-color: var(--highlight-select-hover);
       }
     }
-    &.selection,
-    &.checked.selection {
-      box-shadow: 0 0 1px 1px var(--primary-button-default);
-      animation: anim-border 1s ease-in-out;
-
-      &:hover {
-        background-color: var(--highlight-hover);
-      }
-    }
-    &.checked.selection:hover {
-      background-color: var(--highlight-select-hover);
-    }
-
     &.draggable {
       cursor: grab;
     }
     &.dragged {
       background-color: var(--theme-bg-accent-color);
-    }
-  }
-  @keyframes anim-border {
-    from {
-      box-shadow: 0 0 1px 1px var(--primary-edit-border-color);
-    }
-    to {
-      box-shadow: 0 0 1px 1px var(--primary-bg-color);
     }
   }
 </style>
