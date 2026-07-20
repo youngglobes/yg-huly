@@ -112,6 +112,21 @@ Restructured into a vertical labelled stack. The date controls move **out of the
    reuse `getTimeReportDate()`, which skips weekends (`utils.ts:311-314`): on a Monday that
    helper returns Friday, so a "Yesterday" chip built on it would silently log to the wrong
    day — the exact bug this design exists to remove.
+
+### Weekend work is explicitly supported
+
+Emergency work on a Saturday or Sunday must be loggable against the day it happened.
+
+This is a **fix**, not a regression. Today `getTimeReportDate()` walks backwards off any
+weekend, so an employee logging Saturday work on Saturday gets **Friday** — and neither
+dropdown option can produce Saturday, because the `while (isWeekend(date))` loop applies to
+`CurrentWorkDay` too. Saturday is currently reachable only via the calendar at the bottom of
+the popup, which is exactly the control a rushing employee skips.
+
+The only date rule this design adds is "not in the future". No rule restricts *which* past
+day. Weekend days remain fully selectable in the calendar — `isWeekend` appears there purely
+as a `class:weekend` style hook (`MonthSquare.svelte:164`, `MonthCalendar.svelte:62`), never
+as a disable — and the literal chips reach them directly.
 2. **Hours \*** — `DurationInput` plus the 15m/30m/45m/1h/2h/4h/6h/8h preset chips, which
    set `value` and are reflected by the widget. `disabled` until a date is chosen.
 3. **Description** — `disabled` until a date is chosen.
@@ -191,6 +206,9 @@ Making future days genuinely unclickable is a deliberate follow-up that would pa
 - **Future date:** selecting tomorrow shows the error and keeps `Create` disabled; selecting
   today (with any time-of-day component) is accepted.
 - **Chips on a Monday:** the `Yesterday` chip yields Sunday, not Friday.
+- **Weekend work:** on a Saturday the `Today` chip yields Saturday (not Friday); on a Sunday
+  the `Yesterday` chip yields Saturday; both save and appear in the reports list against the
+  weekend date.
 - **Edit mode:** opening an existing report shows its date and enabled fields immediately,
   and its decimal value decomposes to the right h/m.
 - **Manual e2e in the local stack:** add a report from each of the five entry points
