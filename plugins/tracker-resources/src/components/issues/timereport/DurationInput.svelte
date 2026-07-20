@@ -29,8 +29,10 @@
     hours = normalized.hours
     minutes = normalized.minutes
     const next = fromHoursMinutes(hours, minutes)
-    syncedFrom = next
-    value = next
+    if (next !== value) {
+      value = next
+    }
+    syncedFrom = value
   }
 
   // Native number inputs step by 1. Minutes are far more useful stepped by 5.
