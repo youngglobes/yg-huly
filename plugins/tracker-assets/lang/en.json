@@ -237,6 +237,7 @@
     "PickADate": "Pick a date…",
     "SelectDateFirst": "Select a date to continue",
     "FutureDateNotAllowed": "Can't log time for a future date",
+    "DurationPlaceholder": "",
     "TimeSpendDays": "{value}d",
     "TimeSpendHours": "{value}h",
     "TimeSpendMinutes": "{value}m",

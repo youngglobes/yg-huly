@@ -273,6 +273,7 @@ export default mergeIds(trackerId, tracker, {
     PickADate: '' as IntlString,
     SelectDateFirst: '' as IntlString,
     FutureDateNotAllowed: '' as IntlString,
+    DurationPlaceholder: '' as IntlString,
     TimeSpendDays: '' as IntlString,
     TimeSpendHours: '' as IntlString,
     TimeSpendMinutes: '' as IntlString,

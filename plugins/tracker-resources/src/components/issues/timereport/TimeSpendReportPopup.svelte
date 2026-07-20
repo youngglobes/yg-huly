@@ -200,12 +200,21 @@
   <!-- 3. Description. Disabled until a date is chosen. -->
   <div class="field" class:gated={!fieldsEnabled}>
     <div class="field-label"><Label label={tracker.string.TimeSpendReportDescription} /></div>
-    <EditBox
-      bind:value={data.description}
-      placeholder={tracker.string.TimeSpendReportDescription}
-      kind={'editbox'}
-      disabled={!fieldsEnabled}
-    />
+    <!--
+      Multi-line: a single-line box made it impossible to write a real note. Stays plain text
+      (TimeSpendReport.description is a `string`), so the reports table keeps rendering it
+      correctly rather than showing raw markup.
+    -->
+    <div class="description-box" class:disabled={!fieldsEnabled}>
+      <EditBox
+        bind:value={data.description}
+        placeholder={tracker.string.TimeSpendReportDescription}
+        format={'text-multiline'}
+        kind={'editbox'}
+        fullSize
+        disabled={!fieldsEnabled}
+      />
+    </div>
   </div>
 
   <svelte:fragment slot="pool">
@@ -239,6 +248,20 @@
   .presets {
     margin-top: 0.5rem;
     flex-wrap: wrap;
+  }
+  .description-box {
+    padding: 0.375rem 0.5rem;
+    min-height: 5rem;
+    border: 1px solid var(--theme-button-border);
+    border-radius: 0.375rem;
+    background-color: var(--theme-button-default);
+
+    &:focus-within {
+      border-color: var(--primary-edit-border-color);
+    }
+    &.disabled {
+      opacity: 0.4;
+    }
   }
   .gated {
     opacity: 0.5;

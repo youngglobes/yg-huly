@@ -9,6 +9,12 @@
   export let value: number | undefined = undefined
   export let disabled: boolean = false
 
+  // Both fields are capped at two digits. 99 is deliberately above 59 for minutes so the
+  // carry-into-hours still works (typing 90 must become 1h 30m). EditBox clamps to maxValue in
+  // its own setValue() BEFORE it dispatches change/blur, so anything over 99 arrives here as 99
+  // and is then normalised — e.g. 120 becomes 1h 39m rather than being silently accepted.
+  const MAX_TWO_DIGITS = 99
+
   let hours: number = 0
   let minutes: number = 0
   // Guards against the reactive statement below clobbering the fields while the user types.
@@ -42,54 +48,113 @@
     syncedFrom = value
   }
 
+  /**
+   * Block a third digit at the keystroke, so the field simply cannot hold more than two.
+   *
+   * `maxlength` does nothing on `<input type="number">`, and maxValue only clamps on
+   * change/blur — i.e. after the user has already typed 3 digits and watched them appear.
+   *
+   * Only plain digit keys are blocked: Backspace, Delete, Tab, arrows and any modifier combo
+   * (copy/paste/select-all) fall through untouched. If the caret has a selection, the digit
+   * replaces it rather than extending, so it is allowed. `selectionStart` throws on number
+   * inputs in some browsers, hence the try/catch.
+   */
+  function blockThirdDigit (event: KeyboardEvent): void {
+    if (event.ctrlKey || event.metaKey || event.altKey) return
+    if (event.key.length !== 1 || event.key < '0' || event.key > '9') return
+
+    const input = event.target as HTMLInputElement
+    const current = input.value ?? ''
+    if (current.length < 2) return
+
+    let hasSelection = false
+    try {
+      hasSelection = input.selectionStart !== input.selectionEnd
+    } catch {
+      hasSelection = false
+    }
+    if (!hasSelection) {
+      event.preventDefault()
+    }
+  }
+
   // Native number inputs step by 1. Minutes are far more useful stepped by 5.
   function onMinutesKeydown (event: KeyboardEvent): void {
-    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
-    event.preventDefault()
-    const delta = event.key === 'ArrowUp' ? 5 : -5
-    minutes = Math.max(0, (Number.isFinite(minutes) ? minutes : 0) + delta)
-    commit()
+    if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault()
+      const delta = event.key === 'ArrowUp' ? 5 : -5
+      minutes = Math.max(0, (Number.isFinite(minutes) ? minutes : 0) + delta)
+      commit()
+      return
+    }
+    blockThirdDigit(event)
   }
 </script>
 
 <div class="duration-input flex-row-center">
-  <EditBox
-    bind:value={hours}
-    format={'number'}
-    minValue={0}
-    maxWidth={'3.5rem'}
-    kind={'editbox'}
-    {disabled}
-    on:change={commit}
-    on:blur={commit}
-  />
-  <span class="unit" class:disabled><Label label={tracker.string.HourLabel} /></span>
+  <!--
+    Each field is its own bordered box with the unit tucked inside, so "h" / "m" read as part
+    of the control rather than floating off to the right. The input is sized to its content
+    (2.25rem fits 3 digits) — a wider maxWidth reserves space even for a 1-digit value and
+    pushes the unit away.
+  -->
+  <div class="field" class:disabled>
+    <EditBox
+      bind:value={hours}
+      format={'number'}
+      minValue={0}
+      maxValue={MAX_TWO_DIGITS}
+      maxWidth={'1.6rem'}
+      kind={'editbox'}
+      placeholder={tracker.string.DurationPlaceholder}
+      {disabled}
+      on:change={commit}
+      on:blur={commit}
+      on:keydown={blockThirdDigit}
+    />
+    <span class="unit"><Label label={tracker.string.HourLabel} /></span>
+  </div>
 
-  <EditBox
-    bind:value={minutes}
-    format={'number'}
-    minValue={0}
-    maxWidth={'3.5rem'}
-    kind={'editbox'}
-    {disabled}
-    on:change={commit}
-    on:blur={commit}
-    on:keydown={onMinutesKeydown}
-  />
-  <span class="unit" class:disabled><Label label={tracker.string.MinuteLabel} /></span>
+  <div class="field" class:disabled>
+    <EditBox
+      bind:value={minutes}
+      format={'number'}
+      minValue={0}
+      maxValue={MAX_TWO_DIGITS}
+      maxWidth={'1.6rem'}
+      kind={'editbox'}
+      placeholder={tracker.string.DurationPlaceholder}
+      {disabled}
+      on:change={commit}
+      on:blur={commit}
+      on:keydown={onMinutesKeydown}
+    />
+    <span class="unit"><Label label={tracker.string.MinuteLabel} /></span>
+  </div>
 </div>
 
 <style lang="scss">
   .duration-input {
-    gap: 0.375rem;
+    gap: 0.5rem;
   }
-  .unit {
-    margin-right: 0.75rem;
-    color: var(--theme-dark-color);
-    font-size: 0.8125rem;
+  .field {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--theme-button-border);
+    border-radius: 0.375rem;
+    background-color: var(--theme-button-default);
 
+    &:focus-within {
+      border-color: var(--primary-edit-border-color);
+    }
     &.disabled {
       opacity: 0.4;
     }
+  }
+  .unit {
+    color: var(--theme-dark-color);
+    font-size: 0.8125rem;
   }
 </style>

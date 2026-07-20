@@ -354,7 +354,9 @@ so Saturday work logs against Saturday."
   - `disabled: boolean` (default `false`)
   - `autoFocus: boolean` (default `false`)
 
-**Critical trap — do not set `maxValue` on the minutes field.** `EditBox` clamps to `maxValue` in its own `setValue()` (`packages/ui/src/components/EditBox.svelte:61-72`). Setting `maxValue={59}` would clamp a typed `90` down to `59` before this component ever sees it, defeating the carry behaviour. Only `minValue={0}` is set; the carry is handled here.
+**Critical trap — never set `maxValue={59}` on the minutes field.** `EditBox` clamps to `maxValue` in its own `setValue()` (`packages/ui/src/components/EditBox.svelte:61-72`), which runs *before* it dispatches change/blur. A `maxValue` of 59 would clamp a typed `90` down to `59` before this component ever sees it, defeating the carry behaviour.
+
+*Superseded 2026-07-20 by user feedback ("spent time should be 2 digit"):* both fields now set `maxValue={99}`. 99 is safely above 59, so a typed `90` is not clamped and still carries to `1h 30m`; only 3-digit input (e.g. `120`) is clamped, to `99`, and then normalises to `1h 39m`. The original warning still holds for any value at or below 59.
 
 - [ ] **Step 1: Write the component**
 
@@ -475,7 +477,7 @@ cd /home/karthi_0008/dev/client-projects/yg-huly
 git add plugins/tracker-resources/src/components/issues/timereport/DurationInput.svelte
 git commit -m "tracker: add DurationInput hours/minutes widget
 
-Thin shell over timeEntryUtils. Minutes field deliberately has no maxValue so
+Thin shell over timeEntryUtils. Minutes field originally had no maxValue so
 EditBox cannot clamp a typed 90 to 59 before the carry into hours runs."
 ```
 
