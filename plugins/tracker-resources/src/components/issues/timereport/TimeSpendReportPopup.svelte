@@ -19,7 +19,7 @@
   import presentation, { Card, getClient } from '@hcengineering/presentation'
   import { UserBox } from '@hcengineering/contact-resources'
   import { Issue, TimeReportDayType, TimeSpendReport, TrackerEvents } from '@hcengineering/tracker'
-  import ui, { Button, DatePresenter, EditBox, Label } from '@hcengineering/ui'
+  import ui, { Button, DatePresenter, EditBox, Label, themeStore } from '@hcengineering/ui'
   import tracker from '../../../plugin'
   import TitlePresenter from '../TitlePresenter.svelte'
   import DurationInput from './DurationInput.svelte'
@@ -56,6 +56,15 @@
 
   function setDay (offset: number): void {
     data.date = localDayOffset(offset)
+  }
+
+  function formatChosenDay (ts: number, language: string): string {
+    return new Date(ts).toLocaleDateString(language, {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    })
   }
 
   interface DurationPreset {
@@ -155,9 +164,12 @@
         labelNull={tracker.string.PickADate}
       />
     </div>
+    {#if data.date != null}
+      <div class="field-chosen-day">{formatChosenDay(data.date, $themeStore.language)}</div>
+    {/if}
     {#if dateInFuture}
       <div class="field-error"><Label label={tracker.string.FutureDateNotAllowed} /></div>
-    {:else if !fieldsEnabled}
+    {:else if !dateChosen}
       <div class="field-hint"><Label label={tracker.string.SelectDateFirst} /></div>
     {/if}
   </div>
@@ -223,7 +235,8 @@
     pointer-events: none;
   }
   .field-hint,
-  .field-error {
+  .field-error,
+  .field-chosen-day {
     margin-top: 0.375rem;
     font-size: 0.75rem;
   }
@@ -232,5 +245,9 @@
   }
   .field-error {
     color: var(--theme-error-color);
+  }
+  .field-chosen-day {
+    color: var(--theme-caption-color);
+    font-weight: 500;
   }
 </style>
