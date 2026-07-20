@@ -10,6 +10,8 @@
     "svelte-check": "do-svelte-check",
     "_phase:svelte-check": "do-svelte-check",
     "format": "format src",
+    "test": "jest --passWithNoTests --silent",
+    "_phase:test": "jest --passWithNoTests --silent",
     "build:watch": "compile ui",
     "_phase:build": "compile ui",
     "_phase:format": "format src",
