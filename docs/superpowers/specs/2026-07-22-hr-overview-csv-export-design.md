@@ -55,12 +55,18 @@ The common case (export the week I'm looking at) is therefore two clicks.
 Wide, one column per day in the period:
 
 ```
-Employee, <day 1>, <day 2>, … <day N>, Total, Shortfall (vs 8h × weekdays)
+Employee, <day 1>, <day 2>, … <day N>, Total
 ```
 
-- Day headers are `YYYY-MM-DD` (unambiguous, sortable, locale-independent — the on-screen
-  `Mon/Tue` short names are not reused, since a month spans repeats).
-- Hours are decimals (spreadsheet-friendly), matching the PM report export.
+- Day headers are `Dow DD` — e.g. `Mon 20`. The month is deliberately omitted: it is already in the
+  filename (`yg-overview-monthly-2026-07.csv`), and repeating it across 31 headers is noise.
+  (Revised 2026-07-22 from the original `YYYY-MM-DD`, at the user's request.)
+- Hours are `h:mm` — e.g. `1:30` — so the file reads the same way as the on-screen grid.
+  **Deliberately NOT `hh.mm`:** `1.30` is read by a spreadsheet as the number 1.3, so a column of
+  such values sums to a silently wrong total — unacceptable in a file emailed on for
+  reconciliation. `h:mm` stays readable AND sums correctly when the column is formatted `[h]:mm`.
+  Emitted unquoted so spreadsheets parse it as a time value. Day cells and totals are computed from
+  the raw hours and formatted only at emit time, so rounding never accumulates.
 - One row per **active** employee, including employees with zero hours — consistent with the
   on-screen grid, whose whole purpose is surfacing under-logging.
 - A trailing **Totals** row: per-day org totals and a grand total, matching `dailyTotals` /
@@ -83,7 +89,25 @@ Employee, <day 1>, <day 2>, … <day N>, Total, Shortfall (vs 8h × weekdays)
 The period is encoded deliberately: these files get emailed, and a weekly and a monthly report
 both named `overview.csv` is how the wrong one reaches a client.
 
-### Shortfall semantics
+### Shortfall — REMOVED from the export (2026-07-22)
+
+The `Shortfall (vs 8h × weekdays)` column was **dropped at the user's request** after the first
+build. The section below is retained as the record of why it was built and why it was risky; the
+on-screen grid still shows its "under Xh" status, which is unaffected.
+
+Removing it also retires the two limitations logged against it — hire-date unawareness and
+holiday/leave unawareness — as export concerns. The **deactivated-employee** limitation recorded
+under "Output format" still applies, since it affects the day columns and the Totals row.
+
+**Superseding direction (not yet designed):** the user's actual need is the opposite measure —
+*overtime*, not shortfall: who worked weekends, public holidays, past 8h/day, or at night, for
+appraisal discussions. Feasibility from today's data: weekend work and >8h days are computable now
+from `HrTimeEntry` (date + hours). Holiday work needs the HR calendar wired in, which it is not.
+Night/midnight work is **not** computable at all — `HrTimeEntry` records the date the time is
+logged against, never the clock time it was worked, so it would need a punch-in/punch-out module.
+Likely a separate "employee performance" module rather than an extension of this export.
+
+### Shortfall semantics (historical — column no longer exported)
 
 `Shortfall = Σ over each **weekday** in the period of `max(0, 8h − hours logged that day)`.
 
