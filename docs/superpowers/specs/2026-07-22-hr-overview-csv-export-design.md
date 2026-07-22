@@ -78,7 +78,14 @@ both named `overview.csv` is how the wrong one reaches a client.
 
 ### Shortfall semantics
 
-`Shortfall = max(0, 8h × (weekdays in period) − employee total)`.
+`Shortfall = Σ over each **weekday** in the period of `max(0, 8h − hours logged that day)`.
+
+This is the **existing** weekly semantics (`hr-report.ts`, verified against
+`utils/__tests__/hr-report.test.ts`: 6h Mon + 5h Tue → `29` = `(8-6)+(8-5)+8+8+8`), generalised
+from "the 5 weekdays of the week" to "every weekday in the period". It is deliberately **not**
+`max(0, 8h × weekdays − total)`: the two agree only while nobody logs more than 8h in a day, and
+they diverge exactly where it matters — 16h on Monday and nothing else is a 32h shortfall
+(four un-logged days), not 24h. Overtime on one day must not silently cancel an absent day.
 
 **It is holiday- and leave-unaware.** Huly's stock HR module holidays are not wired into
 `HrTimeEntry`, so a month containing public holidays will show a shortfall that is not real
