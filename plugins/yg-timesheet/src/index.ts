@@ -84,7 +84,8 @@ export default plugin(ygTimesheetId, {
     Reports: '' as AnyComponent,
     HrTimesheet: '' as AnyComponent,
     HrRoster: '' as AnyComponent,
-    HrOverview: '' as AnyComponent
+    HrOverview: '' as AnyComponent,
+    HrExportDialog: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -147,6 +148,12 @@ export default plugin(ygTimesheetId, {
     Worker: '' as IntlString,
     WorkingDays: '' as IntlString,
     Target: '' as IntlString,
-    NoEmployeeSelected: '' as IntlString
+    NoEmployeeSelected: '' as IntlString,
+    Export: '' as IntlString,
+    ExportPeriod: '' as IntlString,
+    PeriodWeekly: '' as IntlString,
+    PeriodMonthly: '' as IntlString,
+    SelectWeek: '' as IntlString,
+    SelectMonth: '' as IntlString
   }
 })

@@ -58,6 +58,12 @@
     "Worker": "Worker",
     "WorkingDays": "Working days",
     "Target": "Target",
-    "NoEmployeeSelected": "Select an employee to view their timesheet"
+    "NoEmployeeSelected": "Select an employee to view their timesheet",
+    "Export": "Export",
+    "ExportPeriod": "Export period",
+    "PeriodWeekly": "Weekly",
+    "PeriodMonthly": "Monthly",
+    "SelectWeek": "Week",
+    "SelectMonth": "Month"
   }
 }

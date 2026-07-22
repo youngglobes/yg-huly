@@ -58,6 +58,12 @@
     "Worker": "Сотрудник",
     "WorkingDays": "Рабочие дни",
     "Target": "Цель",
-    "NoEmployeeSelected": "Выберите сотрудника, чтобы увидеть табель"
+    "NoEmployeeSelected": "Выберите сотрудника, чтобы увидеть табель",
+    "Export": "Экспорт",
+    "ExportPeriod": "Период экспорта",
+    "PeriodWeekly": "Неделя",
+    "PeriodMonthly": "Месяц",
+    "SelectWeek": "Неделя",
+    "SelectMonth": "Месяц"
   }
 }
