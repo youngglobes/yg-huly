@@ -65,6 +65,13 @@ Employee, <day 1>, <day 2>, … <day N>, Total, Shortfall (vs 8h × weekdays)
   on-screen grid, whose whole purpose is surfacing under-logging.
 - A trailing **Totals** row: per-day org totals and a grand total, matching `dailyTotals` /
   `grandTotal` already computed in `HrOverview.svelte`.
+- **Known limitation: hours from deactivated employees are silently omitted, including from the
+  Totals row.** The employee row set comes from `contact.mixin.Employee` filtered to
+  `{ active: true }`, and `buildOverviewGrid` skips entries whose employee is not in that set. So
+  hours logged by someone who has since been deactivated are dropped from the file AND from the
+  org `Total` row, with nothing indicating the omission. Over a month-long window this is routine
+  rather than theoretical (a leaver mid-month), and the file is emailed onward for reconciliation.
+  A future increment could emit unmatched hours as a trailing "(inactive)" row.
 - Employee names pass through the **same** `escText()` guard as the PM report. Numeric cells are
   emitted unquoted.
 
@@ -92,6 +99,13 @@ they diverge exactly where it matters — 16h on Monday and nothing else is a 32
 under-logging. This is why the column is labelled `Shortfall (vs 8h × weekdays)` rather than
 `Shortfall` — the header states the basis so the number cannot be misread as absence.
 Accepted by the user (2026-07-22), to be revisited if it misleads in practice.
+
+**It is also hire-date-unaware.** Shortfall is computed against every weekday in the period,
+with no knowledge of an employee's start date — `contact.mixin.Employee` carries no start date,
+so there is no cheap code fix. An employee who joins on the 20th of a month will show a large
+shortfall (~13 weekdays × 8h) for days before they were employed. This was a rare edge case for
+a weekly report but hits every new hire on every monthly export. Recorded here so HR is told
+before the first monthly export is circulated.
 
 ## Architecture
 
