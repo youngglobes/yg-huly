@@ -42,8 +42,10 @@ Clicking it opens a small dialog:
 
 1. **Period:** `Weekly` (default) or `Monthly`.
 2. **Selector**, which swaps with the period:
-   - Weekly → week picker, **pre-filled with the week currently on screen**.
-   - Monthly → month + year picker, defaulting to the month containing the current week.
+   - Weekly → a date input **pre-filled with the week currently on screen**; any date picked
+     snaps to its containing Mon–Sun week, and the resolved range is shown as a label
+     (e.g. "Mon, Jul 20 – Sun, Jul 26") so the user sees what they will get.
+   - Monthly → month + year selectors, defaulting to the month containing the current week.
 3. **Export** confirms; **Cancel** dismisses.
 
 The common case (export the week I'm looking at) is therefore two clicks.
@@ -171,7 +173,13 @@ Pure libs, so this is all jest, no UI harness. New/extended:
 - `overviewToCSV` — column count = N + 3; totals row correct; **formula-injection**: an employee
   named `=cmd()` is emitted apostrophe-prefixed; a name containing a comma and a name containing a
   double-quote are both correctly quoted/escaped.
-- Existing weekly tests must keep passing unchanged (proves the generalisation is additive).
+- Existing weekly `buildOverviewGrid` tests must still assert the **same weekly behaviour** after
+  being mechanically updated for the `weekTotal` → `total` rename. The assertions do not change;
+  only the field name does. That is what proves the generalisation is additive rather than a
+  behaviour change.
+
+`buildWeekGrid()` (the per-employee Timesheets grid) is **not** touched by this work — the export
+lives on the Overview tab only, so its 7-day assumption is left alone.
 
 ## Files
 
