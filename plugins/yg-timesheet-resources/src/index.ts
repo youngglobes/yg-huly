@@ -7,6 +7,7 @@ import Reports from './components/Reports.svelte'
 import HrTimesheet from './components/HrTimesheet.svelte'
 import HrRoster from './components/HrRoster.svelte'
 import HrOverview from './components/HrOverview.svelte'
+import HrExportDialog from './components/HrExportDialog.svelte'
 
 export default async (): Promise<Resources> => ({
   component: {
@@ -17,6 +18,7 @@ export default async (): Promise<Resources> => ({
     Reports,
     HrTimesheet,
     HrRoster,
-    HrOverview
+    HrOverview,
+    HrExportDialog
   }
 })
