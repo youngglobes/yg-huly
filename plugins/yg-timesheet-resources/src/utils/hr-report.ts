@@ -1,7 +1,8 @@
 import type { Person } from '@hcengineering/contact'
 import type { Ref } from '@hcengineering/core'
 import type { HrTimeEntry } from '@hcengineering/yg-timesheet'
-import { localDayKey, type WeekRange } from './week'
+import { isWeekendKey } from './period'
+import { localDayKey, type DayKey, type WeekRange } from './week'
 
 export interface HrEntry {
   date: number
@@ -71,8 +72,8 @@ export function buildWeekGrid (entries: HrEntry[], week: WeekRange): HrGrid {
 export interface OverviewRow {
   employee: Ref<Person>
   name: string
-  days: number[] // len 7, Mon..Sun
-  weekTotal: number
+  days: number[] // one slot per day in the period
+  total: number
   complete: boolean
   shortfall: number
 }
@@ -80,20 +81,14 @@ export interface OverviewRow {
 export function buildOverviewGrid (
   entries: HrTimeEntry[],
   employees: Array<{ ref: Ref<Person>, name: string }>,
-  week: { start: number },
+  period: { days: DayKey[] },
   target = 8
 ): OverviewRow[] {
+  const n = period.days.length
+  const dayKeyIdx = new Map<DayKey, number>(period.days.map((k, i) => [k, i]))
+  const weekday = period.days.map((k) => !isWeekendKey(k))
   const byEmp = new Map<string, number[]>()
-  for (const emp of employees) byEmp.set(emp.ref as string, [0, 0, 0, 0, 0, 0, 0])
-
-  // Build day-key -> index map (DST-safe, matches buildWeekGrid pattern)
-  const dayKeyIdx = new Map<string, number>()
-  const mon = new Date(week.start)
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(mon)
-    d.setDate(mon.getDate() + i)
-    dayKeyIdx.set(localDayKey(d.getTime()), i)
-  }
+  for (const emp of employees) byEmp.set(emp.ref as string, new Array(n).fill(0))
 
   for (const en of entries) {
     const days = byEmp.get(en.employee as string)
@@ -101,13 +96,17 @@ export function buildOverviewGrid (
     const idx = dayKeyIdx.get(localDayKey(en.date))
     if (idx !== undefined) days[idx] += en.hours
   }
+
   return employees
     .map(({ ref, name }) => {
-      const days = byEmp.get(ref as string) ?? [0, 0, 0, 0, 0, 0, 0]
-      const weekTotal = days.reduce((a, b) => a + b, 0)
+      const days = byEmp.get(ref as string) ?? new Array(n).fill(0)
+      const total = days.reduce((a, b) => a + b, 0)
+      // Per-weekday shortfall: overtime on one day must NOT cancel an absent day.
       let shortfall = 0
-      for (let i = 0; i < 5; i++) shortfall += Math.max(0, target - days[i])
-      return { employee: ref, name, days, weekTotal, complete: shortfall === 0, shortfall }
+      for (let i = 0; i < n; i++) {
+        if (weekday[i]) shortfall += Math.max(0, target - days[i])
+      }
+      return { employee: ref, name, days, total, complete: shortfall === 0, shortfall }
     })
     .sort((a, b) => a.name.localeCompare(b.name))
 }

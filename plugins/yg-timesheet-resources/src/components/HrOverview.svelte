@@ -40,6 +40,7 @@
   import { buildOverviewGrid } from '../utils/hr-report'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { hrSelectedEmployee } from '../utils/hrStore'
+  import { weekPeriod } from '../utils/period'
   import { formatHours, weekRange } from '../utils/week'
 
   void ensureHrMembership()
@@ -72,11 +73,12 @@
     entries = res
   })
 
-  $: rows = buildOverviewGrid(entries, employees, week, DAY_TARGET)
+  $: viewPeriod = weekPeriod(week.start)
+  $: rows = buildOverviewGrid(entries, employees, viewPeriod, DAY_TARGET)
 
   // Org-wide daily + grand totals across all rows.
   $: dailyTotals = [0, 1, 2, 3, 4, 5, 6].map((i) => rows.reduce((sum, r) => sum + r.days[i], 0))
-  $: grandTotal = rows.reduce((sum, r) => sum + r.weekTotal, 0)
+  $: grandTotal = rows.reduce((sum, r) => sum + r.total, 0)
 
   const dowFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
   const rangeFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
@@ -144,7 +146,7 @@
                 {h > 0 ? formatHours(h) : '—'}
               </td>
             {/each}
-            <td class="bold">{formatHours(r.weekTotal)}</td>
+            <td class="bold">{formatHours(r.total)}</td>
             <td>
               {#if r.complete}
                 <span class="ok">✓ complete</span>
