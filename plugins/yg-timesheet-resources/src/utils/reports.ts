@@ -1,4 +1,5 @@
 import { localDayKey } from './week'
+import { esc, escText } from './csv'
 
 // One row per time entry (TimeSpendReport) enriched with its issue's fields. A task worked
 // on across 3 days is 3 rows. This is the PM report shape (matches the team's tracking sheet).
@@ -50,14 +51,6 @@ const COLS = [
   'TL/PM Approved Hours', 'TL/PM Approved By', 'Client Approved Hours', 'Client Approved By',
   'Status', 'Priority', 'Due date', 'Notes'
 ]
-function esc (v: string): string { return `"${v.replace(/"/g, '""')}"` }
-// Cells whose first char could be interpreted as a spreadsheet formula (=, +, -, @) or a
-// tab/CR (used in some formula-injection payloads) get apostrophe-prefixed before quoting,
-// so opening the CSV in Excel/Sheets doesn't execute attacker-controlled text as a formula.
-const RISKY_PREFIX = /^[=+\-@\t\r]/
-function escText (v: string): string {
-  return esc(RISKY_PREFIX.test(v) ? `'${v}` : v)
-}
 export function toCSV (rows: ReportRow[]): string {
   const head = COLS.join(',')
   if (rows.length === 0) return `${head}\n`
