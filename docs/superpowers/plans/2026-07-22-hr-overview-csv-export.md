@@ -678,7 +678,10 @@ Split from Task 6 because ids and lang strings live in three other packages; a r
 - Modify: `plugins/yg-timesheet-assets/lang/ru.json`
 
 **Interfaces:**
-- Produces: `ygTimesheet.component.HrExportDialog`, and the string ids `Export`, `ExportPeriod`, `PeriodWeekly`, `PeriodMonthly`, `SelectWeek`, `SelectMonth`, `Cancel`.
+- Produces: `ygTimesheet.component.HrExportDialog`, and the string ids `Export`, `ExportPeriod`, `PeriodWeekly`, `PeriodMonthly`, `SelectWeek`, `SelectMonth`.
+
+**Do NOT add a `Cancel` string** — `packages/ui/lang/en.json` already ships one; the dialog uses the
+stock `ui.string.Cancel`. A second translation of a stock string is duplication that drifts.
 
 - [ ] **Step 1: Add the component and string ids**
 
@@ -697,7 +700,6 @@ and to the `string:` block:
     PeriodMonthly: '' as IntlString,
     SelectWeek: '' as IntlString,
     SelectMonth: '' as IntlString,
-    Cancel: '' as IntlString,
 ```
 
 - [ ] **Step 2: Add the English strings**
@@ -710,8 +712,7 @@ In `plugins/yg-timesheet-assets/lang/en.json`, inside the existing `"string"` ob
     "PeriodWeekly": "Weekly",
     "PeriodMonthly": "Monthly",
     "SelectWeek": "Week",
-    "SelectMonth": "Month",
-    "Cancel": "Cancel"
+    "SelectMonth": "Month"
 ```
 
 - [ ] **Step 3: Add the Russian strings**
@@ -724,8 +725,7 @@ In `plugins/yg-timesheet-assets/lang/ru.json`, inside the existing `"string"` ob
     "PeriodWeekly": "Неделя",
     "PeriodMonthly": "Месяц",
     "SelectWeek": "Неделя",
-    "SelectMonth": "Месяц",
-    "Cancel": "Отмена"
+    "SelectMonth": "Месяц"
 ```
 
 - [ ] **Step 4: Build the changed packages**
@@ -768,7 +768,7 @@ Create `plugins/yg-timesheet-resources/src/components/HrExportDialog.svelte`:
   // common case (export what I'm looking at) is Export -> Export: two clicks.
   //
   import { createEventDispatcher } from 'svelte'
-  import { Button, Label } from '@hcengineering/ui'
+  import ui, { Button, Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import { weekPeriod, monthPeriod, type Period } from '../utils/period'
 
@@ -787,10 +787,10 @@ Create `plugins/yg-timesheet-resources/src/components/HrExportDialog.svelte`:
   let year: number = anchor.getFullYear()
   let month0: number = anchor.getMonth()
 
-  const MONTHS = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ]
+  // Locale-aware month names — NOT a hardcoded English array. Same Intl approach HrOverview.svelte
+  // already uses for its weekday/range headers, so the dialog follows the UI language.
+  const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long' })
+  const MONTHS = Array.from({ length: 12 }, (_, i) => monthFmt.format(new Date(2000, i, 1)))
   const YEARS = [anchor.getFullYear() - 1, anchor.getFullYear(), anchor.getFullYear() + 1]
 
   function parseDay (k: string): number {
@@ -846,7 +846,7 @@ Create `plugins/yg-timesheet-resources/src/components/HrExportDialog.svelte`:
   <div class="range">{rangeLabel}</div>
 
   <div class="row actions">
-    <Button label={ygTimesheet.string.Cancel} on:click={cancel} />
+    <Button label={ui.string.Cancel} on:click={cancel} />
     <Button kind="primary" label={ygTimesheet.string.Export} on:click={confirm} />
   </div>
 </div>
