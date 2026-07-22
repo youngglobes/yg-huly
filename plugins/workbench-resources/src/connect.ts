@@ -568,8 +568,8 @@ export async function connect (title: string): Promise<Client | undefined> {
   error.set(undefined)
   errorActions.set([])
 
-  // Update window title
-  document.title = [wsUrl, title].filter((it) => it).join(' - ')
+  // Update window title — YG Portal: brand only, no raw workspace slug prepended.
+  document.title = title !== '' && title != null ? title : 'YG Portal'
   _clientSet = true
   await ctx.with('set-client', {}, async () => {
     await setClient(newClient)

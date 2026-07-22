@@ -139,7 +139,7 @@
             assignee: object.assignee,
             defaultTimeReportDay
           },
-          'top'
+          'center'
         )
       }}
       label={tracker.string.TimeSpendReportAdd}

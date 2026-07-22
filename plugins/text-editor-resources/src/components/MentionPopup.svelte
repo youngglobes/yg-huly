@@ -14,7 +14,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import contact from '@hcengineering/contact'
+  import contact, { type Employee } from '@hcengineering/contact'
   import core, { Class, Doc, Ref, SearchResultDoc, SortingOrder, type VersionableDoc } from '@hcengineering/core'
   import { getResource, translate } from '@hcengineering/platform'
   import presentation, {
@@ -210,16 +210,42 @@
     return false
   }
 
+  // The fulltext index behind searchFor still contains deactivated employees and its results
+  // don't carry the Employee.active flag - drop them with one indexed lookup so mentions only
+  // suggest active employees, same as the assignee pickers.
+  async function filterInactiveEmployees (searchItems: SearchItem[]): Promise<SearchItem[]> {
+    const ids = searchItems
+      .filter((it) => it.category.classToSearch === contact.mixin.Employee)
+      .map((it) => it.item.doc._id as Ref<Employee>)
+    if (ids.length === 0) return searchItems
+
+    const activeEmployees = new Set(
+      (await client.findAll(contact.mixin.Employee, { _id: { $in: ids }, active: true })).map((it) => it._id)
+    )
+    const filtered = searchItems.filter(
+      (it) => it.category.classToSearch !== contact.mixin.Employee || activeEmployees.has(it.item.doc._id as Ref<Employee>)
+    )
+
+    // Renumber per category - item.num === 0 is what makes the category header render
+    const counters = new Map<string, number>()
+    return filtered.map((it) => {
+      const n = counters.get(it.category._id) ?? 0
+      counters.set(it.category._id, n + 1)
+      return { ...it, num: n }
+    })
+  }
+
   const updateItems = reduceCalls(async function (localQuery: string): Promise<void> {
     const r = await searchFor('mention', localQuery)
     if (r.query === query) {
-      const latestIndex = r.items.findLastIndex((it) => it.category.classToSearch === contact.mixin.Employee)
+      const rItems = await filterInactiveEmployees(r.items)
+      const latestIndex = rItems.findLastIndex((it) => it.category.classToSearch === contact.mixin.Employee)
       const multipleEmployeeSearchItems = await getMultipleEmployeeSearchItems(localQuery, latestIndex)
 
       items =
         latestIndex === -1
-          ? [...multipleEmployeeSearchItems, ...r.items]
-          : [...r.items.slice(0, latestIndex + 1), ...multipleEmployeeSearchItems, ...r.items.slice(latestIndex + 1)]
+          ? [...multipleEmployeeSearchItems, ...rItems]
+          : [...rItems.slice(0, latestIndex + 1), ...multipleEmployeeSearchItems, ...rItems.slice(latestIndex + 1)]
     }
   })
   $: void updateItems(query)

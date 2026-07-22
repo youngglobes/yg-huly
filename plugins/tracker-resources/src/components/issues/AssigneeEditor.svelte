@@ -14,9 +14,9 @@
 -->
 <script lang="ts">
   import contact, { Employee, Person } from '@hcengineering/contact'
-  import { AssigneeBox, AssigneePopup, employeeRefByAccountUuidStore } from '@hcengineering/contact-resources'
+  import { AssigneeBox, AssigneePopup, permissionsStore } from '@hcengineering/contact-resources'
   import { AssigneeCategory } from '@hcengineering/contact-resources/src/assignee'
-  import { Doc, DocumentQuery, notEmpty, Ref, Space } from '@hcengineering/core'
+  import { Doc, DocumentQuery, Ref, Space } from '@hcengineering/core'
   import { RuleApplyResult, getClient, getDocRules } from '@hcengineering/presentation'
   import { Component, Issue, TrackerEvents } from '@hcengineering/tracker'
   import { ButtonKind, ButtonSize, IconSize, TooltipAlignment } from '@hcengineering/ui'
@@ -111,19 +111,20 @@
     categories.push({
       label: tracker.string.Members,
       func: async () => {
-        const spaces = Array.from(docs.map((it) => it.space).filter((it) => it)) as Ref<Space>[]
+        // Project members are resolved from the already-cached, always-live permissionsStore
+        // (populated once at session bootstrap - see contact-resources/src/utils.ts) instead of
+        // a fresh client.findAll(tracker.class.Project, ...) on every popup open.
+        const spaces = Array.from(new Set(docs.map((it) => it.space).filter((it) => it))) as Ref<Space>[]
         if (spaces.length === 0) {
           return []
         }
-        const projects = await client.findAll(tracker.class.Project, {
-          _id: !Array.isArray(object) ? object.space : { $in: Array.from(object.map((it) => it.space)) }
-        })
-        if (projects === undefined) {
-          return []
-        }
 
-        const allMembers = projects.map((p) => p.members).flat()
-        const allPersonsSet = new Set(allMembers.map((p) => $employeeRefByAccountUuidStore.get(p)).filter(notEmpty))
+        const allPersonsSet = new Set<Ref<Person>>()
+        for (const spaceId of spaces) {
+          for (const personRef of $permissionsStore.ms[spaceId] ?? []) {
+            allPersonsSet.add(personRef)
+          }
+        }
 
         return Array.from(allPersonsSet)
       }

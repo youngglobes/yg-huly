@@ -326,11 +326,13 @@
       windowWorkspaceName = wsUrl
     }
     const docTitle = await getWindowTitle(loc)
+    // YG Portal: title is "<page> - <brand>" (or just the brand) — do NOT prepend the raw
+    // workspace slug (avoids the awkward "yg - YG Portal").
+    const brand = getMetadata(workbench.metadata.PlatformTitle) ?? 'YG Portal'
     if (docTitle !== undefined && docTitle !== '') {
-      document.title = wsUrl == null ? docTitle : `${docTitle} - ${wsUrl}`
+      document.title = `${docTitle} - ${brand}`
     } else {
-      const title = getMetadata(workbench.metadata.PlatformTitle) ?? 'Platform'
-      document.title = wsUrl == null ? title : `${wsUrl} - ${title}`
+      document.title = brand
     }
     void broadcastEvent(workbench.event.NotifyTitle, document.title)
   }
@@ -727,6 +729,9 @@
       ? 'logo-portrait'
       : 'logo'
 
+  // Linear-style top bar: only on the desktop/vertical layout, where the rail is a column.
+  $: showTopBar = $deviceInfo.navigator.direction === 'vertical' && !appsMini
+
   onMount(() => {
     subscribeMobile(setTheme)
   })
@@ -850,11 +855,12 @@
       <path d="M15.8,17.5h1.8v-0.4C17,17.4,16.4,17.5,15.8,17.5z" />
     </clipPath>
   </svg>
-  <div class="workbench-container apps-{$deviceInfo.navigator.direction}">
-    <div
-      class="antiPanel-application {$deviceInfo.navigator.direction} no-print"
-      class:lastDivider={!$deviceInfo.navigator.visible}
-    >
+  <div class="workbench-shell" class:railed={showTopBar}>
+    <div class="workbench-container apps-{$deviceInfo.navigator.direction}">
+      <div
+        class="antiPanel-application {$deviceInfo.navigator.direction} no-print"
+        class:lastDivider={!$deviceInfo.navigator.visible}
+      >
       <div
         class="hamburger-container clear-mins"
         class:portrait={$deviceInfo.navigator.direction === 'horizontal'}
@@ -1002,6 +1008,7 @@
               ? 'portrait'
               : 'landscape'} border-left"
             class:fly={$deviceInfo.navigator.float}
+            data-app={currentAppAlias}
           >
             <div class="antiPanel-wrap__content hulyNavPanel-container">
               {#if currentApplication}
@@ -1037,11 +1044,13 @@
                 {currentApplication}
                 on:open={checkOnHide}
               />
-              <NavFooter>
-                {#if currentApplication && currentApplication.navFooterComponent}
+              {#if currentApplication && currentApplication.navFooterComponent}
+                <NavFooter>
                   <Component is={currentApplication.navFooterComponent} props={{ currentSpace }} />
-                {/if}
-              </NavFooter>
+                </NavFooter>
+              {:else}
+                <NavFooter />
+              {/if}
             </div>
             {#if !($deviceInfo.isMobile && $deviceInfo.isPortrait && $deviceInfo.minWidth)}
               <Separator
@@ -1116,6 +1125,7 @@
       {/if}
       <WidgetsBar />
     </div>
+    </div>
   </div>
   <Dock />
   <div bind:this={cover} class="cover" />
@@ -1137,6 +1147,45 @@
 {/if}
 
 <style lang="scss">
+  .workbench-shell {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    height: 100%;
+
+    &.railed {
+      background-color: var(--theme-rail-BackgroundColor, var(--theme-navpanel-color));
+
+      // Only the outer container is a flex child of the shell; the inner card keeps height: 100%.
+      > .workbench-container {
+        flex: 1;
+        min-height: 0;
+        height: auto;
+        background-color: transparent;
+
+        &::after {
+          display: none;
+        }
+      }
+      // The rail dissolves into the page; the panels to its right become one floating card.
+      :global(.antiPanel-application.vertical) {
+        background-color: transparent;
+        border-right: none;
+      }
+      :global(.antiPanel-navigator:not(.second)) {
+        background-color: transparent;
+      }
+      :global(.workbench-container.inner) {
+        background-color: var(--theme-navcard-BackgroundColor, var(--theme-panel-color));
+        border-top: 1px solid var(--theme-navpanel-border);
+        border-left: 1px solid var(--theme-navpanel-border);
+        border-top-left-radius: 0.75rem;
+      }
+    }
+  }
+
   .workbench-container {
     position: relative;
     display: flex;

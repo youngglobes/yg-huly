@@ -23,8 +23,11 @@
     ButtonKind,
     checkAdaptiveMatching,
     deviceOptionsStore as deviceInfo,
+    getEventPositionElement,
+    getPopupPositionElement,
     handler,
     IconClose,
+    PopupAlignment,
     registerFocus
   } from '@hcengineering/ui'
   import { FocusPosition } from '@tiptap/core'
@@ -36,6 +39,8 @@
   import { defaultRefActions, getModelRefActions } from './editor/actions'
   import Send from './icons/Send.svelte'
   import { EditorKitOptions } from '../kits/editor-kit'
+  import { inlineCommandsConfig } from './extensions'
+  import { addTableHandler } from '../utils'
 
   export let content: Markup = EmptyMarkup
   export let showHeader = false
@@ -106,6 +111,43 @@
     },
     focus: () => {
       editor?.focus()
+    }
+  }
+
+  // Notion-style "/" commands. Image is excluded (attachments have their own action button),
+  // and so is the drawing board - message bodies are rendered as static markup where an
+  // interactive board would not be usable.
+  async function handleInlineCommand (id: string, pos: number, targetItem?: MouseEvent | HTMLElement): Promise<void> {
+    switch (id) {
+      case 'table': {
+        let position: PopupAlignment | undefined
+        if (targetItem !== undefined) {
+          position =
+            targetItem instanceof MouseEvent ? getEventPositionElement(targetItem) : getPopupPositionElement(targetItem)
+        }
+        void addTableHandler(async (options) => {
+          editor?.insertTable(options)
+        }, position)
+        break
+      }
+      case 'code-block':
+        editor?.insertCodeBlock(pos)
+        break
+      case 'separator-line':
+        editor?.insertSeparatorLine()
+        break
+      case 'todo-list':
+        editor?.getEditor()?.chain().insertContentAt(pos, { type: 'paragraph' }).toggleTaskList().run()
+        break
+      case 'callout':
+        editor?.getEditor()?.commands.insertCallout(pos)
+        break
+      case 'toggle':
+        editor?.getEditor()?.commands.insertToggle(pos)
+        break
+      case 'mermaid':
+        editor?.getEditor()?.commands.insertContentAt(pos, { type: 'mermaid' })
+        break
     }
   }
 
@@ -189,6 +231,10 @@
             docClass,
             multipleMentions: true
           },
+          // Enable the checklist extensions (off in 'compact' mode) and the "/" command
+          // menu so messages get the same block palette as description editors.
+          lists: { todoItem: true, todoList: true },
+          inlineCommands: inlineCommandsConfig(handleInlineCommand, ['image', 'drawing-board', 'columns-2', 'columns-3']),
           hooks: {
             emptyContent: {
               onChange: (a) => (isEmpty = a)

@@ -141,22 +141,45 @@
 
   async function updateCategories (objects: Contact[], categories: AssigneeCategory[] | undefined) {
     const refs = objects.map((e) => e._id)
+    const categoryOrder = [currentUserCategory, assigned, ...(categories ?? []), otherCategory]
 
-    for (const category of [currentUserCategory, assigned, ...(categories ?? []), otherCategory]) {
+    // The ListView renders a category header wherever two adjacent items differ in category, so the
+    // list must be emitted grouped by category (in priority order) - not in map insertion order,
+    // which would interleave groups as people get promoted out of "Other" below.
+    function rebuildContacts (): void {
+      const next: Contact[] = []
+      for (const category of categoryOrder) {
+        for (const c of objects) {
+          if (categorizedPersons.get(c._id) === category) {
+            next.push(c)
+          }
+        }
+      }
+      contacts = next
+    }
+
+    // Seed every candidate into the catch-all "Other" bucket first (synchronous, no I/O) so the full
+    // list is usable right away, instead of staying empty until every category below resolves - some
+    // categories (e.g. "previous assignees", computed from an issue's tx history) are per-issue server
+    // queries that can be slow. Each category then promotes its members out of "Other" as it resolves,
+    // in the same priority order as before (earlier category wins), converging to the same end state.
+    for (const contact of await otherCategory.func(refs)) {
+      categorizedPersons.set(contact, otherCategory)
+    }
+    rebuildContacts()
+    // The full candidate list is visible from here on - the loop below only refines grouping,
+    // so stop the search-field spinner now instead of letting it run for the slow per-issue
+    // category queries (e.g. "previous assignees") and read as "list still loading".
+    dataLoading = false
+
+    for (const category of [currentUserCategory, assigned, ...(categories ?? [])]) {
       const res = await category.func(refs)
       for (const contact of res) {
-        if (categorizedPersons.has(contact)) continue
+        if (categorizedPersons.get(contact) !== otherCategory) continue
         categorizedPersons.set(contact, category)
       }
+      rebuildContacts()
     }
-    contacts = []
-    categorizedPersons.forEach((p, k) => {
-      const c = objects.find((e) => e._id === k)
-      if (c) {
-        contacts.push(c)
-      }
-      contacts = contacts
-    })
   }
 
   let selection = 0

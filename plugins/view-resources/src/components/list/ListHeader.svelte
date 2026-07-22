@@ -68,13 +68,14 @@
 
   let accentColor: ColorDefinition | undefined = undefined
 
-  $: showColors = (viewOptions as any).shouldShowColors !== false
+  // Colours removed from list group headers (neutral, white-row list).
+  $: showColors = false && (viewOptions as any).shouldShowColors === true
   $: headerBGColor =
     level === 0 && showColors
       ? (accentColor?.background ?? defaultBackground($themeStore.dark))
-      : defaultBackground($themeStore.dark)
+      : ($themeStore.dark ? '#22242A' : '#f1f1f2')
 
-  $: headerTextColor = accentColor?.title ?? 'var(--theme-caption-color)'
+  $: headerTextColor = showColors ? (accentColor?.title ?? 'var(--theme-caption-color)') : 'var(--theme-caption-color)'
 
   const handleCreateItem = (event: MouseEvent) => {
     if (createItemDialog === undefined) return
@@ -146,7 +147,7 @@
           space={space ?? (items.every((i) => i?.space === items[0]?.space) ? items[0]?.space : undefined)}
           size={'small'}
           kind={'list-header'}
-          colorInherit={!$themeStore.dark && level === 0}
+          colorInherit={!showColors || (!$themeStore.dark && level === 0)}
           accent={level === 0}
           disabled
           shrink
@@ -222,7 +223,7 @@
     height: 2.75rem;
     min-height: 2.75rem;
     min-width: 0;
-    background: var(--theme-bg-color);
+    background: var(--header-bg-color);
 
     &:not(.subLevel) {
       border-top-left-radius: 0.25rem;

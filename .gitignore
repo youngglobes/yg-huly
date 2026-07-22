@@ -114,3 +114,10 @@ dev/tool/history.json
 .tmp
 ws-tests/docker-compose.override.yml
 .cursor/*
+# Self-host deploy secrets and local-only overrides (never commit)
+migration/huly-selfhost/.mail.env
+migration/huly-selfhost/.huly.secret
+migration/huly-selfhost/.cr.secret
+migration/huly-selfhost/.rp.secret
+migration/huly-selfhost/huly_v7.conf
+migration/huly-selfhost/compose.perf.yml

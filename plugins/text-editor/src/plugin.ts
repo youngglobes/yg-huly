@@ -107,6 +107,10 @@ export default plugin(textEditorId, {
     TodoItem: '' as IntlString,
     DrawingBoard: '' as IntlString,
     MermaidDiargram: '' as IntlString,
+    Callout: '' as IntlString,
+    Toggle: '' as IntlString,
+    TwoColumns: '' as IntlString,
+    ThreeColumns: '' as IntlString,
 
     TableOptions: '' as IntlString,
     SelectTable: '' as IntlString,

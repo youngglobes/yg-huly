@@ -13,93 +13,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 -->
+<!--
+  YG Portal: login is "Login with code" (OTP) ONLY. The password login form, the
+  "Forgot your password? / Recover" link (lives in LoginPasswordForm, no longer rendered),
+  the login-with-password toggle, and "Continue as a guest" are all intentionally removed.
+-->
 <script lang="ts">
-  import { type IntlString, Severity, Status } from '@hcengineering/platform'
+  import { type IntlString, Status } from '@hcengineering/platform'
   import { signupStore } from '@hcengineering/analytics-providers'
-  import { deviceOptionsStore as deviceInfo } from '@hcengineering/ui'
   import { onMount } from 'svelte'
 
-  import { loginFormPaddingInline } from '../loginFormLayout'
-
-  import { type BottomAction, doLoginAsGuest, doLoginNavigate, LoginMethods } from '../index'
-  import LoginPasswordForm from './LoginPasswordForm.svelte'
   import LoginOtpForm from './LoginOtpForm.svelte'
-  import BottomActionComponent from './BottomAction.svelte'
-  import login from '../plugin'
   import { LoginInfo } from '@hcengineering/account-client'
 
   export let navigateUrl: string | undefined = undefined
   export let signUpDisabled = false
+  // Kept for parent (LoginApp) prop compatibility; login is code-only regardless.
   export let useOTP = true
   export let email: string | undefined = undefined
   export let caption: IntlString | undefined = undefined
   export let subtitle: string | undefined = undefined
   export let onLogin: ((loginInfo: LoginInfo | null, status: Status) => void | Promise<void>) | undefined = undefined
 
-  let method: LoginMethods = useOTP ? LoginMethods.Otp : LoginMethods.Password
-
   onMount(() => {
     signupStore.setSignUpFlow(false)
   })
-
-  function changeMethod (event: CustomEvent<LoginMethods>): void {
-    method = event.detail
-  }
-
-  const loginWithPasswordAction: BottomAction = {
-    i18n: login.string.LoginWithPassword,
-    func: () => {
-      method = LoginMethods.Password
-    }
-  }
-
-  const loginWithCodeAction: BottomAction = {
-    i18n: login.string.LoginWithCode,
-    func: () => {
-      method = LoginMethods.Otp
-    }
-  }
-
-  async function guestLogin (): Promise<void> {
-    let status = new Status(Severity.INFO, login.status.ConnectingToServer, {})
-    const [loginStatus, result] = await doLoginAsGuest()
-    status = loginStatus
-
-    if (onLogin !== undefined) {
-      void onLogin(result, status)
-    } else {
-      await doLoginNavigate(
-        result,
-        (st) => {
-          status = st
-        },
-        navigateUrl
-      )
-    }
-  }
-
-  const loginAsGuest: BottomAction = {
-    i18n: login.string.LoginAsGuest,
-    func: () => {
-      void guestLogin()
-    }
-  }
 </script>
 
-{#if method === LoginMethods.Otp}
-  <LoginOtpForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} on:change={changeMethod} />
-{:else}
-  <LoginPasswordForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} on:change={changeMethod} />
-{/if}
-<div class="actions" style:margin-inline-start={loginFormPaddingInline($deviceInfo.docWidth, $deviceInfo.docHeight)}>
-  <BottomActionComponent action={method === LoginMethods.Otp ? loginWithPasswordAction : loginWithCodeAction} />
-  <div class="login-as-guest">
-    <BottomActionComponent action={loginAsGuest} />
-  </div>
-</div>
-
-<style lang="scss">
-  .login-as-guest {
-    margin-top: 1rem;
-  }
-</style>
+<LoginOtpForm {navigateUrl} {signUpDisabled} {email} {caption} {subtitle} {onLogin} />

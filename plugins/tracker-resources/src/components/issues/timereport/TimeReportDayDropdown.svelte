@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 -->
+<!--
+  SUPERSEDED (2026-07): the spent-time popup now uses literal Today/Yesterday chips.
+  This component and getTimeReportDate() skip weekends, which silently logged Saturday
+  work against Friday. Kept unreferenced rather than deleted so re-pinning HULY_VERSION
+  against upstream does not produce modify/delete conflicts. Unimported .svelte files
+  are not bundled. See docs/superpowers/specs/2026-07-20-spent-time-entry-ux-design.md
+-->
 <script lang="ts">
   import { TimeReportDayType } from '@hcengineering/tracker'
   import { DropdownIntlItem, DropdownLabelsIntl } from '@hcengineering/ui'

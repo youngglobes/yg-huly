@@ -457,17 +457,9 @@
   }
   .kanban-content {
     display: flex;
+    gap: 1.5rem;
     padding: 1.5rem 1.5rem 0.5rem;
     min-width: 0;
-  }
-
-  @keyframes anim-border {
-    from {
-      box-shadow: inset 0 0 1px 1px var(--primary-edit-border-color);
-    }
-    to {
-      box-shadow: inset 0 0 1px 1px var(--primary-bg-color);
-    }
   }
 
   .panel-container {
@@ -475,6 +467,8 @@
     flex-direction: column;
     width: 20rem;
     min-width: 20rem;
+    max-height: 100%;
+    align-self: flex-start;
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: 0.25rem;

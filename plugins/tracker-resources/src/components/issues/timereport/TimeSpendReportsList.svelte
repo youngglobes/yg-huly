@@ -17,13 +17,7 @@
   import { UserBox } from '@hcengineering/contact-resources'
   import { Ref, Space, WithLookup } from '@hcengineering/core'
   import { Project, TimeReportDayType, TimeSpendReport } from '@hcengineering/tracker'
-  import {
-    DatePresenter,
-    ListView,
-    deviceOptionsStore as deviceInfo,
-    eventToHTMLElement,
-    showPopup
-  } from '@hcengineering/ui'
+  import { DatePresenter, ListView, deviceOptionsStore as deviceInfo, showPopup } from '@hcengineering/ui'
   import { FixedColumn, ListSelectionProvider, showMenu } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
   import { activeProjects } from '../../../utils'
@@ -51,7 +45,7 @@
         assignee: value.employee,
         defaultTimeReportDay
       },
-      $deviceInfo.isMobile ? 'top' : eventToHTMLElement(event)
+      $deviceInfo.isMobile ? 'top' : 'center'
     )
   }
   $: twoRows = $deviceInfo.twoRows

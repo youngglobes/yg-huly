@@ -17,13 +17,13 @@
 </script>
 
 <div
-  class="square-spinner-container {size === 'small' ? 'size-small' : size === 'medium' ? 'size-medium' : 'size-large'}"
+  class="ring-spinner-container {size === 'small' ? 'size-small' : size === 'medium' ? 'size-medium' : 'size-large'}"
 >
   <div class="loader"></div>
 </div>
 
 <style lang="scss">
-  .square-spinner-container {
+  .ring-spinner-container {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -42,326 +42,32 @@
   }
 
   .loader {
-    height: 0.3125rem;
-    width: 0.3125rem;
-    color: var(--theme-trans-color);
-    box-shadow:
-      -0.625rem -0.625rem 0 0.3125rem,
-      -0.625rem -0.625rem 0 0.3125rem,
-      -0.625rem -0.625rem 0 0.3125rem,
-      -0.625rem -0.625rem 0 0.3125rem;
-    animation: squareSpinner 6s infinite;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0deg, var(--theme-trans-color) 300deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.1875rem), #000 calc(100% - 0.1875rem));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 0.1875rem), #000 calc(100% - 0.1875rem));
+    animation: ring-spin 0.8s linear infinite;
   }
 
-  /* Size variations */
   .size-small .loader {
-    height: 0.25rem;
-    width: 0.25rem;
-    box-shadow:
-      -0.5rem -0.5rem 0 0.25rem,
-      -0.5rem -0.5rem 0 0.25rem,
-      -0.5rem -0.5rem 0 0.25rem,
-      -0.5rem -0.5rem 0 0.25rem;
+    width: 1.125rem;
+    height: 1.125rem;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.125rem), #000 calc(100% - 0.125rem));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 0.125rem), #000 calc(100% - 0.125rem));
   }
 
   .size-large .loader {
-    height: 0.5rem;
-    width: 0.5rem;
-    box-shadow:
-      -1rem -1rem 0 0.5rem,
-      -1rem -1rem 0 0.5rem,
-      -1rem -1rem 0 0.5rem,
-      -1rem -1rem 0 0.5rem;
+    width: 2.25rem;
+    height: 2.25rem;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.25rem), #000 calc(100% - 0.25rem));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 0.25rem), #000 calc(100% - 0.25rem));
   }
 
-  @keyframes squareSpinner {
-    0% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem;
-    }
-    8.33% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem;
-    }
-    16.66% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem;
-    }
-    24.99% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem;
-    }
-    33.32% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem;
-    }
-    41.65% {
-      box-shadow:
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem;
-    }
-    49.98% {
-      box-shadow:
-        0.625rem 0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem;
-    }
-    58.31% {
-      box-shadow:
-        -0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem;
-    }
-    66.64% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem;
-    }
-    74.97% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem;
-    }
-    83.3% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem;
-    }
-    91.63% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem,
-        -0.625rem 0.625rem 0 0.3125rem;
-    }
-    100% {
-      box-shadow:
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem,
-        -0.625rem -0.625rem 0 0.3125rem;
-    }
-  }
-
-  /* Size-specific animations */
-  .size-small .loader {
-    animation: squareSpinnerSmall 6s infinite;
-  }
-
-  .size-large .loader {
-    animation: squareSpinnerLarge 6s infinite;
-  }
-
-  @keyframes squareSpinnerSmall {
-    0% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem;
-    }
-    8.33% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem;
-    }
-    16.66% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem;
-    }
-    24.99% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem;
-    }
-    33.32% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem;
-    }
-    41.65% {
-      box-shadow:
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem;
-    }
-    49.98% {
-      box-shadow:
-        0.5rem 0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem;
-    }
-    58.31% {
-      box-shadow:
-        -0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem;
-    }
-    66.64% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem;
-    }
-    74.97% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem;
-    }
-    83.3% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem;
-    }
-    91.63% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem,
-        -0.5rem 0.5rem 0 0.25rem;
-    }
-    100% {
-      box-shadow:
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem,
-        -0.5rem -0.5rem 0 0.25rem;
-    }
-  }
-
-  @keyframes squareSpinnerLarge {
-    0% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem;
-    }
-    8.33% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem;
-    }
-    16.66% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem;
-    }
-    24.99% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem;
-    }
-    33.32% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem;
-    }
-    41.65% {
-      box-shadow:
-        1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem;
-    }
-    49.98% {
-      box-shadow:
-        1rem 1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem;
-    }
-    58.31% {
-      box-shadow:
-        -1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem;
-    }
-    66.64% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem;
-    }
-    74.97% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem;
-    }
-    83.3% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem;
-    }
-    91.63% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem,
-        -1rem 1rem 0 0.5rem;
-    }
-    100% {
-      box-shadow:
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem,
-        -1rem -1rem 0 0.5rem;
+  @keyframes ring-spin {
+    to {
+      transform: rotate(360deg);
     }
   }
 </style>

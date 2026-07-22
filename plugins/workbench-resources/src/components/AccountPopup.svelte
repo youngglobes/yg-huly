@@ -42,9 +42,7 @@
     showPopup
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
-  import workbench from '../plugin'
   import { logOut } from '../utils'
-  import HelpAndSupport from './HelpAndSupport.svelte'
   import { Analytics } from '@hcengineering/analytics'
   import { allowGuestSignUpStore } from '@hcengineering/view-resources'
   import { getMetadata, getResource } from '@hcengineering/platform'
@@ -98,10 +96,6 @@
 
   function inviteWorkspace (): void {
     showPopup(login.component.InviteLink, {})
-  }
-
-  function helpAndSupport (): void {
-    showPopup(HelpAndSupport, {}, 'help-center')
   }
 
   function filterItems (items: SettingsCategory[], keys: string[]): SettingsCategory[] {
@@ -191,15 +185,6 @@
         group: 'end'
       })
     }
-
-    actions.push({
-      icon: setting.icon.Support,
-      label: workbench.string.HelpAndSupport,
-      action: async () => {
-        helpAndSupport()
-      },
-      group: 'end'
-    })
 
     if (account.role === AccountRole.ReadOnlyGuest) {
       if ($allowGuestSignUpStore) {

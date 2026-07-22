@@ -16,7 +16,7 @@
   import { WithLookup } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-  import { eventToHTMLElement, showPopup } from '@hcengineering/ui'
+  import { showPopup } from '@hcengineering/ui'
   import TimePresenter from './TimePresenter.svelte'
   import TimeSpendReportPopup from './TimeSpendReportPopup.svelte'
 
@@ -34,7 +34,7 @@
   }
   $: defaultTimeReportDay = currentProject?.defaultTimeReportDay
 
-  function editSpendReport (event: MouseEvent): void {
+  function editSpendReport (): void {
     if (!issue) {
       return
     }
@@ -48,7 +48,7 @@
         assignee: value.employee,
         defaultTimeReportDay
       },
-      eventToHTMLElement(event)
+      'center'
     )
   }
 </script>

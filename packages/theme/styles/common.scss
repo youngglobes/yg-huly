@@ -256,8 +256,8 @@
   align-items: center;
   flex-shrink: 0;
   margin: 0 .75rem;
-  padding: 0 .75rem;
-  height: 2rem;
+  padding: 0 .625rem;
+  height: 2.125rem;
   min-width: 0;
   border-radius: .375rem;
   cursor: pointer;
@@ -286,11 +286,15 @@
 
     &.title {
       font-weight: 500;
-      font-size: .625rem;
-      letter-spacing: 1px;
-      text-transform: uppercase;
+      font-size: .75rem;
+      letter-spacing: 0;
+      text-transform: none;
+      color: var(--theme-darker-color);
     }
-    &:not(.title) { font-size: .8125rem; }
+    &:not(.title) {
+      font-size: .875rem;
+      font-weight: 500;
+    }
     &.bold {
       font-weight: 600;
       color: var(--theme-caption-color);
@@ -395,7 +399,7 @@
 }
 .antiNav-footer-grower {
   flex-shrink: 10;
-  flex-grow: 1;
+  flex-grow: 0;
   min-height: 0;
 }
 .antiNav-footer {
