@@ -18,6 +18,7 @@ export default plugin(serverYgTimesheetId, {
     OnTimesheetDayUpdate: '' as Resource<TriggerFunc>,
     OnTimeSpendReportChange: '' as Resource<TriggerFunc>,
     OnHrDataMembershipGuard: '' as Resource<TriggerFunc>,
-    OnHrMembershipChange: '' as Resource<TriggerFunc>
+    OnHrMembershipChange: '' as Resource<TriggerFunc>,
+    OnHrEmployeeCreate: '' as Resource<TriggerFunc>
   }
 })

@@ -465,13 +465,48 @@ export async function OnHrMembershipChange (txes: Tx[], control: TriggerControl)
   return []
 }
 
-// One-shot seeding for existing installs (called once from the Task-8 migration). Hides the HR app for
-// all current non-members. Idempotent — safe to run repeatedly.
+// One-shot seeding for existing installs. Hides the HR app for all current non-members.
+// Idempotent — safe to run repeatedly.
+//
+// NOTE (2026-07-22): this is NOT wired to a migration. Migrations run with a TxOperations client,
+// not a TriggerControl, so they cannot call it. On an existing workspace, seed the hides for
+// current accounts by making any one HrData membership edit (add a member and remove them again)
+// — OnHrMembershipChange then reconciles EVERY account in one pass.
 export async function backfillHrHidden (control: TriggerControl): Promise<void> {
   const hr = (await control.findAll(control.ctx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 }))[0]
   await reconcileHrHidden(control, hr?.members ?? [])
 }
 
+//
+// Coverage fix (root cause of the "icon not hidden" bug, diagnosed 2026-07-22):
+// OnHrMembershipChange only fires on an HrData membership tx, so hides were only ever computed at
+// membership-change time. Any account that joined the workspace AFTERWARDS was never reconciled and
+// kept a visible HR icon. Proven on the local stack: of two non-members, the one present at the last
+// membership change had a correctly-scoped hide; the one created later had none.
+//
+// So: reconcile again whenever a Person becomes an active Employee (i.e. someone joins the
+// workspace). reconcileHrHidden is idempotent and covers every account in one pass, so it both
+// seeds the newcomer and repairs anyone previously missed.
+//
+// LOOP-SAFETY: this trigger's only writes are HiddenApplication creates/removes (preference class),
+// never Person/Employee mixins — so it cannot re-enter itself.
+//
+export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  // The txMatch already narrows to "Person gained an active Employee mixin"; one reconcile pass
+  // covers every account, so collapse a batch of them into a single run.
+  if (txes.length === 0) return []
+  const hr = (await control.findAll(control.ctx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 }))[0]
+  if (hr === undefined) return []
+  await reconcileHrHidden(control, hr.members ?? [])
+  return []
+}
+
 export default async () => ({
-  trigger: { OnTimesheetDayUpdate, OnTimeSpendReportChange, OnHrDataMembershipGuard, OnHrMembershipChange }
+  trigger: {
+    OnTimesheetDayUpdate,
+    OnTimeSpendReportChange,
+    OnHrDataMembershipGuard,
+    OnHrMembershipChange,
+    OnHrEmployeeCreate
+  }
 })

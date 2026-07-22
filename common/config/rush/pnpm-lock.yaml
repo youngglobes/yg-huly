@@ -12451,6 +12451,9 @@ importers:
 
   ../../models/server-yg-timesheet:
     dependencies:
+      '@hcengineering/contact':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/contact
       '@hcengineering/core':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/core
@@ -62137,7 +62140,7 @@ snapshots:
   node-loader@2.0.0(webpack@5.102.1):
     dependencies:
       loader-utils: 2.0.4
-      webpack: 5.102.1
+      webpack: 5.102.1(esbuild@0.25.12)(webpack-cli@5.1.4)
 
   node-localstorage@2.2.1:
     dependencies:

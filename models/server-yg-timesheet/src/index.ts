@@ -3,6 +3,7 @@
 //
 import { type Builder } from '@hcengineering/model'
 import core from '@hcengineering/core'
+import contact from '@hcengineering/contact'
 import serverCore from '@hcengineering/server-core'
 import tracker from '@hcengineering/tracker'
 import ygTimesheet from '@hcengineering/yg-timesheet'
@@ -43,5 +44,20 @@ export function createModel (builder: Builder): void {
     trigger: serverYgTimesheet.trigger.OnHrMembershipChange,
     isAsync: true,
     txMatch: { _class: core.class.TxUpdateDoc, objectId: ygTimesheet.space.HrData }
+  })
+
+  // COSMETIC (coverage fix, 2026-07-22): OnHrMembershipChange alone only reconciles at
+  // membership-change time, so an account created afterwards kept a visible HR icon. Reconcile
+  // again whenever a Person becomes an active Employee. Same txMatch shape models/server-contact
+  // uses for its own OnEmployeeCreate.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnHrEmployeeCreate,
+    isAsync: true,
+    txMatch: {
+      objectClass: contact.class.Person,
+      _class: core.class.TxMixin,
+      mixin: contact.mixin.Employee,
+      'attributes.active': true
+    }
   })
 }

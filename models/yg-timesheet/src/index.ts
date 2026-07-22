@@ -125,12 +125,23 @@ export function createModel (builder: Builder): void {
   // Dedicated "Human Resource" app hosting the HR Timesheets/Overview sub-modules (and the
   // Owner-only roster) as a native vertical navigator — mirrors models/contact's Application
   // (navigatorModel.specials, no top-level `component`; see that file's Contacts app doc).
-  // App visibility (user decision 2026-07-17: "HR is done by admins/owners"): the whole app is
-  // role-gated to Owner via `accessLevel` — the workbench app-rail + AppSwitcher hide any app whose
-  // accessLevel the current account lacks (workbench-resources Workbench.svelte / AppSwitcher.svelte
-  // -> isAllowedToRole). So only Owners see the Human Resource menu; regular employees never do.
-  // This replaces the fragile per-user HiddenApplication approach. Data is ALSO server-private
-  // (ygTimesheet.space.HrData membership); Owners self-add via ensureHrMembership so they see it.
+  // App visibility (user decision 2026-07-22, superseding 2026-07-17): registered with NO
+  // `accessLevel`, because "HR" must be HrData-space membership, NOT a workspace role — HR staff
+  // stay ordinary Users with no admin powers. `accessLevel` cannot express this: it is a threshold
+  // on the AccountRole ladder, so any rung that excludes Maintainers also excludes non-Owner HR.
+  //
+  // The 2026-07-17 `accessLevel: AccountRole.Owner` was added because the per-user
+  // HiddenApplication approach looked broken. That diagnosis was WRONG (see below), so it is
+  // reverted here.
+  //
+  // Who sees the icon: everyone EXCEPT accounts holding a `workbench.class.HiddenApplication` for
+  // this app, maintained by OnHrMembershipChange + OnHrEmployeeCreate (server-plugins/
+  // yg-timesheet-resources). Owners self-add to HrData via ensureHrMembership, so admins + roster
+  // members see it; everyone else has it hidden.
+  //
+  // Icon hiding is BEST-EFFORT (a user can un-hide from the app switcher); the data is absolute —
+  // HrTimeEntry lives in the private HrData space and the server refuses every row to non-members,
+  // so a non-member who forces the app open sees empty screens.
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,
@@ -140,7 +151,6 @@ export function createModel (builder: Builder): void {
       alias: 'yg-hr',
       hidden: false,
       position: 'top',
-      accessLevel: AccountRole.Owner,
       navigatorModel: {
         spaces: [],
         specials: [
