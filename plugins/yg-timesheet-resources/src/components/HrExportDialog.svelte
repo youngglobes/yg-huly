@@ -30,12 +30,16 @@
   const YEARS = [anchor.getFullYear() - 1, anchor.getFullYear(), anchor.getFullYear() + 1]
 
   function parseDay (k: string): number {
-    const [y, m, d] = k.split('-').map((n) => parseInt(n, 10))
+    if (!k) return NaN
+    const parts = k.split('-').map((n) => parseInt(n, 10))
+    if (parts.length !== 3 || !parts.every(isFinite)) return NaN
+    const [y, m, d] = parts
     return new Date(y, m - 1, d).getTime()
   }
 
-  $: selected = kind === 'week' ? weekPeriod(parseDay(weekDate)) : monthPeriod(year, month0)
-  $: rangeLabel = `${selected.days[0]} → ${selected.days[selected.days.length - 1]}`
+  $: weekMs = parseDay(weekDate)
+  $: selected = kind === 'week' ? (isFinite(weekMs) ? weekPeriod(weekMs) : null) : monthPeriod(year, month0)
+  $: rangeLabel = selected ? `${selected.days[0]} → ${selected.days[selected.days.length - 1]}` : ''
 
   function confirm (): void {
     dispatch('close', selected as Period)
@@ -83,7 +87,7 @@
 
   <div class="row actions">
     <Button label={ui.string.Cancel} on:click={cancel} />
-    <Button kind="primary" label={ygTimesheet.string.Export} on:click={confirm} />
+    <Button kind="primary" label={ygTimesheet.string.Export} on:click={confirm} disabled={kind === 'week' && !isFinite(weekMs)} />
   </div>
 </div>
 
