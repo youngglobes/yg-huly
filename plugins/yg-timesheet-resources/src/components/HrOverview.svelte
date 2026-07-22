@@ -133,7 +133,7 @@
       const grid = buildOverviewGrid(rows, employees, period, DAY_TARGET)
       const csv = overviewToCSV(grid, period)
       // Excel needs the BOM to read UTF-8 correctly (same as the PM report export).
-      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
