@@ -23,9 +23,11 @@
   import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
   import { Avatar, employeeByIdStore } from '@hcengineering/contact-resources'
   import { type Ref } from '@hcengineering/core'
-  import { createQuery } from '@hcengineering/presentation'
+  import { setPlatformStatus, unknownError } from '@hcengineering/platform'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import ui, {
     Breadcrumb,
+    Button,
     ButtonIcon,
     getCurrentLocation,
     Header,
@@ -34,16 +36,23 @@
     Label,
     ModernButton,
     navigate,
-    Scroller
+    Scroller,
+    showPopup
   } from '@hcengineering/ui'
   import ygTimesheet, { type HrTimeEntry } from '@hcengineering/yg-timesheet'
+  import HrExportDialog from './HrExportDialog.svelte'
   import { buildOverviewGrid } from '../utils/hr-report'
+  import { overviewToCSV, overviewFilename } from '../utils/hr-csv'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { hrSelectedEmployee } from '../utils/hrStore'
-  import { weekPeriod } from '../utils/period'
+  import { weekPeriod, type Period } from '../utils/period'
   import { formatHours, weekRange } from '../utils/week'
 
   void ensureHrMembership()
+
+  const client = getClient()
+
+  let exporting = false
 
   const DAY_TARGET = 8 // hours/day, weekdays
 
@@ -105,6 +114,40 @@
   function employeeFor (ref: Ref<Person>): Employee | undefined {
     return $employeeByIdStore.get(ref as Ref<Employee>)
   }
+
+  function openExport (): void {
+    showPopup(HrExportDialog, { anchorMs: week.start }, undefined, (period?: Period) => {
+      if (period !== undefined) void runExport(period)
+    })
+  }
+
+  async function runExport (period: Period): Promise<void> {
+    exporting = true
+    try {
+      // One-shot fetch over the chosen period. Deliberately NOT the live weekly subscription —
+      // the grid on screen must keep showing the week the user is looking at.
+      const rows = await client.findAll(ygTimesheet.class.HrTimeEntry, {
+        space: ygTimesheet.space.HrData,
+        date: { $gte: period.start, $lt: period.end }
+      })
+      const grid = buildOverviewGrid(rows, employees, period, DAY_TARGET)
+      const csv = overviewToCSV(grid, period)
+      // Excel needs the BOM to read UTF-8 correctly (same as the PM report export).
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = overviewFilename(period)
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      // Surface the failure rather than letting the promise reject unhandled — and download
+      // nothing, so the user never receives a half-built file they might forward on.
+      await setPlatformStatus(unknownError(err))
+    } finally {
+      exporting = false
+    }
+  }
 </script>
 
 <div class="hulyComponent">
@@ -118,6 +161,7 @@
       <ButtonIcon icon={IconForward} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(7)} />
       <div class="hulyHeader-divider short" />
       <div class="fs-title flex-row-center">{weekLabel}</div>
+      <Button label={ygTimesheet.string.Export} disabled={exporting} on:click={openExport} />
     </div>
   </div>
   <Scroller>
