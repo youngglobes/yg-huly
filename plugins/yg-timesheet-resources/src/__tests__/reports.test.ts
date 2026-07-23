@@ -77,4 +77,19 @@ describe('toCSV', () => {
   it('returns just the header + newline for an empty row list', () => {
     expect(toCSV([])).toBe(`${HEAD}\n`)
   })
+  it('fills TL/PM approved hours + approver when the task was approved', () => {
+    const cells = toCSV([row({ approvedHours: 1, approvedByName: 'Tina Lead' })]).trim().split('\n')[1].split(',')
+    expect(cells[7]).toBe('1')
+    expect(cells[8]).toBe('"Tina Lead"')
+  })
+  it('leaves TL/PM approval columns blank when not approved', () => {
+    const cells = toCSV([row({})]).trim().split('\n')[1].split(',')
+    expect(cells[7]).toBe('')
+    expect(cells[8]).toBe('')
+  })
+  it('client approval columns stay blank even when TL/PM approved', () => {
+    const cells = toCSV([row({ approvedHours: 1, approvedByName: 'Tina Lead' })]).trim().split('\n')[1].split(',')
+    expect(cells[9]).toBe('')
+    expect(cells[10]).toBe('')
+  })
 })

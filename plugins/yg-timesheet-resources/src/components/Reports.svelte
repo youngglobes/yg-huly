@@ -37,7 +37,7 @@
     navigate,
     type DropdownTextItem
   } from '@hcengineering/ui'
-  import ygTimesheet from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type TimesheetApproval, type TimesheetTask } from '@hcengineering/yg-timesheet'
   import { filterRows, priorityLabel, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
@@ -108,6 +108,26 @@
     statusNames = m
   })
 
+  // Per-task approval overlay (private ygTimesheet.space.Approvals — non-members get []). Indexed
+  // by issue+day so the row builder can look up approved hours/approver per logged time entry.
+  // Reuses `employeeNames` (above) for the approver's display name — no second name lookup.
+  const approvalQuery = createQuery()
+  let approvedByKey: Map<string, WithLookup<TimesheetApproval>> = new Map()
+  approvalQuery.query(
+    ygTimesheet.class.TimesheetApproval,
+    {},
+    (res: Array<WithLookup<TimesheetApproval>>) => {
+      const m = new Map<string, WithLookup<TimesheetApproval>>()
+      for (const a of res) {
+        const task = a.$lookup?.task as TimesheetTask | undefined
+        if (task === undefined) continue
+        m.set(`${task.issue}|${localDayKey(task.date)}`, a)
+      }
+      approvedByKey = m
+    },
+    { lookup: { task: ygTimesheet.class.TimesheetTask } }
+  )
+
   // --- Build ReportRow[] ---------------------------------------------------
   $: allRows = reports.map((r): ReportRow => {
     const issue = r.$lookup?.attachedTo as Issue | undefined
@@ -116,13 +136,15 @@
     // date is non-null in practice (the query filters on a date range); coerce for typing.
     const date = r.date ?? 0
     const status = (issue?.status ?? '') as string
+    const issueId = (issue?._id ?? r.attachedTo) as string
+    const approved = approvedByKey.get(`${issueId}|${localDayKey(date)}`)
     return {
       date,
       employee,
       employeeName: employeeNames.get(employee) ?? employee,
       project,
       projectName: projectNames.get(project) ?? project,
-      issue: (issue?._id ?? r.attachedTo) as string,
+      issue: issueId,
       identifier: issue?.identifier ?? '—',
       title: issue?.title ?? '(unknown issue)',
       estimation: issue?.estimation ?? 0,
@@ -130,7 +152,9 @@
       statusName: statusNames.get(status) ?? '',
       priority: issue?.priority ?? 0,
       dueDate: issue?.dueDate ?? null,
-      note: r.description ?? ''
+      note: r.description ?? '',
+      approvedHours: approved?.approvedHours,
+      approvedByName: approved?.approvedBy != null ? (employeeNames.get(approved.approvedBy) ?? undefined) : undefined
     }
   })
 

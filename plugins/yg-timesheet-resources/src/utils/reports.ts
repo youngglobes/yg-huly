@@ -18,6 +18,8 @@ export interface ReportRow {
   priority: number // IssuePriority enum (0..4)
   dueDate: number | null
   note: string // TimeSpendReport.description (the note on the logged time)
+  approvedHours?: number // from the per-task TimesheetApproval doc (private Approvals space)
+  approvedByName?: string // approver's display name, resolved from TimesheetApproval.approvedBy
 }
 
 // status here = the issue's workflow-status NAME (not the timesheet approval status).
@@ -42,10 +44,13 @@ export function priorityLabel (p: number): string {
 // only). Hours are emitted as decimals (spreadsheet-friendly, matches the team's sheet); dates
 // as YYYY-MM-DD; due date blank when unset.
 //
-// The four approval columns after "Spent" are intentionally BLANK — they are manual-entry
-// placeholders (not derived from the timesheet day-approval): the TL/PM enters how long a task
-// *should* have taken, and the client-approved (billable) hours + who approved each. A future
-// increment will add a UI to capture and persist these; for now they are filled in the sheet.
+// Of the four approval columns after "Spent": the TL/PM pair is now DATA-DRIVEN — sourced from
+// the per-task TimesheetApproval doc (private ygTimesheet.space.Approvals), keyed by issue+day.
+// Non-members of that space see 0 approval rows, so their columns come out blank — that's the
+// correct, intended behavior (this report's approver columns are for the approver audience).
+// The Client Approved pair remains an intentionally BLANK manual-entry placeholder (separate,
+// out-of-scope process): the client-approved (billable) hours + who approved each, filled in
+// the sheet for now.
 const COLS = [
   'Date', 'Employee', 'Project', 'Huly ID', 'Issue Title', 'Estimated', 'Spent',
   'TL/PM Approved Hours', 'TL/PM Approved By', 'Client Approved Hours', 'Client Approved By',
@@ -62,8 +67,8 @@ export function toCSV (rows: ReportRow[]): string {
     escText(r.title),
     String(r.estimation),
     String(r.hours),
-    '', // TL/PM Approved Hours — manual
-    '', // TL/PM Approved By — manual
+    r.approvedHours != null ? String(r.approvedHours) : '', // TL/PM Approved Hours (from approval)
+    r.approvedByName != null ? escText(r.approvedByName) : '', // TL/PM Approved By (from approval)
     '', // Client Approved Hours — manual
     '', // Client Approved By — manual
     escText(r.statusName),
