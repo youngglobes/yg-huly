@@ -13,7 +13,7 @@ import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
 import type { Employee } from '@hcengineering/contact'
 import type { Project } from '@hcengineering/tracker'
-import ygTimesheet, { ygTimesheetId, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
@@ -74,6 +74,13 @@ async function hideStockHrApp (tx: TxOperations): Promise<void> {
 // Per-task approval (2026-07-23): existing TimesheetDay rows carry a single status and a
 // snapshot of their lines. Derive one TimesheetTask per snapshot line so history survives.
 // Days with no snapshot yield no tasks and therefore read as Draft — accepted.
+//
+// NOTE: this runs in the `migrate` phase (raw MigrationClient, domain-level writes only). It
+// deliberately does NOT create the TimesheetApproval rows for Approved days here — those
+// reference ygTimesheet.space.Approvals, which is only provisioned in the `upgrade` phase
+// (createApprovalsSpace). Creating a doc against a space that doesn't exist yet is fragile, so
+// the approval-row backfill is a separate step (migrateApprovalRows, below) that runs in
+// `upgrade`, after the space exists. See ygTimesheetOperation.upgrade for the ordering.
 async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
   const days = await client.find<TimesheetDay>(DOMAIN_YG_TIMESHEET, {
     _class: ygTimesheet.class.TimesheetDay
@@ -106,23 +113,30 @@ async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
         submittedOn: day.submittedOn,
         ...(day.rejectReason != null ? { rejectReason: day.rejectReason } : {})
       })
-      // Carry the day's sign-off into the private Approvals space so approved history is not
-      // lost. Approved hours default to what was submitted — nobody re-judged these
-      // retrospectively. Lives off the task row on purpose: employees must never read it.
-      if (day.status === 'Approved') {
-        await client.create(DOMAIN_YG_TIMESHEET, {
-          _id: generateId(),
-          _class: ygTimesheet.class.TimesheetApproval,
-          space: ygTimesheet.space.Approvals,
-          modifiedBy: day.modifiedBy,
-          modifiedOn: day.modifiedOn,
-          task: taskId as Ref<TimesheetTask>,
-          approvedHours: line.hours,
-          approvedBy: day.approvedBy as Ref<Employee>,
-          approvedOn: day.approvedOn as Timestamp
-        })
-      }
     }
+  }
+}
+
+// Backfill the private Approvals-space overlay for tasks migrated (above) from an already-
+// Approved day, so approved history is not lost. Approved hours default to what was submitted —
+// nobody re-judged these retrospectively. Runs in the `upgrade` phase, AFTER createApprovalsSpace
+// has provisioned ygTimesheet.space.Approvals (see ygTimesheetOperation.upgrade — this state is
+// ordered after 'approvals-space-0001'). Idempotent: skips any task that already has an
+// approval doc, so it is safe to re-run and safe even if migrateDaysToTasks is re-run first.
+async function migrateApprovalRows (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const tasks = await ops.findAll(ygTimesheet.class.TimesheetTask, { status: 'Approved' })
+  for (const task of tasks) {
+    const existing = await ops.findOne(ygTimesheet.class.TimesheetApproval, { task: task._id })
+    if (existing !== undefined) continue // idempotent — safe to re-run
+    const day = await ops.findOne(ygTimesheet.class.TimesheetDay, { _id: task.attachedTo as Ref<TimesheetDay> })
+    if (day?.approvedBy == null || day?.approvedOn == null) continue // no sign-off to carry over
+    await ops.createDoc(ygTimesheet.class.TimesheetApproval, ygTimesheet.space.Approvals, {
+      task: task._id,
+      approvedHours: task.submittedHours,
+      approvedBy: day.approvedBy as Ref<Employee>,
+      approvedOn: day.approvedOn as Timestamp
+    })
   }
 }
 
@@ -146,6 +160,13 @@ export const ygTimesheetOperation: MigrateOperation = {
           const ops = new TxOperations(client, core.account.System)
           await createApprovalsSpace(ops)
         }
+      },
+      {
+        // Ordered after 'approvals-space-0001' so ygTimesheet.space.Approvals is guaranteed to
+        // exist before any TimesheetApproval doc referencing it is created — see
+        // migrateApprovalRows above for why this can't run in the `migrate` phase.
+        state: 'approval-rows-0001',
+        func: migrateApprovalRows
       }
     ])
   }

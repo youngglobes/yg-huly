@@ -19,7 +19,9 @@ export function createModel (builder: Builder): void {
   })
 
   // Per-task approval authorization: reverts an approve/reject by anyone who is not an approver
-  // of that specific task, and stamps approvedBy/approvedOn authoritatively.
+  // of that specific task. approvedBy/approvedOn/approvedHours live on the private
+  // TimesheetApproval doc, not TimesheetTask (task-2, 2026-07-23) — this trigger no longer
+  // stamps them here.
   //
   // Task-5 round 2 (Critical B): txMatch is objectClass-only, WITHOUT a `_class` filter, so
   // TxCreateDoc (a wholly forged, already-approved task created in one tx) and TxRemoveDoc

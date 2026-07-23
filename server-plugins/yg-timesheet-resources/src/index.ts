@@ -166,11 +166,19 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 //    from the task's project's ygTimesheet.mixin.ProjectApprovers (pm + teamLead). Any tx that
 //    touches `approvers` has it forced back to the derived set.
 //  - `approvedBy` / `approvedOn` / `approvedHours` are never client-settable, WITH OR WITHOUT a
-//    status change. They are only ever written by this trigger's own System-attributed
-//    compensating tx.
-//  - An unauthorized write that would destroy a still-valid prior approval restores that
-//    approval instead of hard-resetting to Submitted (only reset when there is nothing PROVABLY
-//    valid to restore — see "trust" below).
+//    status change. Task 2 (2026-07-23): these three moved OFF TimesheetTask entirely, onto the
+//    private TimesheetApproval doc (ygTimesheet.space.Approvals) — a non-member (any employee)
+//    is refused read/write access to it by the server. This trigger therefore no longer writes
+//    them onto the task doc AT ALL (previously it stamped them here); any stray value on those
+//    field names is defensively $unset instead, since Huly's domain storage is not
+//    schema-enforced and an old field name isn't rejected merely for no longer being declared
+//    on the class. Authorizing/stamping the TimesheetApproval doc itself is a later task.
+//  - An unauthorized write always hard-resets the task to Submitted. (Previously a still-valid
+//    prior approval could be restored instead — see the removed "trust" restore path below;
+//    that logic depended on approvedBy/approvedOn living on the task, which they no longer do,
+//    so restoring them here would itself be the stale-write bug this task fixes. A later task,
+//    which rewrites this trigger to authorize TimesheetApproval writes, can reintroduce an
+//    equivalent guarantee against that doc instead.)
 //  - Admin (Maintainer+) break-glass mirrors OnTimesheetDayUpdate — but self-approval stays
 //    forbidden for EVERYONE, admins included, and an admin with no Employee record can never
 //    stamp `approvedBy` (fail closed rather than write a null/unattributable stamp).
@@ -178,12 +186,6 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 //    task created in one tx) and TxRemoveDoc (deleting somebody else's approved task) are handled
 //    explicitly too. The model registration's txMatch was widened accordingly (objectClass only,
 //    no `_class` filter — same idiom OnTimeSpendReportChange below already documents).
-//  - "Trust" for the restore path is never inferred merely from "the value is in the derived
-//    approver set" (that's timing-dependent under async processing — see `reconstructPriorTask`).
-//    It is established by literally reconstructing the doc as it stood immediately before the
-//    tx under review, from the tx log, and requiring that reconstructed state's `approvedOn` to
-//    have been written by a tx attributed to System — i.e. by this trigger itself, never by any
-//    client-authored tx (forged or legitimate).
 //
 async function deriveTaskApprovers (
   control: TriggerControl, task: TimesheetTask, selfEmployee: Ref<Employee> | undefined
@@ -245,26 +247,15 @@ async function resolveTaskActorContext (
   // we cannot even tell whether this is a self-approval attempt.
   const authorized = ownerResolved && !isSelf && (isAdmin || isOwnerApprover)
 
-  // Minor E (null stamp): never let an Approved-stamp write proceed with no attributable actor.
-  // `fix.approvedBy = actorId ?? null` on an authorized admin with no Employee record would
-  // produce an Approved task with an unattributable null approver — fail closed instead.
+  // Minor E (null stamp): never treat an Approved transition as legitimate with no attributable
+  // actor — an admin with no Employee record approving would be unattributable. Fail closed
+  // instead (falls through to the revert/sanitize path). Named `canStamp` because the
+  // authoritative stamp itself is written on the TimesheetApproval doc, not here (task-2,
+  // 2026-07-23) — this gate still guards that an Approved transition always has someone to
+  // attribute it to.
   const canStamp = actorId !== undefined
 
   return { actorId, isAdmin, isSelf, isOwnerApprover, authorized, canStamp, derived }
-}
-
-// Important D (TOCTOU): reconstructs the TimesheetTask as it stood immediately BEFORE `excludeTxId`
-// from the doc's own tx log (core.class.TxCUD matches TxCreateDoc/TxUpdateDoc/TxRemoveDoc for this
-// objectId), sorted chronologically. Used ONLY to decide whether a prior approval is trustworthy —
-// never to authorize the CURRENT tx. Returns undefined if there is no create tx in the log (should
-// not happen) and null if the doc had already been removed at that point.
-async function reconstructPriorTask (
-  control: TriggerControl, objectId: Ref<TimesheetTask>, excludeTxId: Ref<Tx>
-): Promise<TimesheetTask | undefined | null> {
-  const log = (await control.findAll(control.ctx, core.class.TxCUD, { objectId }))
-    .filter((t) => t._id !== excludeTxId)
-    .sort((a, b) => a.modifiedOn - b.modifiedOn)
-  return TxProcessor.buildDoc2Doc<TimesheetTask>(log)
 }
 
 async function handleTaskUpdate (utx: TxUpdateDoc<TimesheetTask>, control: TriggerControl): Promise<void> {
@@ -304,17 +295,23 @@ async function handleTaskUpdate (utx: TxUpdateDoc<TimesheetTask>, control: Trigg
   )
 
   if (statusOp !== undefined && authorized && (statusOp !== 'Approved' || canStamp)) {
-    // Legitimate transition. Force the authoritative values regardless of what the client sent
-    // for approvers/approvedBy/approvedOn — these fields are never trusted from the tx.
-    // approvedHours is NOT overridden here: it is the authorized approver's own agreed figure
-    // (see approveTask() in plugins/yg-timesheet-resources/src/utils/day.ts), trusted only
-    // because we've just proven the actor is a real approver of this specific task.
-    const fix: Record<string, any> = { approvers: derived }
-    if (statusOp === 'Approved') {
-      fix.approvedBy = actorId
-      fix.approvedOn = Date.now()
-    } else {
-      fix.$unset = { approvedBy: '', approvedOn: '' }
+    // Legitimate transition. Force the authoritative approvers regardless of what the client
+    // sent — never trusted from the tx.
+    //
+    // Task 2 (2026-07-23): approvedBy / approvedOn / approvedHours no longer live on
+    // TimesheetTask — they moved to the private TimesheetApproval doc (ygTimesheet.space.
+    // Approvals), which a non-member (any employee) is refused read/write access to by the
+    // server. This trigger must therefore NEVER write those three field names onto the task
+    // doc again — doing so would silently re-persist approved hours onto the shared,
+    // world-readable task, undoing that fix. We still defensively $unset them in case a client
+    // (forged or stale) tried to set them directly in this same tx — Huly's domain storage is
+    // not schema-enforced, so an old field name isn't rejected merely for no longer being
+    // declared on the class.
+    // Authorizing/stamping the TimesheetApproval doc itself is out of scope here — a later task
+    // replaces this trigger wholesale to cover that.
+    const fix: Record<string, any> = {
+      approvers: derived,
+      $unset: { approvedBy: '', approvedOn: '', approvedHours: '' }
     }
     const t = control.txFactory.createTxUpdateDoc(
       task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
@@ -340,36 +337,21 @@ async function handleTaskUpdate (utx: TxUpdateDoc<TimesheetTask>, control: Trigg
     isAdmin
   })
 
-  // Important D: reconstruct the doc as it stood immediately before THIS tx from the tx log,
-  // rather than trusting post-apply `task.approvedBy` merely because it's in the derived set.
-  // Fail closed unless that reconstructed prior state's approval was itself System-attributed.
-  const prior = await reconstructPriorTask(control, task._id, utx._id)
-
-  const fix: Record<string, any> = { approvers: derived }
-  if (
-    prior != null &&
-    prior.approvedBy != null &&
-    prior.approvedOn != null &&
-    prior.modifiedBy === core.account.System &&
-    derived.includes(prior.approvedBy)
-  ) {
-    // Still-valid, PROVABLY System-stamped approval — restore it exactly.
-    // Critical A: re-assert the trusted prior approvedHours explicitly, rather than leaving
-    // whatever the current (untrusted) tx wrote in place.
-    // Important C: always clear rejectReason — never render a restored-Approved task carrying a
-    // rejection message.
-    fix.status = 'Approved'
-    fix.approvedBy = prior.approvedBy
-    fix.approvedOn = prior.approvedOn
-    fix.$unset = { rejectReason: '' }
-    if (prior.approvedHours !== undefined) {
-      fix.approvedHours = prior.approvedHours
-    } else {
-      fix.$unset.approvedHours = ''
-    }
-  } else {
-    fix.status = 'Submitted'
-    fix.$unset = { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' }
+  // Task 2 (2026-07-23): this used to reconstruct the doc as it stood immediately before THIS
+  // tx (Important D) and, if the prior state carried a PROVABLY System-stamped approval
+  // (approvedBy/approvedOn set by a System-attributed tx), restore that prior Approved state
+  // exactly — rather than trusting post-apply `task.approvedBy`. That trust criterion itself
+  // depended on approvedBy/approvedOn/approvedHours living on TimesheetTask, which they no
+  // longer do (moved to the private TimesheetApproval doc) — restoring them here would be
+  // exactly the stale-write bug this task fixes. Fail closed instead: always reset to
+  // Submitted and scrub any stray value on the three moved field names (defense-in-depth
+  // against a forged/stale doc, since storage isn't schema-enforced). A later task, which
+  // rewrites this trigger to authorize TimesheetApproval writes, can reintroduce an equivalent
+  // "restore a still-valid prior approval" guarantee against that doc instead.
+  const fix: Record<string, any> = {
+    approvers: derived,
+    status: 'Submitted',
+    $unset: { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' }
   }
   const revert = control.txFactory.createTxUpdateDoc(
     task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
@@ -396,14 +378,16 @@ async function handleTaskCreate (createTx: TxCreateDoc<TimesheetTask>, control: 
 
   if (statusOp !== undefined && authorized && (statusOp !== 'Approved' || canStamp)) {
     // A legitimately authorized approver directly created an already-decided task (e.g. a
-    // one-off historical-data import) — force the authoritative stamps server-side, same as the
-    // update path, rather than trust whatever the client sent.
-    const fix: Record<string, any> = { approvers: derived }
-    if (statusOp === 'Approved') {
-      fix.approvedBy = actorId
-      fix.approvedOn = Date.now()
-    } else {
-      fix.$unset = { approvedBy: '', approvedOn: '', approvedHours: '' }
+    // one-off historical-data import) — force the authoritative approvers server-side, same as
+    // the update path, rather than trust whatever the client sent.
+    //
+    // Task 2 (2026-07-23): approvedBy/approvedOn/approvedHours no longer live on TimesheetTask
+    // (moved to the private TimesheetApproval doc) — never set them here regardless of
+    // statusOp; always scrub any stray value the create tx carried on those field names
+    // (defense-in-depth against a forged/stale doc — storage isn't schema-enforced).
+    const fix: Record<string, any> = {
+      approvers: derived,
+      $unset: { approvedBy: '', approvedOn: '', approvedHours: '' }
     }
     const t = control.txFactory.createTxUpdateDoc(
       created._class, created.space, created._id, fix as any, false, Date.now(), core.account.System
@@ -455,6 +439,13 @@ async function handleTaskRemove (rtx: TxRemoveDoc<TimesheetTask>, control: Trigg
 
   // Recreate exactly as it was, preserving the original _id so any external references keep
   // resolving. Attributed to System so it never re-enters this trigger.
+  //
+  // Task 2 (2026-07-23): approvedBy/approvedOn/approvedHours are deliberately NOT carried over —
+  // they no longer live on TimesheetTask (moved to the private TimesheetApproval doc). Even if
+  // `removed` still carried a stray value on one of those field names (storage isn't
+  // schema-enforced), recreating it here would re-persist the moved fields onto the
+  // world-readable task doc — exactly the bug this task fixes. The task's real approval record,
+  // if any, lives untouched in TimesheetApproval and is unaffected by this recreate.
   const data: Data<TimesheetTask> = {
     attachedTo: removed.attachedTo,
     attachedToClass: removed.attachedToClass,
@@ -468,9 +459,6 @@ async function handleTaskRemove (rtx: TxRemoveDoc<TimesheetTask>, control: Trigg
     status: removed.status,
     approvers: removed.approvers,
     submittedOn: removed.submittedOn,
-    approvedHours: removed.approvedHours,
-    approvedBy: removed.approvedBy,
-    approvedOn: removed.approvedOn,
     rejectReason: removed.rejectReason
   }
   const t = control.txFactory.createTxCreateDoc(

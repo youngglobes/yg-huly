@@ -63,12 +63,16 @@ export interface TimesheetTask extends AttachedDoc {
  * The approval overlay for one task. Lives in the PRIVATE ygTimesheet.space.Approvals so employees
  * cannot read it — approved hours are for the PM-report audience and are discussed with the
  * employee at the weekly meeting, not shown on their own sheet.
+ *
+ * approvedBy / approvedOn are optional (same idiom as TimesheetDay/TimesheetTask's own stamps):
+ * the CLIENT creates/updates this doc with `task` + `approvedHours` only — the server trigger
+ * stamps approvedBy/approvedOn authoritatively, same division of labour as the task-level flow.
  */
 export interface TimesheetApproval extends Doc {
   task: Ref<TimesheetTask>
   approvedHours: number
-  approvedBy: Ref<Employee>
-  approvedOn: Timestamp
+  approvedBy?: Ref<Employee>
+  approvedOn?: Timestamp
 }
 
 export interface ProjectApprovers extends Project {

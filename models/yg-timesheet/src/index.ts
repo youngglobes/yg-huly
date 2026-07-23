@@ -93,8 +93,8 @@ export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
 export class TTimesheetApproval extends TDoc implements TimesheetApproval {
   @Prop(TypeRef(ygTimesheet.class.TimesheetTask), core.string.Object) task!: Ref<TimesheetTask>
   @Prop(TypeNumber(), core.string.Object) approvedHours!: number
-  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy!: Ref<Employee>
-  @Prop(TypeDate(), core.string.Object) approvedOn!: Timestamp
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
 }
 
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
