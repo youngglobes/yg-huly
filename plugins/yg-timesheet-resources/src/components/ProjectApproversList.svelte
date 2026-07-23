@@ -19,19 +19,25 @@
   import { Scroller } from '@hcengineering/ui'
   import ProjectApprovers from './ProjectApprovers.svelte'
 
-  const isOwner = hasAccountRole(getCurrentAccount(), AccountRole.Owner)
+  // PM/Team Lead assignment is load-bearing for the approval security model (see
+  // OnProjectApproversMixinGuard in server-plugins/yg-timesheet-resources): being a PM or TL on
+  // ANY project grants approval rights over EVERY timesheet task workspace-wide, so only admins
+  // may assign it. Gate on Maintainer+ to match the server-side guard exactly — this UI gate is
+  // not itself a security boundary, it only hides the control; the server trigger is what refuses
+  // the write for non-admins (a known, documented gap tracked separately, not fixed here).
+  const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
 
   const query = createQuery()
   let projects: Project[] = []
 
-  $: if (isOwner) {
+  $: if (isAdmin) {
     query.query(tracker.class.Project, {}, (res) => {
       projects = res
     })
   }
 </script>
 
-{#if isOwner}
+{#if isAdmin}
   <Scroller>
     <div class="flex-col p-4">
       {#each projects as project (project._id)}
