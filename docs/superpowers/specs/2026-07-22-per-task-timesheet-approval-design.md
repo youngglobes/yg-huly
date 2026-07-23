@@ -166,3 +166,82 @@ approval columns; changing what the HR Overview/export measure; per-`TimeSpendRe
 - E2E on the local stack: two projects with different TLs, one employee, one day — each TL sees and
   can action only their own task; day shows Partially Approved after the first approval; the PM
   report exports the approved hours and approver.
+
+---
+
+# REVISION 2 — access model (2026-07-23)
+
+This revision **supersedes the authorization model above**, following the user's clarification. The
+per-task unit, approved hours, derived day status and PM-report wiring are unchanged.
+
+## What changed, and why it matters
+
+The original spec treated cross-project approval as an **authorization defect**: TL-A approving
+TL-B's project was the bug the whole feature existed to fix.
+
+**That was wrong about the business rule.** Per the user (2026-07-23): *any* TL or PM may approve
+*any* task, deliberately — when a project's own TL is absent, another TL who knows the work must be
+able to approve it. Cross-project approval is a **feature, not a defect**. What the business needs
+is not prevention but **attribution**: recording precisely who approved.
+
+## The new model
+
+1. **Authorization = role, not project.** An actor may approve/reject any task if they are assigned
+   as PM or Team Lead on **any** project, or are an admin (Maintainer+). Self-approval remains
+   forbidden for everyone — the employee whose timesheet it is can never approve their own task.
+2. **Per-project PM/TL becomes notification routing only.** The `ProjectApprovers` mixin still
+   records each project's PM and Team Lead, and the per-task `approvers` list is still stamped at
+   submit time — but it now answers "who should be **told**", never "who may **act**".
+3. **Attribution is the point.** Every approval records `approvedBy` and `approvedOn`, stamped
+   authoritatively by the server, never accepted from a client.
+4. **Assignment UI.** PM and Team Lead are assigned per project as two explicit person fields in
+   project settings, presented like the existing Owners / Members selectors.
+
+### Visibility — approved hours are restricted
+
+**Normal employees must not see approved hours, including their own.** The figure is for the
+PM-report audience; discrepancies get discussed with the employee at the weekly meeting instead.
+
+| Field | Lives in | Visible to |
+|---|---|---|
+| issue, submitted hours, status, reject reason | shared Timesheets space | the employee (their own), approvers, admins |
+| **`approvedHours`, `approvedBy`, `approvedOn`** | **restricted approvals space** | **PM / TL / admin only** |
+
+So the employee sees *that* a task was approved, and any rejection reason, but not the hours figure.
+
+## Why this resolves the security blocker
+
+Three adversarial review rounds each found a new bypass of the compensating-revert trigger
+(poisoning `approvers`; forging `approvedBy`; rewriting `approvedHours`, including via `$inc`;
+forged already-approved creates; status downgrades). Every one shared a root cause: **authorization
+consulted data that any workspace member could write**, and the trigger tried to enumerate every
+dangerous field and operator — allow-by-default over an open-ended list.
+
+Under Revision 2 that class disappears:
+
+- Authorization is a **role check**. There is no per-task data left to poison.
+- `approvedHours` and the stamps live in a **restricted space**, so a non-member's write is refused
+  by the server outright — deny-by-default, structural, not an enumeration the next new field can
+  slip past. This is the "restructure, don't keep hardening" conclusion the review reached, and the
+  visibility requirement demands it independently.
+
+The trigger stays as defence-in-depth: enforce the role, forbid self-approval, stamp attribution.
+
+## Open risk to close before this is sound
+
+The role check is only as strong as **who may assign a project's PM/TL**. If any member can set
+themselves as a project's PM, they can promote themselves into the approver role and the model is
+defeated. Assignment must be restricted to admins/project owners, and this must be **verified, not
+assumed** — it was not confirmed at the time of writing.
+
+## Rework required to already-built tasks
+
+- **Task 1** — the two "defect-pinning" tests assert the OPPOSITE of the intended rule and must be
+  inverted: cross-project approval is now allowed. `canApproveTask` changes from "actor ∈ this
+  task's approvers" to "actor holds an approver role ∧ actor ≠ employee". `buildTaskUnits` keeps
+  stamping per-project approvers, now documented as notification routing.
+- **Task 3** — unchanged in shape; the stamped `approvers` list keeps its meaning as routing.
+- **Task 5** — substantially simplified: role check + self-approval bar + authoritative stamps.
+  The field-enumeration guards become unnecessary once the approval fields move spaces.
+- **New task** — provision the restricted approvals space, move the approval fields into it, and
+  add the project-settings PM/TL assignment UI.
