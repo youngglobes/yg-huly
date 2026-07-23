@@ -33,7 +33,6 @@ import core, {
   type Tx,
   type TxCreateDoc,
   type TxCUD,
-  type TxRemoveDoc,
   type TxUpdateDoc,
   TxProcessor
 } from '@hcengineering/core'
@@ -155,345 +154,140 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 }
 
 //
-// Per-task approval authorization. The client is trusted to PROPOSE an approval; the server
-// decides whether it stands.
+// Per-task approval authorization — REVISION 2 (Task 3 of the revised plan, 2026-07-2x).
 //
-// Task-5 security hardening (see .superpowers/sdd/task-5-report.md for the full writeup — the
-// section below documents the SECOND hardening pass, closing bypasses an adversarial re-review
-// found in the first pass):
-//  - `approvers` stored on the task is NEVER trusted for authorization — it lives in
-//    core.space.Workspace (any member can write it). Authorization is re-derived, every time,
-//    from the task's project's ygTimesheet.mixin.ProjectApprovers (pm + teamLead). Any tx that
-//    touches `approvers` has it forced back to the derived set.
-//  - `approvedBy` / `approvedOn` / `approvedHours` are never client-settable, WITH OR WITHOUT a
-//    status change. Task 2 (2026-07-23): these three moved OFF TimesheetTask entirely, onto the
-//    private TimesheetApproval doc (ygTimesheet.space.Approvals) — a non-member (any employee)
-//    is refused read/write access to it by the server. This trigger therefore no longer writes
-//    them onto the task doc AT ALL (previously it stamped them here); any stray value on those
-//    field names is defensively $unset instead, since Huly's domain storage is not
-//    schema-enforced and an old field name isn't rejected merely for no longer being declared
-//    on the class. Authorizing/stamping the TimesheetApproval doc itself is a later task.
-//  - An unauthorized write always hard-resets the task to Submitted. (Previously a still-valid
-//    prior approval could be restored instead — see the removed "trust" restore path below;
-//    that logic depended on approvedBy/approvedOn living on the task, which they no longer do,
-//    so restoring them here would itself be the stale-write bug this task fixes. A later task,
-//    which rewrites this trigger to authorize TimesheetApproval writes, can reintroduce an
-//    equivalent guarantee against that doc instead.)
-//  - Admin (Maintainer+) break-glass mirrors OnTimesheetDayUpdate — but self-approval stays
-//    forbidden for EVERYONE, admins included, and an admin with no Employee record can never
-//    stamp `approvedBy` (fail closed rather than write a null/unattributable stamp).
-//  - Coverage is no longer limited to TxUpdateDoc: TxCreateDoc (a wholly forged, already-approved
-//    task created in one tx) and TxRemoveDoc (deleting somebody else's approved task) are handled
-//    explicitly too. The model registration's txMatch was widened accordingly (objectClass only,
-//    no `_class` filter — same idiom OnTimeSpendReportChange below already documents).
+// History (why this trigger looks nothing like its predecessor): an earlier version tried to
+// authorize using data the client could write — the task's own `approvers` array — and tried to
+// guard the payroll fields (approvedHours/approvedBy/approvedOn) by enumerating every dangerous
+// field/operator. THREE rounds of adversarial security review each found a new bypass ($inc
+// slipping past a naked-equality check, a status-downgrade slipping past the "only guard on
+// status change" scope...). That whole approach is abandoned here — this rewrite removes the
+// bypass CLASS instead of chasing individual bypasses:
 //
-async function deriveTaskApprovers (
-  control: TriggerControl, task: TimesheetTask, selfEmployee: Ref<Employee> | undefined
-): Promise<Ref<Employee>[]> {
-  const project = (
-    await control.findAll(control.ctx, tracker.class.Project, { _id: task.project }, { limit: 1 })
-  )[0]
-  if (project === undefined) return []
-  const pa = control.hierarchy.as(project, ygTimesheet.mixin.ProjectApprovers)
+//  - Authorization is a ROLE check, derived server-side from the ProjectApprovers mixin on every
+//    project (pm + teamLead) — see `approverRoleSet` below. There is nothing left on the task
+//    document that can poison this decision; `task.approvers` is NEVER read for authorization —
+//    it is client-writable NOTIFICATION ROUTING only (who gets pinged), not a permission list.
+//  - The payroll fields no longer live on TimesheetTask at all (Task 2, 2026-07-23): they moved to
+//    `TimesheetApproval` docs in the PRIVATE space `ygTimesheet.space.Approvals`. A non-member's
+//    read or write to that space is refused STRUCTURALLY by the server (space membership), not by
+//    this trigger — so there is no longer a dangerous-field list to enumerate here at all.
+//  - Business rule: ANY employee assigned as PM or Team Lead on ANY project may approve/reject ANY
+//    task (a lead covering for an absent one is the motivating case) — what matters is ATTRIBUTION
+//    (who acted), not prevention. Self-approval is forbidden for EVERYONE, including admins — and
+//    if the timesheet owner can't be resolved, we fail closed (deny), never allow.
+//
+// Loop-safety: the only compensating write this trigger issues is a status-revert, attributed to
+// core.account.System (txFactory's 7th-arg modifiedBy override). The top-of-loop guard skips
+// System-authored txes, so that revert can never re-enter and re-revert itself.
+//
+async function approverRoleSet (control: TriggerControl): Promise<Set<Ref<Employee>>> {
+  const projects = await control.findAll(control.ctx, tracker.class.Project, {})
   const set = new Set<Ref<Employee>>()
-  if (pa.pm != null) set.add(pa.pm)
-  if (pa.teamLead != null) set.add(pa.teamLead)
-  if (selfEmployee !== undefined) set.delete(selfEmployee) // no self-approve, ever (mirrors buildTaskUnits)
-  return [...set]
-}
-
-interface TaskActorContext {
-  actorId: Ref<Employee> | undefined
-  isAdmin: boolean
-  isSelf: boolean
-  isOwnerApprover: boolean
-  /** Never true when the owner could not be resolved — see the Minor-E comment below. */
-  authorized: boolean
-  /** An Approved-stamp write additionally needs an attributable actor — see the Minor-E comment. */
-  canStamp: boolean
-  derived: Ref<Employee>[]
-}
-
-// Shared by the create/update/remove handlers below: resolves the timesheet owner, the acting
-// Employee, and whether that actor may approve/reject THIS task.
-async function resolveTaskActorContext (
-  control: TriggerControl, modifiedBy: PersonId, task: TimesheetTask
-): Promise<TaskActorContext> {
-  const day = (
-    await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: task.attachedTo }, { limit: 1 })
-  )[0]
-  const sheet = day === undefined
-    ? undefined
-    : (await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo }, { limit: 1 }))[0]
-  const owner = sheet?.employee
-  const ownerResolved = owner !== undefined
-
-  const actor = await getEmployee(control, modifiedBy)
-  const actorId = actor?._id
-
-  // Re-derived, server-side, from the task's OWN project — never from task.approvers.
-  const derived = await deriveTaskApprovers(control, task, owner)
-
-  const isSelf = ownerResolved && actorId !== undefined && actorId === owner
-  const isOwnerApprover = actorId !== undefined && derived.includes(actorId)
-  const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
-
-  // Minor E (owner unresolved): `deriveTaskApprovers` can only subtract the owner from the
-  // approver set when `owner` is known. If the parent Timesheet lookup fails, `owner` is
-  // undefined, nothing gets subtracted, and an owner who is also their project's PM/lead would
-  // otherwise slip through as `isOwnerApprover` with `isSelf` never firing (since `actorId !==
-  // undefined` compared against an undefined `owner` is trivially false). Fail closed: when the
-  // owner can't be resolved, authorization is unconditionally false — including for admins, since
-  // we cannot even tell whether this is a self-approval attempt.
-  const authorized = ownerResolved && !isSelf && (isAdmin || isOwnerApprover)
-
-  // Minor E (null stamp): never treat an Approved transition as legitimate with no attributable
-  // actor — an admin with no Employee record approving would be unattributable. Fail closed
-  // instead (falls through to the revert/sanitize path). Named `canStamp` because the
-  // authoritative stamp itself is written on the TimesheetApproval doc, not here (task-2,
-  // 2026-07-23) — this gate still guards that an Approved transition always has someone to
-  // attribute it to.
-  const canStamp = actorId !== undefined
-
-  return { actorId, isAdmin, isSelf, isOwnerApprover, authorized, canStamp, derived }
-}
-
-async function handleTaskUpdate (utx: TxUpdateDoc<TimesheetTask>, control: TriggerControl): Promise<void> {
-  const ops = utx.operations as Record<string, any>
-
-  // In scope: any write that touches the security-relevant surface — status, approvers, the
-  // approval stamps, or the hours fields — even WITHOUT a status change (Critical 1 / Critical 2
-  // / Critical A). Unrelated edits (title, date, identifier, ...) are left alone.
-  const touchesApprovers =
-    ops.approvers !== undefined ||
-    ops.$push?.approvers !== undefined ||
-    ops.$pull?.approvers !== undefined ||
-    ops.$unset?.approvers !== undefined
-  const touchesStamps =
-    ops.approvedBy !== undefined || ops.approvedOn !== undefined ||
-    ops.$unset?.approvedBy !== undefined || ops.$unset?.approvedOn !== undefined
-  // Critical A: approvedHours is guarded exactly like the approval stamps — a naked
-  // `updateDoc(task, { approvedHours: N })` must enter scope too. submittedHours is included for
-  // the same reason: no legitimate UI flow ever updates it post-creation (it's only ever written
-  // once, at submit time, via addCollection — see plugins/yg-timesheet-resources/src/utils/day.ts
-  // submitDay), so a direct write to it is inherently suspicious.
-  const touchesHours =
-    ops.approvedHours !== undefined || ops.submittedHours !== undefined ||
-    ops.$unset?.approvedHours !== undefined || ops.$unset?.submittedHours !== undefined
-  const statusOp: 'Approved' | 'Rejected' | undefined =
-    ops.status === 'Approved' || ops.status === 'Rejected' ? ops.status : undefined
-
-  if (statusOp === undefined && !touchesApprovers && !touchesStamps && !touchesHours) return
-
-  const task = (
-    await control.findAll(control.ctx, ygTimesheet.class.TimesheetTask, { _id: utx.objectId }, { limit: 1 })
-  )[0]
-  if (task === undefined) return
-
-  const { actorId, isAdmin, isSelf, authorized, canStamp, derived } = await resolveTaskActorContext(
-    control, utx.modifiedBy, task
-  )
-
-  if (statusOp !== undefined && authorized && (statusOp !== 'Approved' || canStamp)) {
-    // Legitimate transition. Force the authoritative approvers regardless of what the client
-    // sent — never trusted from the tx.
-    //
-    // Task 2 (2026-07-23): approvedBy / approvedOn / approvedHours no longer live on
-    // TimesheetTask — they moved to the private TimesheetApproval doc (ygTimesheet.space.
-    // Approvals), which a non-member (any employee) is refused read/write access to by the
-    // server. This trigger must therefore NEVER write those three field names onto the task
-    // doc again — doing so would silently re-persist approved hours onto the shared,
-    // world-readable task, undoing that fix. We still defensively $unset them in case a client
-    // (forged or stale) tried to set them directly in this same tx — Huly's domain storage is
-    // not schema-enforced, so an old field name isn't rejected merely for no longer being
-    // declared on the class.
-    // Authorizing/stamping the TimesheetApproval doc itself is out of scope here — a later task
-    // replaces this trigger wholesale to cover that.
-    const fix: Record<string, any> = {
-      approvers: derived,
-      $unset: { approvedBy: '', approvedOn: '', approvedHours: '' }
-    }
-    const t = control.txFactory.createTxUpdateDoc(
-      task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
-    )
-    await control.apply(control.ctx, [t])
-    return
+  for (const p of projects) {
+    const pa = control.hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers)
+    if (pa.pm != null) set.add(pa.pm)
+    if (pa.teamLead != null) set.add(pa.teamLead)
   }
-
-  // Everything else is illegitimate: an unauthorized/self status change, an authorized admin
-  // approve with no Employee record to stamp (Minor E), or a naked write to
-  // approvers/approvedBy/approvedOn/approvedHours/submittedHours outside of an authorized status
-  // transition — none of those fields are ever client-settable on their own.
-  control.ctx.warn('yg-timesheet: unauthorized TimesheetTask write reverted', {
-    task: task._id,
-    project: task.project,
-    actor: actorId,
-    modifiedBy: utx.modifiedBy,
-    attemptedStatus: statusOp,
-    touchesApprovers,
-    touchesStamps,
-    touchesHours,
-    isSelf,
-    isAdmin
-  })
-
-  // Task 2 (2026-07-23): this used to reconstruct the doc as it stood immediately before THIS
-  // tx (Important D) and, if the prior state carried a PROVABLY System-stamped approval
-  // (approvedBy/approvedOn set by a System-attributed tx), restore that prior Approved state
-  // exactly — rather than trusting post-apply `task.approvedBy`. That trust criterion itself
-  // depended on approvedBy/approvedOn/approvedHours living on TimesheetTask, which they no
-  // longer do (moved to the private TimesheetApproval doc) — restoring them here would be
-  // exactly the stale-write bug this task fixes. Fail closed instead: always reset to
-  // Submitted and scrub any stray value on the three moved field names (defense-in-depth
-  // against a forged/stale doc, since storage isn't schema-enforced). A later task, which
-  // rewrites this trigger to authorize TimesheetApproval writes, can reintroduce an equivalent
-  // "restore a still-valid prior approval" guarantee against that doc instead.
-  const fix: Record<string, any> = {
-    approvers: derived,
-    status: 'Submitted',
-    $unset: { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' }
-  }
-  const revert = control.txFactory.createTxUpdateDoc(
-    task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
-  )
-  await control.apply(control.ctx, [revert])
-}
-
-// Critical B (create): a wholly forged, already-approved (or -rejected-with-stamps) task created
-// in ONE transaction — self-approval included — must never stand.
-async function handleTaskCreate (createTx: TxCreateDoc<TimesheetTask>, control: TriggerControl): Promise<void> {
-  const created = TxProcessor.createDoc2Doc(createTx)
-
-  const statusOp: 'Approved' | 'Rejected' | undefined =
-    created.status === 'Approved' || created.status === 'Rejected' ? created.status : undefined
-  const hasStamps = created.approvedBy != null || created.approvedOn != null || created.approvedHours != null
-
-  // Normal client-side submit: a freshly created task always arrives Submitted with no stamps —
-  // nothing to guard, leave it alone (avoid an unconditional compensating write on every submit).
-  if (statusOp === undefined && !hasStamps) return
-
-  const { actorId, isAdmin, isSelf, authorized, canStamp, derived } = await resolveTaskActorContext(
-    control, createTx.modifiedBy, created
-  )
-
-  if (statusOp !== undefined && authorized && (statusOp !== 'Approved' || canStamp)) {
-    // A legitimately authorized approver directly created an already-decided task (e.g. a
-    // one-off historical-data import) — force the authoritative approvers server-side, same as
-    // the update path, rather than trust whatever the client sent.
-    //
-    // Task 2 (2026-07-23): approvedBy/approvedOn/approvedHours no longer live on TimesheetTask
-    // (moved to the private TimesheetApproval doc) — never set them here regardless of
-    // statusOp; always scrub any stray value the create tx carried on those field names
-    // (defense-in-depth against a forged/stale doc — storage isn't schema-enforced).
-    const fix: Record<string, any> = {
-      approvers: derived,
-      $unset: { approvedBy: '', approvedOn: '', approvedHours: '' }
-    }
-    const t = control.txFactory.createTxUpdateDoc(
-      created._class, created.space, created._id, fix as any, false, Date.now(), core.account.System
-    )
-    await control.apply(control.ctx, [t])
-    return
-  }
-
-  control.ctx.warn('yg-timesheet: unauthorized pre-approved TimesheetTask creation reverted', {
-    task: created._id,
-    project: created.project,
-    actor: actorId,
-    modifiedBy: createTx.modifiedBy,
-    attemptedStatus: statusOp,
-    isSelf,
-    isAdmin
-  })
-
-  // Sanitize back to a normal freshly-submitted task: no stamps, re-derived approvers, Submitted.
-  const fix: Record<string, any> = {
-    status: 'Submitted',
-    approvers: derived,
-    $unset: { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' }
-  }
-  const t = control.txFactory.createTxUpdateDoc(
-    created._class, created.space, created._id, fix as any, false, Date.now(), core.account.System
-  )
-  await control.apply(control.ctx, [t])
-}
-
-// Critical B (remove): deleting somebody else's Approved task must not stand. Draft/Submitted/
-// Rejected tasks are left alone (the employee's own recall/re-submit flow deletes and recreates
-// them via submitDay — see plugins/yg-timesheet-resources/src/utils/day.ts).
-async function handleTaskRemove (rtx: TxRemoveDoc<TimesheetTask>, control: TriggerControl): Promise<void> {
-  const removed = control.removedMap.get(rtx.objectId) as TimesheetTask | undefined
-  if (removed === undefined) return
-  if (removed.status !== 'Approved') return
-
-  const { isAdmin, isSelf, authorized } = await resolveTaskActorContext(control, rtx.modifiedBy, removed)
-  if (authorized) return // an authorized approver of this task, or admin, may delete it
-
-  control.ctx.warn('yg-timesheet: unauthorized removal of Approved TimesheetTask reverted (recreated)', {
-    task: removed._id,
-    project: removed.project,
-    modifiedBy: rtx.modifiedBy,
-    isSelf,
-    isAdmin
-  })
-
-  // Recreate exactly as it was, preserving the original _id so any external references keep
-  // resolving. Attributed to System so it never re-enters this trigger.
-  //
-  // Task 2 (2026-07-23): approvedBy/approvedOn/approvedHours are deliberately NOT carried over —
-  // they no longer live on TimesheetTask (moved to the private TimesheetApproval doc). Even if
-  // `removed` still carried a stray value on one of those field names (storage isn't
-  // schema-enforced), recreating it here would re-persist the moved fields onto the
-  // world-readable task doc — exactly the bug this task fixes. The task's real approval record,
-  // if any, lives untouched in TimesheetApproval and is unaffected by this recreate.
-  const data: Data<TimesheetTask> = {
-    attachedTo: removed.attachedTo,
-    attachedToClass: removed.attachedToClass,
-    collection: removed.collection,
-    date: removed.date,
-    issue: removed.issue,
-    identifier: removed.identifier,
-    title: removed.title,
-    project: removed.project,
-    submittedHours: removed.submittedHours,
-    status: removed.status,
-    approvers: removed.approvers,
-    submittedOn: removed.submittedOn,
-    rejectReason: removed.rejectReason
-  }
-  const t = control.txFactory.createTxCreateDoc(
-    removed._class, removed.space, data, removed._id, undefined, core.account.System
-  )
-  await control.apply(control.ctx, [t])
+  return set
 }
 
 export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
-    // Loop-safety: every compensating write this trigger issues (create-sanitize, update-revert/
-    // stamp, remove-recreate) is attributed to System via the txFactory calls above. This single
-    // guard covers ALL THREE tx classes handled below, so none of our own writes ever re-enter
-    // and re-revert, regardless of which branch produced them.
+    // Loop-safety: our own compensating revert below is System-attributed — skip System-authored
+    // txes so that revert can never re-enter and re-revert itself.
     if (tx.modifiedBy === core.account.System) continue
-
-    // Critical B: coverage is no longer limited to TxUpdateDoc — the model registration's
-    // txMatch now matches on objectClass only (see models/server-yg-timesheet/src/index.ts), so
-    // TxCreateDoc and TxRemoveDoc reach this trigger too. Handle each explicitly.
-    if (tx._class === core.class.TxCreateDoc) {
-      const createTx = tx as TxCreateDoc<TimesheetTask>
-      if (createTx.objectClass !== ygTimesheet.class.TimesheetTask) continue
-      await handleTaskCreate(createTx, control)
-      continue
-    }
-    if (tx._class === core.class.TxRemoveDoc) {
-      const rtx = tx as TxRemoveDoc<TimesheetTask>
-      if (rtx.objectClass !== ygTimesheet.class.TimesheetTask) continue
-      await handleTaskRemove(rtx, control)
-      continue
-    }
     if (tx._class !== core.class.TxUpdateDoc) continue
+
     const utx = tx as TxUpdateDoc<TimesheetTask>
     if (utx.objectClass !== ygTimesheet.class.TimesheetTask) continue
-    await handleTaskUpdate(utx, control)
+
+    const statusOp = (utx.operations as Partial<TimesheetTask>).status
+    if (statusOp !== 'Approved' && statusOp !== 'Rejected') continue
+
+    const task = (
+      await control.findAll(control.ctx, ygTimesheet.class.TimesheetTask, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (task === undefined) continue
+
+    // Timesheet owner = the employee this task's day belongs to (task -> day -> timesheet). This
+    // is the "self" in the self-approval bar — never the task's own (client-writable) approvers.
+    const day = (
+      await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: task.attachedTo }, { limit: 1 })
+    )[0]
+    const sheet = day === undefined
+      ? undefined
+      : (await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo }, { limit: 1 }))[0]
+    const owner: Ref<Employee> | undefined = sheet?.employee
+
+    const actor = await getEmployee(control, utx.modifiedBy)
+    const actorId: Ref<Employee> | undefined = actor?._id
+
+    // Admin break-glass: workspace Owner/Maintainer. Still subject to the self-approval bar below.
+    const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
+
+    // Fail closed: if the owner can't be resolved we cannot rule out self-approval, so deny —
+    // unconditionally, admin included (mirrors OnTimesheetDayUpdate's Rule A precedent).
+    const authorized =
+      owner !== undefined &&
+      actorId !== owner &&
+      (isAdmin || (actorId !== undefined && (await approverRoleSet(control)).has(actorId)))
+
+    if (authorized) continue
+
+    control.ctx.warn('yg-timesheet: unauthorized TimesheetTask approval reverted', {
+      task: task._id,
+      project: task.project,
+      actor: actorId,
+      modifiedBy: utx.modifiedBy,
+      attemptedStatus: statusOp,
+      ownerResolved: owner !== undefined,
+      isAdmin
+    })
+
+    // Compensating write — attributed to System (7th arg) so it can never re-enter this trigger.
+    const fix: Record<string, any> = { status: 'Submitted', $unset: { rejectReason: '' } }
+    const t = control.txFactory.createTxUpdateDoc(
+      task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [t])
+  }
+  return []
+}
+
+//
+// Membership of the private Approvals space = every currently-assigned PM/TL, kept in sync with
+// the ProjectApprovers mixin so a newly assigned lead can immediately read (and be attributed on)
+// approvals, and a removed lead loses access immediately. Reconciles GLOBALLY (across every
+// project) on any change touching ANY project — cheap, idempotent, and correctness doesn't depend
+// on diffing which project changed or which field on it.
+//
+// Loop-safety: registered with txMatch objectClass: tracker.class.Project (see
+// models/server-yg-timesheet/src/index.ts). This trigger's only write is a TxUpdateDoc on
+// ygTimesheet.space.Approvals — objectClass core.class.Space, never tracker.class.Project — so
+// that write structurally cannot match this trigger's own txMatch and can never re-enter it. The
+// top-of-loop System guard is kept anyway, matching the established idiom in this file.
+//
+export async function OnProjectApproversChange (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    const roles = await approverRoleSet(control)
+    const space = (
+      await control.findAll(control.ctx, core.class.Space, { _id: ygTimesheet.space.Approvals }, { limit: 1 })
+    )[0]
+    if (space === undefined) continue
+    const wanted = new Set<AccountUuid>()
+    for (const ref of roles) {
+      const emp = (await control.findAll(control.ctx, contact.mixin.Employee, { _id: ref }, { limit: 1 }))[0]
+      if (emp?.personUuid != null) wanted.add(emp.personUuid)
+    }
+    const current = new Set(space.members)
+    if (wanted.size === current.size && [...wanted].every((m) => current.has(m))) continue
+    const t = control.txFactory.createTxUpdateDoc(
+      space._class, space.space, space._id, { members: [...wanted] } as any,
+      false, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [t])
   }
   return []
 }
@@ -855,6 +649,7 @@ export default async () => ({
   trigger: {
     OnTimesheetDayUpdate,
     OnTimesheetTaskUpdate,
+    OnProjectApproversChange,
     OnTimeSpendReportChange,
     OnHrDataMembershipGuard,
     OnHrMembershipChange,
