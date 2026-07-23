@@ -245,3 +245,79 @@ assumed** — it was not confirmed at the time of writing.
   The field-enumeration guards become unnecessary once the approval fields move spaces.
 - **New task** — provision the restricted approvals space, move the approval fields into it, and
   add the project-settings PM/TL assignment UI.
+
+---
+
+# ⚠️ KNOWN SECURITY GAP — accepted for BETA ONLY (user decision 2026-07-23)
+
+**Status: OPEN. Must be fixed before this feature is used with real payroll data.**
+
+## The gap
+
+A determined workspace member with direct API access can **forge or inflate approval records**:
+
+```
+createDoc(ygTimesheet.class.TimesheetApproval, ygTimesheet.space.Approvals,
+          { task: <anyTask>, approvedHours: 999, approvedBy: <anyone> })
+```
+
+They do not need a PM/TL role, and they do not need to join the private space.
+
+## Why the current design does not stop it
+
+Revision 2 assumed that putting the payroll fields in a **private space** made writes
+structurally safe. **That assumption is false**, verified against this codebase:
+`foundations/server/packages/middleware/src/spaceSecurity.ts` contains **zero `throw`
+statements** — `processTx` only maintains read filters and domain-space indexes. It never rejects
+a transaction.
+
+> **Private means READ-blocked, not WRITE-blocked.**
+
+Non-members cannot *read* `TimesheetApproval` rows (so the "employees must not see approved hours"
+requirement DOES hold), but anyone can *write* them.
+
+## What IS enforced today
+
+- Task `status` transitions to Approved/Rejected are role-checked server-side
+  (`OnTimesheetTaskUpdate`), self-approval blocked for everyone including admins, unauthorized
+  writes reverted and logged.
+- Approved hours are **not readable** by ordinary employees.
+- So the gap is *forgery of approval records*, not casual misuse or accidental exposure.
+
+## Also open (same root cause / same review round)
+
+- Attribution (`approvedBy`/`approvedOn`) is not written on a FIRST approval: `approveTask` writes
+  `status` before creating the row, so the trigger finds no row and only warns. Re-approvals stamp.
+- `OnApprovalsMembershipGuard` reconciles `$push`-ed members but a raw `{ owners: [...] }`
+  overwrite can install an accomplice, who is then treated as an admin by `deriveApprovalsMembers`.
+- `OnProjectApproversMixinGuard` matches only `TxMixin`; a plain
+  `updateDoc(Project, { 'ygTimesheet:mixin:ProjectApprovers': { pm: self } })` still self-promotes.
+- `OnTimesheetTaskUpdate` handles only `TxUpdateDoc` — a forged already-`Approved` task created via
+  `TxCreateDoc`, or deletion of an approved task via `TxRemoveDoc`, is unguarded.
+
+## The agreed fix (NOT YET IMPLEMENTED)
+
+**Clients must never write `TimesheetApproval` at all.**
+
+1. The approver's hours travel on the **task** update, which is already role-guarded and already
+   the transaction the trigger authorizes.
+2. The **server alone** creates, updates and deletes the `TimesheetApproval` row.
+3. Any **client-authored** transaction on `ygTimesheet.class.TimesheetApproval` is reverted
+   unconditionally — deny-by-default, no field or operator enumeration to keep current.
+
+This is the first design in five review rounds that does not rest on an unverified premise:
+attribution becomes true by construction, and there is nothing on the document left to poison.
+
+## Why it was accepted for now (user decision, 2026-07-23)
+
+The branch is **local + demo only, never deployed** (`yg_beta` is never merged to `yg_develop`,
+which CI auto-deploys). The realistic threat is an employee deliberately inflating their own
+approved hours through the API — a real payroll risk, but not an outage risk and not reachable by
+normal UI use. Accepted to unblock beta demos; **must be closed before real payroll use.**
+
+## Review history (so nobody re-derives this)
+
+Five adversarial review rounds, two architectures, each round finding new bypasses:
+- **v1** "trigger enumerates dangerous fields/operators" — 3 rounds (`$inc`, status-downgrade,
+  forged creates all slipped past). Open-ended by construction.
+- **v2** "private space is structurally write-safe" — 2 rounds. Premise disproven (above).
