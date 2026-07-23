@@ -10,6 +10,12 @@ import type { AnyComponent } from '@hcengineering/ui'
 
 export type DayStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
 
+/**
+ * Status of one approvable unit (a task). Same four values the day used to carry.
+ * `PartiallyApproved` is deliberately NOT here: it is only ever DERIVED for a day.
+ */
+export type TaskStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
+
 export interface TimesheetLine {
   issue: Ref<Issue>
   identifier: string
