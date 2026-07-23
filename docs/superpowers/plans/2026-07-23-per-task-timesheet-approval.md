@@ -51,13 +51,36 @@
 ### Task 1: Pure lib — task units, derived day status, per-task authorization (TDD)
 
 **Files:**
+- Modify: `plugins/yg-timesheet/src/index.ts` (declare `TaskStatus` — Step 0)
 - Create: `plugins/yg-timesheet-resources/src/utils/task-approval.ts`
 - Test: `plugins/yg-timesheet-resources/src/utils/__tests__/task-approval.test.ts`
 
 **Interfaces:**
 - Consumes: `DayReportLike` and `ProjectApproverLike` from `./workflow`.
 - Produces:
-  - `type TaskStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'`
+  - `type TaskStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'` — declared in the plugin
+    package, re-exported from the lib
+
+- [ ] **Step 0: Declare the shared status type**
+
+The status values must have ONE definition so the model (Task 2) and this lib cannot drift. Add to
+`plugins/yg-timesheet/src/index.ts`, next to the existing `DayStatus`:
+
+```ts
+/**
+ * Status of one approvable unit (a task). Same four values the day used to carry.
+ * `PartiallyApproved` is deliberately NOT here: it is only ever DERIVED for a day.
+ */
+export type TaskStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
+```
+
+Then build it so the lib can import it:
+
+```bash
+cd /home/karthi_0008/dev/client-projects/yg-huly
+source ~/.nvm/nvm.sh && nvm use 22
+node common/scripts/install-run-rush.js build --to @hcengineering/yg-timesheet
+```
   - `type DerivedDayStatus = 'Draft' | 'Submitted' | 'PartiallyApproved' | 'Approved' | 'Rejected'`
   - `interface TaskUnit { issue: string, identifier: string, title: string, project: string, submittedHours: number, approvers: string[] }`
   - `buildTaskUnits (reports: DayReportLike[], byProject: Map<string, ProjectApproverLike>, employee: string): TaskUnit[]`
@@ -180,8 +203,11 @@ Create `plugins/yg-timesheet-resources/src/utils/task-approval.ts`:
 // project's approvers, so that is structurally impossible.
 //
 import type { DayReportLike, ProjectApproverLike } from './workflow'
+// Single source of truth for the per-task status values — declared in the plugin package
+// (plugins/yg-timesheet/src/index.ts) and re-exported here so the model and this lib cannot drift.
+import type { TaskStatus } from '@hcengineering/yg-timesheet'
 
-export type TaskStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
+export type { TaskStatus }
 
 /** Day status is DERIVED from its tasks — for display only. Never stored, never queried. */
 export type DerivedDayStatus = 'Draft' | 'Submitted' | 'PartiallyApproved' | 'Approved' | 'Rejected'
@@ -288,7 +314,8 @@ git commit -m "yg-timesheet: pure per-task approval lib (units, derived day stat
 
 - [ ] **Step 1: Add the interface and ids to the plugin**
 
-In `plugins/yg-timesheet/src/index.ts`, add after the `TimesheetDay` interface:
+`TaskStatus` was already declared in Task 1 Step 0 — do not redeclare it. In
+`plugins/yg-timesheet/src/index.ts`, add after the `TimesheetDay` interface:
 
 ```ts
 /** Per-task (one issue per day) approval record — the unit an approver actions. */
@@ -299,7 +326,7 @@ export interface TimesheetTask extends AttachedDoc {
   title: string
   project: Ref<Project>
   submittedHours: number
-  status: DayStatus
+  status: TaskStatus
   /** PM + Team Lead of THIS task's project only, minus the employee. Stamped at submit time. */
   approvers: Ref<Employee>[]
   submittedOn?: Timestamp
@@ -354,7 +381,7 @@ export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
   @Prop(TypeString(), core.string.Object) title!: string
   @Prop(TypeRef(tracker.class.Project), core.string.Object) project!: Ref<Project>
   @Prop(TypeNumber(), core.string.Object) submittedHours!: number
-  @Prop(TypeString(), core.string.Object) status!: DayStatus
+  @Prop(TypeString(), core.string.Object) status!: TaskStatus
   @Prop(ArrOf(TypeRef(contact.mixin.Employee)), core.string.Object) approvers!: Ref<Employee>[]
   @Prop(TypeDate(), core.string.Object) submittedOn?: Timestamp
   @Prop(TypeNumber(), core.string.Object) approvedHours?: number
@@ -435,9 +462,19 @@ git commit -m "yg-timesheet: TimesheetTask model + strings for per-task approval
 
 **Interfaces:**
 - Consumes: `buildTaskUnits` from `./task-approval`.
-- Produces: `submitDay` (same signature) now also creating `TimesheetTask` rows; new
-  `approveTask (client, taskId, approvedHours) : Promise<void>` and
-  `rejectTask (client, taskId, reason) : Promise<void>`.
+- Produces:
+  - `interface NoApproverResult { kind: typeof NO_APPROVER, projects: string[] }` — exported from
+    `day.ts`; `projects` holds the project refs that have no PM/TL configured.
+  - `submitDay (client, args): Promise<Ref<TimesheetDay> | NoApproverResult>` — now also creates
+    `TimesheetTask` rows. **Callers must be updated**: the old contract returned the bare
+    `NO_APPROVER` string sentinel, so a `res === NO_APPROVER` check no longer matches. Use
+    `typeof res === 'object' && 'kind' in res`.
+  - `approveTask (client, taskId, approvedHours): Promise<void>`
+  - `rejectTask (client, taskId, reason): Promise<void>`
+
+`Timesheet.svelte` currently does `const res = await submitDay(...)` and compares against
+`NO_APPROVER`. Update that call site in this task to show which projects are misconfigured, using
+the existing `ygTimesheet.string.NoApprover` message plus the project names.
 
 - [ ] **Step 1: Rewrite `submitDay` to create task records**
 
@@ -456,9 +493,18 @@ export async function submitDay (
 ): Promise<Ref<TimesheetDay> | typeof NO_APPROVER> {
   const units = buildTaskUnits(reports, approversByProject, employee)
   // Every task must have somewhere to go. If ANY task's project has no PM/TL configured we do not
-  // write at all — the UI surfaces NoApprover so the missing project config gets fixed, rather
-  // than silently parking that task where nobody will ever see it.
-  if (units.length === 0 || units.some((u) => u.approvers.length === 0)) return NO_APPROVER
+  // write at all — the UI surfaces the error so the missing project config gets fixed, rather than
+  // silently parking that task where nobody will ever see it.
+  //
+  // NOTE this is STRICTER than the old day-level rule, which submitted as long as ONE project in
+  // the day had an approver (leaving the rest unapprovable). Returning the offending projects
+  // rather than a bare sentinel is deliberate (user decision 2026-07-23): a generic "No approver"
+  // tells the employee nothing about who to chase.
+  if (units.length === 0) return NO_APPROVER
+  const unapprovable = units.filter((u) => u.approvers.length === 0)
+  if (unapprovable.length > 0) {
+    return { kind: NO_APPROVER, projects: [...new Set(unapprovable.map((u) => u.project))] }
+  }
 
   const totalHours = units.reduce((sum, u) => sum + u.submittedHours, 0)
   const submittedOn = Date.now()
