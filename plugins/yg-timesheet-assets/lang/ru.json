@@ -64,6 +64,12 @@
     "PeriodWeekly": "Неделя",
     "PeriodMonthly": "Месяц",
     "SelectWeek": "Неделя",
-    "SelectMonth": "Месяц"
+    "SelectMonth": "Месяц",
+    "ApprovedHours": "Утверждённые часы",
+    "SubmittedHours": "Отправленные часы",
+    "ApproveTask": "Утвердить задачу",
+    "RejectTask": "Отклонить задачу",
+    "RejectReason": "Причина",
+    "PartiallyApproved": "Частично утверждено"
   }
 }

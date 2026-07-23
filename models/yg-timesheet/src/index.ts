@@ -26,9 +26,11 @@ import ygTimesheet, {
   type DayStatus,
   type HrTimeEntry,
   type ProjectApprovers,
+  type TaskStatus,
   type Timesheet,
   type TimesheetDay,
-  type TimesheetLine
+  type TimesheetLine,
+  type TimesheetTask
 } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
@@ -54,6 +56,9 @@ export class TTimesheetDay extends TAttachedDoc implements TimesheetDay {
   declare attachedTo: Ref<Timesheet>
 
   @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  // DEPRECATED (2026-07-23): the day's status is now DERIVED from its TimesheetTask children
+  // (see utils/task-approval.ts deriveDayStatus). Field retained so pre-migration rows stay
+  // readable; nothing reads it any more. Do not write it.
   @Prop(TypeString(), core.string.Object) status!: DayStatus
   @Prop(ArrOf(TypeRef(contact.mixin.Employee)), core.string.Object) approvers!: Ref<Employee>[]
   @Prop(TypeDate(), core.string.Object) submittedOn?: Timestamp
@@ -64,6 +69,26 @@ export class TTimesheetDay extends TAttachedDoc implements TimesheetDay {
 
   // snapshot stored as an opaque array — persisted as plain data, no Prop editor.
   declare snapshot?: TimesheetLine[]
+}
+
+@Model(ygTimesheet.class.TimesheetTask, core.class.AttachedDoc, DOMAIN_YG_TIMESHEET)
+export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
+  @Prop(TypeRef(ygTimesheet.class.TimesheetDay), core.string.Object)
+  declare attachedTo: Ref<TimesheetDay>
+
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeRef(tracker.class.Issue), core.string.Object) issue!: Ref<Issue>
+  @Prop(TypeString(), core.string.Object) identifier!: string
+  @Prop(TypeString(), core.string.Object) title!: string
+  @Prop(TypeRef(tracker.class.Project), core.string.Object) project!: Ref<Project>
+  @Prop(TypeNumber(), core.string.Object) submittedHours!: number
+  @Prop(TypeString(), core.string.Object) status!: TaskStatus
+  @Prop(ArrOf(TypeRef(contact.mixin.Employee)), core.string.Object) approvers!: Ref<Employee>[]
+  @Prop(TypeDate(), core.string.Object) submittedOn?: Timestamp
+  @Prop(TypeNumber(), core.string.Object) approvedHours?: number
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
+  @Prop(TypeString(), core.string.Object) rejectReason?: string
 }
 
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
@@ -90,7 +115,7 @@ export class THrTimeEntry extends TDoc implements HrTimeEntry {
 }
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TProjectApprovers, THrTimeEntry)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TProjectApprovers, THrTimeEntry)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.

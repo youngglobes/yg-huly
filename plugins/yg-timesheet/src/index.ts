@@ -44,6 +44,24 @@ export interface TimesheetDay extends AttachedDoc {
   snapshot?: TimesheetLine[]
 }
 
+/** Per-task (one issue per day) approval record — the unit an approver actions. */
+export interface TimesheetTask extends AttachedDoc {
+  date: Timestamp
+  issue: Ref<Issue>
+  identifier: string
+  title: string
+  project: Ref<Project>
+  submittedHours: number
+  status: TaskStatus
+  /** PM + Team Lead of THIS task's project only, minus the employee. Stamped at submit time. */
+  approvers: Ref<Employee>[]
+  submittedOn?: Timestamp
+  approvedHours?: number
+  approvedBy?: Ref<Employee>
+  approvedOn?: Timestamp
+  rejectReason?: string
+}
+
 export interface ProjectApprovers extends Project {
   pm?: Ref<Employee>
   teamLead?: Ref<Employee>
@@ -69,6 +87,7 @@ export default plugin(ygTimesheetId, {
   class: {
     Timesheet: '' as Ref<Class<Timesheet>>,
     TimesheetDay: '' as Ref<Class<TimesheetDay>>,
+    TimesheetTask: '' as Ref<Class<TimesheetTask>>,
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>
   },
   mixin: {
@@ -91,7 +110,9 @@ export default plugin(ygTimesheetId, {
     HrTimesheet: '' as AnyComponent,
     HrRoster: '' as AnyComponent,
     HrOverview: '' as AnyComponent,
-    HrExportDialog: '' as AnyComponent
+    HrExportDialog: '' as AnyComponent,
+    ApproveTaskPopup: '' as AnyComponent,
+    RejectTaskPopup: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -160,6 +181,11 @@ export default plugin(ygTimesheetId, {
     PeriodWeekly: '' as IntlString,
     PeriodMonthly: '' as IntlString,
     SelectWeek: '' as IntlString,
-    SelectMonth: '' as IntlString
+    SelectMonth: '' as IntlString,
+    ApprovedHours: '' as IntlString,
+    SubmittedHours: '' as IntlString,
+    ApproveTask: '' as IntlString,
+    RejectTask: '' as IntlString,
+    PartiallyApproved: '' as IntlString
   }
 })

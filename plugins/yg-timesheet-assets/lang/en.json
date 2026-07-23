@@ -64,6 +64,12 @@
     "PeriodWeekly": "Weekly",
     "PeriodMonthly": "Monthly",
     "SelectWeek": "Week",
-    "SelectMonth": "Month"
+    "SelectMonth": "Month",
+    "ApprovedHours": "Approved hours",
+    "SubmittedHours": "Submitted hours",
+    "ApproveTask": "Approve task",
+    "RejectTask": "Reject task",
+    "RejectReason": "Reason",
+    "PartiallyApproved": "Partially approved"
   }
 }
