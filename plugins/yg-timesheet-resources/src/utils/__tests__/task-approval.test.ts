@@ -20,7 +20,7 @@ test('separate issues stay separate units', () => {
   expect(units).toHaveLength(2)
 })
 
-test('THE DEFECT: each unit carries ONLY its own project approvers', () => {
+test('each unit is stamped with its own project approvers — for NOTIFICATION routing', () => {
   const units = buildTaskUnits([rep('i1', 'proj-1', 3), rep('i2', 'proj-2', 5)], approvers, 'k2')
   const u1 = units.find((u) => u.issue === 'i1')!
   const u2 = units.find((u) => u.issue === 'i2')!
@@ -79,9 +79,22 @@ test('taskDrift: hours edited after approval are flagged, not locked', () => {
   expect(taskDrift(1 / 3, 1 / 3)).toBe(0) // no float noise
 })
 
-test('canApproveTask: only this task approvers, never the employee', () => {
-  expect(canApproveTask(['tl-a'], 'k2', 'tl-a', false)).toBe(true)
-  expect(canApproveTask(['tl-a'], 'k2', 'tl-b', false)).toBe(false) // THE DEFECT, closed
-  expect(canApproveTask(['tl-a'], 'k2', 'k2', true)).toBe(false) // no self-approve, even admin
-  expect(canApproveTask([], 'k2', 'someone', true)).toBe(true) // admin override
+test('any assigned PM/TL may approve any task — cross-project is INTENDED', () => {
+  // TL-B is not this task's project lead, but is an assigned approver somewhere. Allowed:
+  // covering for an absent lead is the motivating case for this rule.
+  expect(canApproveTask(true, 'k2', 'tl-b', false)).toBe(true)
+  expect(canApproveTask(true, 'k2', 'tl-a', false)).toBe(true)
+})
+
+test('someone with no approver role cannot approve, even for their own project', () => {
+  expect(canApproveTask(false, 'k2', 'random-dev', false)).toBe(false)
+})
+
+test('self-approval is forbidden for everyone, including admins', () => {
+  expect(canApproveTask(true, 'k2', 'k2', false)).toBe(false)
+  expect(canApproveTask(true, 'k2', 'k2', true)).toBe(false)
+})
+
+test('admins may approve without an approver role', () => {
+  expect(canApproveTask(false, 'k2', 'some-admin', true)).toBe(true)
 })

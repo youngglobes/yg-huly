@@ -3,8 +3,11 @@
 //
 // Replaces the day-level model, which had a single status and a single approver list built from
 // the UNION of every project in the day. That let the lead of one project approve another lead's
-// hours (and whoever clicked first locked the other out). Here each task carries only its own
-// project's approvers, so that is structurally impossible.
+// hours (and whoever clicked first locked the other out).
+//
+// REVISION 2 (2026-07-23): authorization is now a ROLE check. Any PM/TL on ANY project may
+// approve ANY task — covering for an absent lead is the motivating case. Each task still carries
+// only its own project's approvers for NOTIFICATION routing; that field is no longer authorization.
 //
 import type { DayReportLike, ProjectApproverLike } from './workflow'
 // Single source of truth for the per-task status values — declared in the plugin package
@@ -27,8 +30,9 @@ export interface TaskUnit {
 
 /**
  * Collapse a day's time entries into one unit per ISSUE, summing hours, and stamp each unit with
- * the PM + Team Lead of ITS OWN project only. An empty approver list means the project has no
- * PM/TL configured — surfaced to the user, never silently rerouted.
+ * the PM + Team Lead of ITS OWN project only — for NOTIFICATION routing only, not authorization.
+ * An empty approver list means the project has no PM/TL configured — surfaced to the user, never
+ * silently rerouted.
  */
 export function buildTaskUnits (
   reports: DayReportLike[],
@@ -71,11 +75,25 @@ export function deriveDayStatus (statuses: TaskStatus[]): DerivedDayStatus {
   return 'Draft'
 }
 
+/**
+ * May this actor approve/reject this task?
+ *
+ * REVISION 2 (2026-07-23): authorization is a ROLE check, not a per-project one. Any employee
+ * assigned as PM or Team Lead on ANY project may approve ANY task — when a project's own lead is
+ * away, another lead who knows the work must be able to sign it off. What the business needs is
+ * ATTRIBUTION (who approved), not prevention.
+ *
+ * Deliberately does NOT consult the task's stored `approvers` list: that field is client-writable
+ * and is only notification routing. Authorization must never depend on data an attacker can write.
+ *
+ * `isApproverRole` is derived server-side from the ProjectApprovers assignments; the caller must
+ * not compute it from anything the acting user controls.
+ */
 export function canApproveTask (
-  taskApprovers: string[], employee: string, actor: string, isAdmin: boolean
+  isApproverRole: boolean, employee: string, actor: string, isAdmin: boolean
 ): boolean {
-  if (actor === employee) return false // no self-approve, even admin
-  return isAdmin || taskApprovers.includes(actor)
+  if (actor === employee) return false // no self-approve, ever — not even admins
+  return isAdmin || isApproverRole
 }
 
 /**
