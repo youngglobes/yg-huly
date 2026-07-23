@@ -69,7 +69,6 @@
     "SubmittedHours": "Отправленные часы",
     "ApproveTask": "Утвердить задачу",
     "RejectTask": "Отклонить задачу",
-    "RejectReason": "Причина",
     "PartiallyApproved": "Частично утверждено"
   }
 }
