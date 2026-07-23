@@ -1,0 +1,2 @@
+# Contains PG_PASSWORD, REDPANDA_ADMIN_PWD, SECRET - never commit
+huly_pg.conf
