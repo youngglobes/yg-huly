@@ -19,7 +19,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import { Label, Button, IconForward, IconBack } from '@hcengineering/ui'
-  import ygTimesheet, { type DayStatus, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
   import { weekRange, groupByDay, formatHours, localDayKey, type ReportLike, type DayGroup } from '../utils/week'
   import {
     submitDay,
@@ -30,6 +30,7 @@
     type DayReportLike,
     type ProjectApproverLike
   } from '../utils/day'
+  import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -127,10 +128,35 @@
     dayByKey = new Map()
   }
 
-  function statusString (s: DayStatus): IntlString {
+  // The employee-scoped TimesheetTask rows, grouped by local day key (submitDay stamps
+  // task.date = the day's date, so localDayKey(task.date) matches day.key exactly).
+  // Scoped through dayIds (this employee's own TimesheetDay ids) — NOT a bare date-range query —
+  // because TimesheetTask lives in the shared core.space.Workspace and is not employee-scoped; a
+  // date-range-only query would mix in OTHER employees' tasks for the same week.
+  const taskQuery = createQuery()
+  let tasksByKey: Map<string, TimesheetTask[]> = new Map()
+  $: dayIds = [...dayByKey.values()].map((d) => d._id)
+  $: taskQuery.query(
+    ygTimesheet.class.TimesheetTask,
+    { space: core.space.Workspace, attachedTo: { $in: dayIds } },
+    (res: TimesheetTask[]) => {
+      const m = new Map<string, TimesheetTask[]>()
+      for (const t of res) {
+        const key = localDayKey(t.date)
+        const arr = m.get(key) ?? []
+        arr.push(t)
+        m.set(key, arr)
+      }
+      tasksByKey = m
+    }
+  )
+
+  function statusString (s: DerivedDayStatus): IntlString {
     switch (s) {
       case 'Submitted':
         return ygTimesheet.string.Submitted
+      case 'PartiallyApproved':
+        return ygTimesheet.string.PartiallyApproved
       case 'Approved':
         return ygTimesheet.string.Approved
       case 'Rejected':
@@ -187,7 +213,8 @@
 <div class="ts-grid">
   {#each days as day (day.key)}
     {@const persisted = dayByKey.get(day.key)}
-    {@const status = persisted?.status ?? 'Draft'}
+    {@const dayTasks = tasksByKey.get(day.key) ?? []}
+    {@const status = deriveDayStatus(dayTasks.map((t) => t.status))}
     {@const drift = status === 'Approved' ? driftHours(persisted?.totalHours ?? 0, day.total) : 0}
     <div class="ts-day">
       <div class="ts-day__head">
@@ -204,18 +231,24 @@
         <div class="ts-empty">—</div>
       {:else}
         {#each day.issues as it (it.issueId)}
+          {@const task = dayTasks.find((t) => t.issue === it.issueId)}
           <div class="ts-line">
             <span class="ts-line__id">{it.identifier}</span>
             <span class="ts-line__title">{it.title}</span>
+            {#if task !== undefined}
+              <span class="ts-pill ts-pill--sm ts-pill--{task.status.toLowerCase()}">
+                <Label label={statusString(task.status)} />
+              </span>
+            {/if}
             <span class="ts-line__hrs">{formatHours(it.hours)}</span>
           </div>
+          {#if task?.status === 'Rejected' && (task.rejectReason ?? '') !== ''}
+            <div class="ts-reason">
+              <b><Label label={ygTimesheet.string.RejectReason} />:</b>
+              {task.rejectReason}
+            </div>
+          {/if}
         {/each}
-      {/if}
-      {#if status === 'Rejected' && (persisted?.rejectReason ?? '') !== ''}
-        <div class="ts-reason">
-          <b><Label label={ygTimesheet.string.RejectReason} />:</b>
-          {persisted?.rejectReason}
-        </div>
       {/if}
       <div class="ts-actions">
         {#if (status === 'Draft' || status === 'Rejected') && day.issues.length > 0}
@@ -239,7 +272,7 @@
   .ts-day { border: 1px solid var(--theme-divider-color); border-radius: 0.5rem; padding: 0.5rem; min-height: 6rem; }
   .ts-day__head { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 0.5rem; }
   .ts-day__total { color: var(--theme-content-color); }
-  .ts-line { display: flex; gap: 0.25rem; font-size: 0.75rem; padding: 0.125rem 0; }
+  .ts-line { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; padding: 0.125rem 0; }
   .ts-line__id { color: var(--theme-dark-color); }
   .ts-line__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ts-line__hrs { font-variant-numeric: tabular-nums; }
@@ -252,8 +285,17 @@
   .ts-pill--submitted { background: var(--theme-warning-color); color: #fff; }
   .ts-pill--approved { background: var(--theme-won-color); color: #fff; }
   .ts-pill--rejected { background: var(--theme-lost-color); color: #fff; }
+  // PartiallyApproved: amber-FAMILY but deliberately NOT a second solid amber pill (that would
+  // read as indistinguishable from a freshly-submitted day) — amber outline + amber text on the
+  // neutral pill background instead, so a half-approved day reads as visually distinct.
+  .ts-pill--partiallyapproved {
+    background: var(--theme-button-default);
+    color: var(--theme-warning-color);
+    border: 1px solid var(--theme-warning-color);
+  }
+  .ts-pill--sm { font-size: 0.625rem; padding: 0 0.3125rem; }
   .ts-drift { font-size: 0.6875rem; color: var(--theme-warning-color); }
-  .ts-reason { font-size: 0.75rem; color: var(--theme-content-color); margin-top: 0.375rem; }
+  .ts-reason { font-size: 0.75rem; color: var(--theme-content-color); margin: 0.125rem 0 0.25rem; }
   .ts-actions { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.5rem; flex-wrap: wrap; }
   .ts-noapprover { font-size: 0.6875rem; color: var(--theme-lost-color); }
 </style>

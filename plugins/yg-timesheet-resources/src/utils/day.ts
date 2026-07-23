@@ -155,12 +155,26 @@ export async function submitDay (
   return dayId
 }
 
-/** Recall a submitted day back to Draft (clears approvers + submittedOn). */
+/**
+ * Recall a submitted day back to Draft. The day label is DERIVED from its TimesheetTask rows, so
+ * clearing only TimesheetDay (the old day-level flow) leaves every task at status='Submitted' —
+ * the derived status stays 'Submitted', the Recall button never clears, and the tasks stay in the
+ * approver queue. Recall is offered ONLY when the derived status is 'Submitted' (i.e. every task
+ * is Submitted, none Approved/Rejected — see deriveDayStatus), so returning the day's Submitted
+ * tasks to Draft is exactly what un-submits it: no Approved task can be present to worry about
+ * preserving, and no Rejected task is touched (it stays Rejected until the employee fixes/resubmits).
+ * The TimesheetDay cleanup below is kept (harmless) for the deprecated status/approvers/submittedOn.
+ */
 export async function recallDay (client: TxOperations, dayId: Ref<TimesheetDay>): Promise<void> {
+  const tasks = await client.findAll(ygTimesheet.class.TimesheetTask, { attachedTo: dayId, status: 'Submitted' })
+  for (const t of tasks) {
+    await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, t._id, {
+      status: 'Draft', $unset: { submittedOn: '' }
+    })
+  }
+  // keep the existing TimesheetDay cleanup (harmless; clears the deprecated status/approvers/submittedOn)
   await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
-    status: 'Draft',
-    approvers: [],
-    $unset: { submittedOn: '' }
+    status: 'Draft', approvers: [], $unset: { submittedOn: '' }
   })
 }
 

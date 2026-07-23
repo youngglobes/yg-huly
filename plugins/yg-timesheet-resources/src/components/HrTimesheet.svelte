@@ -23,14 +23,21 @@
 <script lang="ts">
   import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import core, { type Ref, type WithLookup } from '@hcengineering/core'
+  import core, { type Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
   import ui, { Breadcrumb, ButtonIcon, Header, IconBack, IconForward, Label, ModernButton } from '@hcengineering/ui'
-  import ygTimesheet, { type HrTimeEntry, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, {
+    type HrTimeEntry,
+    type TaskStatus,
+    type Timesheet,
+    type TimesheetDay,
+    type TimesheetTask
+  } from '@hcengineering/yg-timesheet'
   import { get } from 'svelte/store'
   import { buildWeekGrid, type HrEntry } from '../utils/hr-report'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { hrSelectedEmployee } from '../utils/hrStore'
+  import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
   void ensureHrMembership()
@@ -91,24 +98,41 @@
   )
   $: grid = buildWeekGrid(hrEntries, week)
 
-  // Per-day approval status for the selected employee (from the shared workspace space).
-  const dayQuery = createQuery()
-  let statusByKey = new Map<string, string>()
-  $: dayQuery.query(
-    ygTimesheet.class.TimesheetDay,
+  // Per-day approval status, ALL employees for the visible week — this IS a cross-employee view,
+  // so a week date-range query is correct here (unlike Timesheet.svelte's own employee-scoped
+  // dayIds query). Query TimesheetTask directly (never the deprecated TimesheetDay.status) and
+  // resolve each task's employee via the nested attachedTo lookup: task → TimesheetDay →
+  // Timesheet → .employee, exactly as Approvals.svelte:51-61. Group by
+  // `${employee}|${localDayKey(task.date)}` (submitDay stamps task.date = the day's date) and
+  // derive each entry's label via deriveDayStatus — never stored, never read off TimesheetDay.
+  function employeeOfTask (task: TimesheetTask): Ref<Employee> | undefined {
+    const day = task.$lookup?.attachedTo as TimesheetDay | undefined
+    const parent = day?.$lookup?.attachedTo as Timesheet | undefined
+    return parent?.employee
+  }
+
+  const taskQuery = createQuery()
+  let statusByKey = new Map<string, DerivedDayStatus>()
+  $: taskQuery.query(
+    ygTimesheet.class.TimesheetTask,
     { space: core.space.Workspace, date: { $gte: week.start, $lt: week.end } },
-    (res: Array<WithLookup<TimesheetDay>>) => {
-      const m = new Map<string, string>()
-      for (const d of res) {
-        const parent = d.$lookup?.attachedTo as Timesheet | undefined
-        if (parent?.employee == null) continue
-        m.set(`${parent.employee}|${localDayKey(d.date)}`, d.status)
+    (res: TimesheetTask[]) => {
+      const groups = new Map<string, TaskStatus[]>()
+      for (const t of res) {
+        const emp = employeeOfTask(t)
+        if (emp == null) continue
+        const key = `${emp}|${localDayKey(t.date)}`
+        const arr = groups.get(key) ?? []
+        arr.push(t.status)
+        groups.set(key, arr)
       }
+      const m = new Map<string, DerivedDayStatus>()
+      for (const [key, statuses] of groups) m.set(key, deriveDayStatus(statuses))
       statusByKey = m
     },
-    { lookup: { attachedTo: ygTimesheet.class.Timesheet } }
+    { lookup: { attachedTo: [ygTimesheet.class.TimesheetDay, { attachedTo: ygTimesheet.class.Timesheet }] } }
   )
-  $: statusRow = week.days.map((d) => (employee != null ? statusByKey.get(`${employee}|${d.key}`) ?? '' : ''))
+  $: statusRow = week.days.map((d) => (employee != null ? statusByKey.get(`${employee}|${d.key}`) : undefined))
 
   const dowFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric' })
   const rangeFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
@@ -194,8 +218,14 @@
             <td><Label label={ygTimesheet.string.Status} /></td>
             {#each statusRow as s, i (i)}
               <td class="hrt-num">
-                {#if s !== ''}
-                  <span class="hrt-pill hrt-pill--{s.toLowerCase()}">{s}</span>
+                {#if s !== undefined}
+                  <span class="hrt-pill hrt-pill--{s.toLowerCase()}">
+                    {#if s === 'PartiallyApproved'}
+                      <Label label={ygTimesheet.string.PartiallyApproved} />
+                    {:else}
+                      {s}
+                    {/if}
+                  </span>
                 {:else}
                   <span class="hrt-muted">—</span>
                 {/if}
@@ -241,5 +271,13 @@
   .hrt-pill--submitted { background: var(--theme-warning-color); color: #fff; }
   .hrt-pill--approved { background: var(--theme-won-color); color: #fff; }
   .hrt-pill--rejected { background: var(--theme-lost-color); color: #fff; }
+  // Amber-FAMILY but distinct from the solid-amber Submitted pill — outline + amber text on the
+  // neutral pill background (same treatment as Timesheet.svelte's .ts-pill--partiallyapproved),
+  // so a half-approved day reads as visually different from a freshly-submitted one.
+  .hrt-pill--partiallyapproved {
+    background: var(--theme-button-default);
+    color: var(--theme-warning-color);
+    border: 1px solid var(--theme-warning-color);
+  }
   .hrt-muted { color: var(--theme-dark-color); }
 </style>
