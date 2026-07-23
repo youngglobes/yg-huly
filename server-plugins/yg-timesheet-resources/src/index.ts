@@ -226,6 +226,30 @@ async function deriveApprovalsMembers (
   return wanted
 }
 
+//
+// ############################################################################################
+// ⚠️  KNOWN SECURITY GAP — OPEN, ACCEPTED FOR BETA ONLY (user decision 2026-07-23)
+//     DO NOT USE THIS FEATURE WITH REAL PAYROLL DATA UNTIL FIXED.
+//
+//     Any workspace member can FORGE an approval with arbitrary hours, without a PM/TL role and
+//     without joining the private space:
+//         createDoc(TimesheetApproval, space.Approvals, { task, approvedHours: 999, approvedBy: X })
+//
+//     Why this trigger does not stop it: the design assumed a PRIVATE space refuses non-member
+//     writes. It does not. foundations/server/packages/middleware/src/spaceSecurity.ts has ZERO
+//     `throw` statements — it maintains read filters and indexes only, and never rejects a tx.
+//     PRIVATE = READ-BLOCKED, NOT WRITE-BLOCKED. (Read-privacy DOES hold: employees still cannot
+//     SEE approved hours. The gap is forgery, not exposure.)
+//
+//     AGREED FIX (not implemented): clients must NEVER write TimesheetApproval. The approver's
+//     hours ride on the role-guarded task tx; the SERVER alone materialises/updates/deletes the
+//     approval row; any client-authored tx on that class is reverted unconditionally
+//     (deny-by-default — no field/operator enumeration to keep current).
+//
+//     Full analysis + 5-round review history:
+//       docs/superpowers/specs/2026-07-22-per-task-timesheet-approval-design.md (final section)
+// ############################################################################################
+//
 export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   const getApproverSet = lazyApproverRoleSet(control)
 
