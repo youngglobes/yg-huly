@@ -20,10 +20,16 @@ export function createModel (builder: Builder): void {
 
   // Per-task approval authorization: reverts an approve/reject by anyone who is not an approver
   // of that specific task, and stamps approvedBy/approvedOn authoritatively.
+  //
+  // Task-5 round 2 (Critical B): txMatch is objectClass-only, WITHOUT a `_class` filter, so
+  // TxCreateDoc (a wholly forged, already-approved task created in one tx) and TxRemoveDoc
+  // (deleting somebody else's approved task) reach the trigger too, not just TxUpdateDoc — same
+  // idiom OnTimeSpendReportChange's registration below already uses. The trigger itself
+  // (server-plugins/yg-timesheet-resources/src/index.ts) dispatches on tx._class explicitly.
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverYgTimesheet.trigger.OnTimesheetTaskUpdate,
     isAsync: true,
-    txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.TimesheetTask }
+    txMatch: { objectClass: ygTimesheet.class.TimesheetTask }
   })
 
   // TimeSpendReport CUD arrives as a flat tx (not wrapped in TxCollectionCUD — that class does not
