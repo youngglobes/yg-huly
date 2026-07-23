@@ -45,7 +45,7 @@ a moment, but it cannot move money.
 
 ---
 
-### Task R1: Authorization becomes a role check
+### Task 1: Authorization becomes a role check
 
 **Files:**
 - Modify: `plugins/yg-timesheet-resources/src/utils/task-approval.ts`
@@ -146,7 +146,7 @@ git commit -m "yg-timesheet: authorization is a role check; cross-project approv
 
 ---
 
-### Task R2: Private `Approvals` space + `TimesheetApproval` doc
+### Task 2: Private `Approvals` space + `TimesheetApproval` doc
 
 Moves the payroll-relevant fields out of the shared space so the server refuses them to
 non-approvers — structurally, not by enumeration.
@@ -258,7 +258,7 @@ git commit -m "yg-timesheet: move approval overlay into a private Approvals spac
 
 ---
 
-### Task R3: Server enforcement — role check, self-approval bar, attribution
+### Task 3: Server enforcement — role check, self-approval bar, attribution
 
 Replaces the superseded `OnTimesheetTaskUpdate`. Far smaller than the old one, because the payroll
 fields are now protected by the space boundary rather than by enumerating dangerous operations.
@@ -364,7 +364,7 @@ git commit -m "yg-timesheet: role-based approval enforcement + Approvals space m
 
 ---
 
-### Task R4: Assign PM and Team Lead in project settings
+### Task 4: Assign PM and Team Lead in project settings
 
 **Files:**
 - Modify: `plugins/yg-timesheet-resources/src/components/ProjectApproversList.svelte` (the component registered as `ProjectApproversEditor`)
@@ -402,7 +402,7 @@ git commit -m "yg-timesheet: assign PM/Team Lead from project settings (admin-on
 
 ---
 
-### Task R5: Approve / reject popups
+### Task 5: Approve / reject popups
 
 Same as the superseded plan's Task 6 — create `ApproveTaskPopup.svelte` (captures approved hours,
 defaulting to the submitted hours) and `RejectTaskPopup.svelte` (requires a reason), register both
@@ -413,7 +413,7 @@ in `ygTimesheet.space.Approvals` **and** sets the task's `status` to `Approved`;
 
 ---
 
-### Task R6: Approvals queue
+### Task 6: Approvals queue
 
 **Files:** `plugins/yg-timesheet-resources/src/components/Approvals.svelte`
 
@@ -426,7 +426,7 @@ same role check. Run `svelte-check`.
 
 ---
 
-### Task R7: Derived day status across the surfaces
+### Task 7: Derived day status across the surfaces
 
 Unchanged from the superseded plan's Task 8: `Timesheet.svelte`, `HrTimesheet.svelte` and
 `HrOverview.svelte` compute the day label with `deriveDayStatus` over the day's tasks instead of
@@ -441,7 +441,7 @@ writing `TimesheetDay.status`, so the Recall button — which renders only when 
 
 ---
 
-### Task R8: PM report columns
+### Task 8: PM report columns
 
 Unchanged in intent from the superseded plan's Task 9, with one difference: `approvedHours` and
 `approvedBy` are read from the `TimesheetApproval` docs in the private space, not from the task.
@@ -450,7 +450,7 @@ approver audience's view. `Client Approved Hours` / `Client Approved By` stay ma
 
 ---
 
-### Task R9: Local end-to-end
+### Task 9: Local end-to-end
 
 Rebuild **all four** images (model + server trigger changed) and `upgrade-workspace testws`, per the
 recipe in the superseded plan's Task 10 Step 1. Login is OTP-only; read the code from
