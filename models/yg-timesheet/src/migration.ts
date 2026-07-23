@@ -1,7 +1,7 @@
 //
 // YoungGlobes: yg-timesheet migrations — provision the private HR space.
 //
-import { TxOperations } from '@hcengineering/core'
+import { generateId, TxOperations, type Ref } from '@hcengineering/core'
 import {
   tryUpgrade,
   type MigrateOperation,
@@ -11,7 +11,9 @@ import {
 import core from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
-import ygTimesheet, { ygTimesheetId } from '@hcengineering/yg-timesheet'
+import type { Project } from '@hcengineering/tracker'
+import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import { DOMAIN_YG_TIMESHEET } from '.'
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
   const existing = await tx.findOne(core.class.Space, { _id: ygTimesheet.space.HrData })
@@ -46,8 +48,53 @@ async function hideStockHrApp (tx: TxOperations): Promise<void> {
   }
 }
 
+// Per-task approval (2026-07-23): existing TimesheetDay rows carry a single status and a
+// snapshot of their lines. Derive one TimesheetTask per snapshot line so history survives.
+// Days with no snapshot yield no tasks and therefore read as Draft — accepted.
+async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
+  const days = await client.find<TimesheetDay>(DOMAIN_YG_TIMESHEET, {
+    _class: ygTimesheet.class.TimesheetDay
+  })
+  for (const day of days) {
+    const already = await client.find(DOMAIN_YG_TIMESHEET, {
+      _class: ygTimesheet.class.TimesheetTask,
+      attachedTo: day._id
+    })
+    if (already.length > 0) continue // idempotent — safe to re-run
+    for (const line of day.snapshot ?? []) {
+      await client.create(DOMAIN_YG_TIMESHEET, {
+        _id: generateId(),
+        _class: ygTimesheet.class.TimesheetTask,
+        space: core.space.Workspace,
+        attachedTo: day._id,
+        attachedToClass: ygTimesheet.class.TimesheetDay,
+        collection: 'tasks',
+        modifiedBy: day.modifiedBy,
+        modifiedOn: day.modifiedOn,
+        date: day.date,
+        issue: line.issue,
+        identifier: line.identifier,
+        title: line.title,
+        project: line.project as Ref<Project>,
+        submittedHours: line.hours,
+        status: day.status,
+        approvers: day.approvers,
+        submittedOn: day.submittedOn,
+        // Carry the day's sign-off down to each line so approved history is not lost. Approved
+        // hours default to what was submitted — nobody re-judged these retrospectively.
+        ...(day.status === 'Approved'
+          ? { approvedHours: line.hours, approvedBy: day.approvedBy, approvedOn: day.approvedOn }
+          : {}),
+        ...(day.rejectReason != null ? { rejectReason: day.rejectReason } : {})
+      })
+    }
+  }
+}
+
 export const ygTimesheetOperation: MigrateOperation = {
-  async migrate (client: MigrationClient, mode): Promise<void> {},
+  async migrate (client: MigrationClient, mode): Promise<void> {
+    await migrateDaysToTasks(client)
+  },
   async upgrade (state: Map<string, Set<string>>, client: () => Promise<MigrationUpgradeClient>, mode): Promise<void> {
     await tryUpgrade(mode, state, client, ygTimesheetId, [
       {
