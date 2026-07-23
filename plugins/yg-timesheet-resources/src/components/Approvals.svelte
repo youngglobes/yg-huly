@@ -60,11 +60,14 @@
       }
     )
   } else {
-    // Recreate (not just unsubscribe) so a later flip back to canApprove=true is guaranteed to
-    // resubscribe: LiveQuery dedupes re-`.query()` calls against its own remembered class/query/
-    // callback-string/options, which a bare unsubscribe() doesn't reset.
+    // Do NOT reassign `query` here. `query` is read inside this same reactive statement (via
+    // .query()/.unsubscribe()), so an assignment to it inside the statement makes Svelte
+    // re-run the statement every time it runs — an unbounded self-triggering loop. A bare
+    // .unsubscribe() is sufficient: LiveQuery's unsubscribe() clears its remembered
+    // class/query/callback/options (see packages/presentation/src/utils.ts), so a later
+    // .query() call on this SAME instance always sees needUpdate() = true and correctly
+    // resubscribes when canApprove flips back to true.
     query.unsubscribe()
-    query = createQuery()
     queue = []
   }
 
