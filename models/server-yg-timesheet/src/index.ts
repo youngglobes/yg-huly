@@ -44,6 +44,26 @@ export function createModel (builder: Builder): void {
     txMatch: { objectClass: tracker.class.Project }
   })
 
+  // CRITICAL A: ygTimesheet.space.Approvals is a plain core.class.Space, so (same as HrData below)
+  // the security pipeline does not permission-check membership writes to it. This async guard
+  // reverts/reconciles any untrusted membership change (see OnApprovalsMembershipGuard). Narrow
+  // txMatch on the single Approvals object, matching the HrData guard's precedent.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnApprovalsMembershipGuard,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectId: ygTimesheet.space.Approvals }
+  })
+
+  // CRITICAL B: writing ygTimesheet.mixin.ProjectApprovers (pm/teamLead) on ANY project grants
+  // workspace-wide approval power (approverRoleSet is global, not per-project) — a member who sets
+  // `pm: <self>` on one project escalates to approver-of-everyone. Reverts any such write by a
+  // non-admin (see OnProjectApproversMixinGuard). Narrow txMatch on this single mixin.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnProjectApproversMixinGuard,
+    isAsync: true,
+    txMatch: { _class: core.class.TxMixin, mixin: ygTimesheet.mixin.ProjectApprovers }
+  })
+
   // TimeSpendReport CUD arrives as a flat tx (not wrapped in TxCollectionCUD — that class does not
   // exist in this schema version). Matched the same way models/server-tracker registers OnIssueUpdate
   // for TimeSpendReport: flat `objectClass` match, no `_class` restriction (covers create/update/remove).
