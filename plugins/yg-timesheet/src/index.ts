@@ -56,10 +56,19 @@ export interface TimesheetTask extends AttachedDoc {
   /** PM + Team Lead of THIS task's project only, minus the employee. Stamped at submit time. */
   approvers: Ref<Employee>[]
   submittedOn?: Timestamp
-  approvedHours?: number
-  approvedBy?: Ref<Employee>
-  approvedOn?: Timestamp
   rejectReason?: string
+}
+
+/**
+ * The approval overlay for one task. Lives in the PRIVATE ygTimesheet.space.Approvals so employees
+ * cannot read it — approved hours are for the PM-report audience and are discussed with the
+ * employee at the weekly meeting, not shown on their own sheet.
+ */
+export interface TimesheetApproval extends Doc {
+  task: Ref<TimesheetTask>
+  approvedHours: number
+  approvedBy: Ref<Employee>
+  approvedOn: Timestamp
 }
 
 export interface ProjectApprovers extends Project {
@@ -88,6 +97,7 @@ export default plugin(ygTimesheetId, {
     Timesheet: '' as Ref<Class<Timesheet>>,
     TimesheetDay: '' as Ref<Class<TimesheetDay>>,
     TimesheetTask: '' as Ref<Class<TimesheetTask>>,
+    TimesheetApproval: '' as Ref<Class<TimesheetApproval>>,
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>
   },
   mixin: {
@@ -95,7 +105,8 @@ export default plugin(ygTimesheetId, {
   },
   space: {
     Timesheets: '' as Ref<Space>,
-    HrData: '' as Ref<Space>
+    HrData: '' as Ref<Space>,
+    Approvals: '' as Ref<Space>
   },
   app: {
     Timesheet: '' as Ref<Doc>,

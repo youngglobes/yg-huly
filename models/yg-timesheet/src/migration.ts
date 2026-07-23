@@ -1,7 +1,7 @@
 //
 // YoungGlobes: yg-timesheet migrations — provision the private HR space.
 //
-import { generateId, TxOperations, type Ref } from '@hcengineering/core'
+import { generateId, TxOperations, type Ref, type Timestamp } from '@hcengineering/core'
 import {
   tryUpgrade,
   type MigrateOperation,
@@ -11,8 +11,9 @@ import {
 import core from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
+import type { Employee } from '@hcengineering/contact'
 import type { Project } from '@hcengineering/tracker'
-import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { ygTimesheetId, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
@@ -31,6 +32,28 @@ async function createHrSpace (tx: TxOperations): Promise<void> {
       autoJoin: false
     },
     ygTimesheet.space.HrData
+  )
+}
+
+// Private space holding the approval overlay (approved hours + who approved). Members are the
+// assigned PMs/TLs and admins — maintained by OnProjectApproversChange (Task R3). Private so the
+// server refuses every row to a non-member: employees must not see approved hours.
+async function createApprovalsSpace (tx: TxOperations): Promise<void> {
+  const existing = await tx.findOne(core.class.Space, { _id: ygTimesheet.space.Approvals })
+  if (existing !== undefined) return
+  await tx.createDoc(
+    core.class.Space,
+    core.space.Space,
+    {
+      name: 'Timesheet Approvals',
+      description: 'Approved hours + approver attribution. Members = assigned PMs/TLs.',
+      private: true,
+      archived: false,
+      members: [],
+      owners: [],
+      autoJoin: false
+    },
+    ygTimesheet.space.Approvals
   )
 }
 
@@ -62,8 +85,9 @@ async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
     })
     if (already.length > 0) continue // idempotent — safe to re-run
     for (const line of day.snapshot ?? []) {
+      const taskId = generateId()
       await client.create(DOMAIN_YG_TIMESHEET, {
-        _id: generateId(),
+        _id: taskId,
         _class: ygTimesheet.class.TimesheetTask,
         space: core.space.Workspace,
         attachedTo: day._id,
@@ -80,13 +104,24 @@ async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
         status: day.status,
         approvers: day.approvers,
         submittedOn: day.submittedOn,
-        // Carry the day's sign-off down to each line so approved history is not lost. Approved
-        // hours default to what was submitted — nobody re-judged these retrospectively.
-        ...(day.status === 'Approved'
-          ? { approvedHours: line.hours, approvedBy: day.approvedBy, approvedOn: day.approvedOn }
-          : {}),
         ...(day.rejectReason != null ? { rejectReason: day.rejectReason } : {})
       })
+      // Carry the day's sign-off into the private Approvals space so approved history is not
+      // lost. Approved hours default to what was submitted — nobody re-judged these
+      // retrospectively. Lives off the task row on purpose: employees must never read it.
+      if (day.status === 'Approved') {
+        await client.create(DOMAIN_YG_TIMESHEET, {
+          _id: generateId(),
+          _class: ygTimesheet.class.TimesheetApproval,
+          space: ygTimesheet.space.Approvals,
+          modifiedBy: day.modifiedBy,
+          modifiedOn: day.modifiedOn,
+          task: taskId as Ref<TimesheetTask>,
+          approvedHours: line.hours,
+          approvedBy: day.approvedBy as Ref<Employee>,
+          approvedOn: day.approvedOn as Timestamp
+        })
+      }
     }
   }
 }
@@ -103,6 +138,13 @@ export const ygTimesheetOperation: MigrateOperation = {
           const ops = new TxOperations(client, core.account.System)
           await createHrSpace(ops)
           await hideStockHrApp(ops)
+        }
+      },
+      {
+        state: 'approvals-space-0001',
+        func: async (client) => {
+          const ops = new TxOperations(client, core.account.System)
+          await createApprovalsSpace(ops)
         }
       }
     ])

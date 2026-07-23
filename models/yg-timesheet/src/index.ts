@@ -28,6 +28,7 @@ import ygTimesheet, {
   type ProjectApprovers,
   type TaskStatus,
   type Timesheet,
+  type TimesheetApproval,
   type TimesheetDay,
   type TimesheetLine,
   type TimesheetTask
@@ -85,10 +86,15 @@ export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
   @Prop(TypeString(), core.string.Object) status!: TaskStatus
   @Prop(ArrOf(TypeRef(contact.mixin.Employee)), core.string.Object) approvers!: Ref<Employee>[]
   @Prop(TypeDate(), core.string.Object) submittedOn?: Timestamp
-  @Prop(TypeNumber(), core.string.Object) approvedHours?: number
-  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
-  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
   @Prop(TypeString(), core.string.Object) rejectReason?: string
+}
+
+@Model(ygTimesheet.class.TimesheetApproval, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TTimesheetApproval extends TDoc implements TimesheetApproval {
+  @Prop(TypeRef(ygTimesheet.class.TimesheetTask), core.string.Object) task!: Ref<TimesheetTask>
+  @Prop(TypeNumber(), core.string.Object) approvedHours!: number
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy!: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn!: Timestamp
 }
 
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
@@ -115,7 +121,7 @@ export class THrTimeEntry extends TDoc implements HrTimeEntry {
 }
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TProjectApprovers, THrTimeEntry)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.
