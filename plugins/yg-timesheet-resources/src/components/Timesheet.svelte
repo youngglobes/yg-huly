@@ -17,7 +17,7 @@
   import core, { type Ref } from '@hcengineering/core'
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import tracker, { type Issue, type TimeSpendReport } from '@hcengineering/tracker'
+  import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import { Label, Button, IconForward, IconBack } from '@hcengineering/ui'
   import ygTimesheet, { type DayStatus, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
   import { weekRange, groupByDay, formatHours, localDayKey, type ReportLike, type DayGroup } from '../utils/week'
@@ -35,6 +35,16 @@
   const client = getClient()
   let anchor = Date.now()
   $: week = weekRange(anchor)
+
+  // Project name map, so a blocked submit can name the offending projects rather than just
+  // showing the generic ygTimesheet.string.NoApprover message.
+  const projectQuery = createQuery()
+  let projectNames: Map<string, string> = new Map()
+  projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
+    const m = new Map<string, string>()
+    for (const p of res) m.set(p._id, p.name)
+    projectNames = m
+  })
 
   const query = createQuery()
   let days: DayGroup[] = []
@@ -130,13 +140,21 @@
     }
   }
 
-  // Per-day key on which the last Submit attempt found no approver (drives the inline message).
+  // Per-day key on which the last Submit attempt found no approver (drives the inline message),
+  // plus the names of the projects missing a PM/TL so the employee knows who to chase.
   let noApproverKey: string | null = null
+  let noApproverProjects: string[] = []
 
   async function onSubmit (day: DayGroup): Promise<void> {
     const reports = reportsByKey.get(day.key) ?? []
     const res = await submitDay(client, { employee: me, date: day.date, reports, approversByProject })
-    noApproverKey = res === NO_APPROVER ? day.key : null
+    if (typeof res === 'object' && 'kind' in res && res.kind === NO_APPROVER) {
+      noApproverKey = day.key
+      noApproverProjects = res.projects.map((p) => projectNames.get(p) ?? p)
+    } else {
+      noApproverKey = null
+      noApproverProjects = []
+    }
   }
 
   async function onRecall (day: DayGroup): Promise<void> {
@@ -206,7 +224,10 @@
           <Button kind="regular" size="small" label={ygTimesheet.string.Recall} on:click={() => onRecall(day)} />
         {/if}
         {#if noApproverKey === day.key}
-          <span class="ts-noapprover"><Label label={ygTimesheet.string.NoApprover} /></span>
+          <span class="ts-noapprover">
+            <Label label={ygTimesheet.string.NoApprover} />
+            {#if noApproverProjects.length > 0}: {noApproverProjects.join(', ')}{/if}
+          </span>
         {/if}
       </div>
     </div>

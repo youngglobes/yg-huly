@@ -12,10 +12,16 @@
 //
 import core, { type Ref, type TxOperations } from '@hcengineering/core'
 import { type Employee } from '@hcengineering/contact'
-import tracker from '@hcengineering/tracker'
-import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetLine } from '@hcengineering/yg-timesheet'
+import tracker, { type Issue, type Project } from '@hcengineering/tracker'
+import ygTimesheet, {
+  type Timesheet,
+  type TimesheetDay,
+  type TimesheetLine,
+  type TimesheetTask
+} from '@hcengineering/yg-timesheet'
 import { weekRange } from './week'
 import { buildSnapshot, driftHours, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
+import { buildTaskUnits } from './task-approval'
 
 export { buildSnapshot, driftHours, resolveApprovers }
 export type { DayReportLike, ProjectApproverLike }
@@ -72,25 +78,78 @@ export interface SubmitArgs {
   approversByProject: Map<string, ProjectApproverLike>
 }
 
+/** Returned by submitDay when one or more of the day's projects have no PM/TL configured. */
+export interface NoApproverResult {
+  kind: typeof NO_APPROVER
+  projects: string[]
+}
+
 /**
- * Submit a day: resolve approvers from the day's reports; if none resolve, return the
- * NO_APPROVER sentinel WITHOUT writing so the UI can surface ygTimesheet.string.NoApprover.
- * Otherwise lazily materialise Timesheet + TimesheetDay and move it to Submitted.
+ * Submit a day: collapse the day's reports into one task unit per issue (buildTaskUnits), each
+ * stamped with the approvers of ITS OWN project only. If ANY task's project has no PM/TL
+ * configured we do not write at all — the UI surfaces the offending projects (via NoApproverResult)
+ * so the missing project config gets fixed, rather than silently parking that task where nobody
+ * will ever see it. Otherwise lazily materialise Timesheet + TimesheetDay and write one
+ * TimesheetTask row per issue.
  */
 export async function submitDay (
   client: TxOperations,
   { employee, date, reports, approversByProject }: SubmitArgs
-): Promise<Ref<TimesheetDay> | typeof NO_APPROVER> {
-  const approvers = resolveApprovers(reports, approversByProject, employee) as Ref<Employee>[]
-  if (approvers.length === 0) return NO_APPROVER
+): Promise<Ref<TimesheetDay> | NoApproverResult> {
+  const units = buildTaskUnits(reports, approversByProject, employee)
+  // Every task must have somewhere to go. If ANY task's project has no PM/TL configured we do not
+  // write at all — the UI surfaces the error so the missing project config gets fixed, rather than
+  // silently parking that task where nobody will ever see it.
+  //
+  // NOTE this is STRICTER than the old day-level rule, which submitted as long as ONE project in
+  // the day had an approver (leaving the rest unapprovable). Returning the offending projects
+  // rather than a bare sentinel is deliberate (user decision 2026-07-23): a generic "No approver"
+  // tells the employee nothing about who to chase.
+  if (units.length === 0) return { kind: NO_APPROVER, projects: [] }
+  const unapprovable = units.filter((u) => u.approvers.length === 0)
+  if (unapprovable.length > 0) {
+    return { kind: NO_APPROVER, projects: [...new Set(unapprovable.map((u) => u.project))] }
+  }
 
-  const totalHours = reports.reduce((sum, r) => sum + r.value, 0)
+  const totalHours = units.reduce((sum, u) => sum + u.submittedHours, 0)
+  const submittedOn = Date.now()
   const tsId = await ensureTimesheet(client, employee, weekStartOf(date))
   const dayId = await ensureDay(client, tsId, date)
+
+  // Replace any task rows from a previous submit of this day so a re-submit after edits cannot
+  // leave stale issues behind. Approved rows are preserved — re-submitting a corrected task must
+  // not silently discard a sibling task an approver already signed off.
+  const existing = await client.findAll(ygTimesheet.class.TimesheetTask, { attachedTo: dayId })
+  for (const t of existing) {
+    if (t.status !== 'Approved') await client.remove(t)
+  }
+  const keptIssues = new Set(existing.filter((t) => t.status === 'Approved').map((t) => t.issue))
+
+  for (const u of units) {
+    if (keptIssues.has(u.issue as Ref<Issue>)) continue
+    await client.addCollection(
+      ygTimesheet.class.TimesheetTask,
+      core.space.Workspace,
+      dayId,
+      ygTimesheet.class.TimesheetDay,
+      'tasks',
+      {
+        date,
+        issue: u.issue as Ref<Issue>,
+        identifier: u.identifier,
+        title: u.title,
+        project: u.project as Ref<Project>,
+        submittedHours: u.submittedHours,
+        status: 'Submitted',
+        approvers: u.approvers as Ref<Employee>[],
+        submittedOn
+      }
+    )
+  }
+
   await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
-    status: 'Submitted',
-    approvers,
-    submittedOn: Date.now(),
+    approvers: [...new Set(units.flatMap((u) => u.approvers))] as Ref<Employee>[],
+    submittedOn,
     totalHours
   })
   return dayId
@@ -164,4 +223,30 @@ export async function loadProjectApprovers (
     }
   }
   return out
+}
+
+/**
+ * Approve ONE task with the approver's agreed hours. The server trigger stamps approvedBy /
+ * approvedOn — do NOT set them here (same division of labour as the day-level flow).
+ * Never touches the employee's TimeSpendReport: their logged time stays their record.
+ */
+export async function approveTask (
+  client: TxOperations, taskId: Ref<TimesheetTask>, approvedHours: number
+): Promise<void> {
+  await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
+    status: 'Approved',
+    approvedHours,
+    $unset: { rejectReason: '' }
+  })
+}
+
+/** Reject ONE task with a required reason; it returns to Draft for the employee to fix. */
+export async function rejectTask (
+  client: TxOperations, taskId: Ref<TimesheetTask>, reason: string
+): Promise<void> {
+  await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
+    status: 'Rejected',
+    rejectReason: reason,
+    $unset: { approvedHours: '', approvedBy: '', approvedOn: '' }
+  })
 }
