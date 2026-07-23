@@ -8,6 +8,8 @@ import HrTimesheet from './components/HrTimesheet.svelte'
 import HrRoster from './components/HrRoster.svelte'
 import HrOverview from './components/HrOverview.svelte'
 import HrExportDialog from './components/HrExportDialog.svelte'
+import ApproveTaskPopup from './components/ApproveTaskPopup.svelte'
+import RejectTaskPopup from './components/RejectTaskPopup.svelte'
 
 export default async (): Promise<Resources> => ({
   component: {
@@ -19,6 +21,8 @@ export default async (): Promise<Resources> => ({
     HrTimesheet,
     HrRoster,
     HrOverview,
-    HrExportDialog
+    HrExportDialog,
+    ApproveTaskPopup,
+    RejectTaskPopup
   }
 })
