@@ -39,7 +39,12 @@ import core, {
 import contact, { type Employee } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
 import { getEmployee, getSocialIdsByAccounts } from '@hcengineering/server-contact'
-import ygTimesheet, { type DayStatus, type HrTimeEntry, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, {
+  type DayStatus,
+  type HrTimeEntry,
+  type TimesheetDay,
+  type TimesheetTask
+} from '@hcengineering/yg-timesheet'
 import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
 
@@ -143,6 +148,63 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
         })
       }
       continue
+    }
+  }
+  return []
+}
+
+//
+// Per-task approval authorization. The client is trusted to PROPOSE an approval; the server
+// decides whether it stands. Reverts any approve/reject written by someone who is not an approver
+// of THAT task, and stamps approvedBy/approvedOn authoritatively so they cannot be forged.
+//
+export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    // Our own compensating writes are System-authored — skip so they never re-enter.
+    if (tx.modifiedBy === core.account.System) continue
+
+    const utx = tx as TxUpdateDoc<TimesheetTask>
+    if (utx.objectClass !== ygTimesheet.class.TimesheetTask) continue
+
+    const ops = utx.operations as Record<string, any>
+    if (ops.status !== 'Approved' && ops.status !== 'Rejected') continue
+
+    const task = (
+      await control.findAll(control.ctx, ygTimesheet.class.TimesheetTask, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (task === undefined) continue
+
+    const day = (
+      await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: task.attachedTo }, { limit: 1 })
+    )[0]
+    const sheet = day === undefined
+      ? undefined
+      : (await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo }, { limit: 1 }))[0]
+
+    const actor = await getEmployee(control, tx.modifiedBy)
+    const actorId = actor?._id
+    const isOwner = task.approvers.includes(actorId as Ref<Employee>)
+    const isSelf = actorId !== undefined && sheet?.employee === actorId
+
+    if (isSelf || !isOwner) {
+      // Not an approver of THIS task (or approving their own work) — revert to Submitted.
+      const revert = control.txFactory.createTxUpdateDoc(
+        task._class, task.space, task._id,
+        { status: 'Submitted', $unset: { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' } } as any,
+        false, Date.now(), core.account.System
+      )
+      await control.apply(control.ctx, [revert])
+      continue
+    }
+
+    if (ops.status === 'Approved' && actorId !== undefined) {
+      const stamp = control.txFactory.createTxUpdateDoc(
+        task._class, task.space, task._id,
+        { approvedBy: actorId, approvedOn: Date.now() } as any,
+        false, Date.now(), core.account.System
+      )
+      await control.apply(control.ctx, [stamp])
     }
   }
   return []
@@ -504,6 +566,7 @@ export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): 
 export default async () => ({
   trigger: {
     OnTimesheetDayUpdate,
+    OnTimesheetTaskUpdate,
     OnTimeSpendReportChange,
     OnHrDataMembershipGuard,
     OnHrMembershipChange,

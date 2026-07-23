@@ -18,6 +18,14 @@ export function createModel (builder: Builder): void {
     txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.TimesheetDay }
   })
 
+  // Per-task approval authorization: reverts an approve/reject by anyone who is not an approver
+  // of that specific task, and stamps approvedBy/approvedOn authoritatively.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnTimesheetTaskUpdate,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.TimesheetTask }
+  })
+
   // TimeSpendReport CUD arrives as a flat tx (not wrapped in TxCollectionCUD — that class does not
   // exist in this schema version). Matched the same way models/server-tracker registers OnIssueUpdate
   // for TimeSpendReport: flat `objectClass` match, no `_class` restriction (covers create/update/remove).
