@@ -155,9 +155,36 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 
 //
 // Per-task approval authorization. The client is trusted to PROPOSE an approval; the server
-// decides whether it stands. Reverts any approve/reject written by someone who is not an approver
-// of THAT task, and stamps approvedBy/approvedOn authoritatively so they cannot be forged.
+// decides whether it stands.
 //
+// Task-5 security hardening (see .superpowers/sdd/task-5-report.md for the full writeup):
+//  - `approvers` stored on the task is NEVER trusted for authorization — it lives in
+//    core.space.Workspace (any member can write it). Authorization is re-derived, every time,
+//    from the task's project's ygTimesheet.mixin.ProjectApprovers (pm + teamLead). Any tx that
+//    touches `approvers` has it forced back to the derived set.
+//  - `approvedBy` / `approvedOn` are never client-settable, WITH OR WITHOUT a status change.
+//    They are only ever written by this trigger's own System-attributed compensating tx.
+//  - An unauthorized write that would destroy a still-valid prior approval restores that
+//    approval instead of hard-resetting to Submitted (only reset when there is nothing valid
+//    to restore).
+//  - Admin (Maintainer+) break-glass mirrors OnTimesheetDayUpdate — but self-approval stays
+//    forbidden for EVERYONE, admins included.
+//
+async function deriveTaskApprovers (
+  control: TriggerControl, task: TimesheetTask, selfEmployee: Ref<Employee> | undefined
+): Promise<Ref<Employee>[]> {
+  const project = (
+    await control.findAll(control.ctx, tracker.class.Project, { _id: task.project }, { limit: 1 })
+  )[0]
+  if (project === undefined) return []
+  const pa = control.hierarchy.as(project, ygTimesheet.mixin.ProjectApprovers)
+  const set = new Set<Ref<Employee>>()
+  if (pa.pm != null) set.add(pa.pm)
+  if (pa.teamLead != null) set.add(pa.teamLead)
+  if (selfEmployee !== undefined) set.delete(selfEmployee) // no self-approve, ever (mirrors buildTaskUnits)
+  return [...set]
+}
+
 export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     if (tx._class !== core.class.TxUpdateDoc) continue
@@ -168,7 +195,22 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
     if (utx.objectClass !== ygTimesheet.class.TimesheetTask) continue
 
     const ops = utx.operations as Record<string, any>
-    if (ops.status !== 'Approved' && ops.status !== 'Rejected') continue
+
+    // In scope: any write that touches the security-relevant surface — status, approvers, or
+    // the approval stamps — even WITHOUT a status change (Critical 1 / Critical 2). Unrelated
+    // edits (title, submittedHours drift, etc.) are left alone.
+    const touchesApprovers =
+      ops.approvers !== undefined ||
+      ops.$push?.approvers !== undefined ||
+      ops.$pull?.approvers !== undefined ||
+      ops.$unset?.approvers !== undefined
+    const touchesStamps =
+      ops.approvedBy !== undefined || ops.approvedOn !== undefined ||
+      ops.$unset?.approvedBy !== undefined || ops.$unset?.approvedOn !== undefined
+    const statusOp: 'Approved' | 'Rejected' | undefined =
+      ops.status === 'Approved' || ops.status === 'Rejected' ? ops.status : undefined
+
+    if (statusOp === undefined && !touchesApprovers && !touchesStamps) continue
 
     const task = (
       await control.findAll(control.ctx, ygTimesheet.class.TimesheetTask, { _id: utx.objectId }, { limit: 1 })
@@ -184,28 +226,75 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
 
     const actor = await getEmployee(control, tx.modifiedBy)
     const actorId = actor?._id
-    const isOwner = task.approvers.includes(actorId as Ref<Employee>)
-    const isSelf = actorId !== undefined && sheet?.employee === actorId
+    const owner = sheet?.employee
 
-    if (isSelf || !isOwner) {
-      // Not an approver of THIS task (or approving their own work) — revert to Submitted.
-      const revert = control.txFactory.createTxUpdateDoc(
-        task._class, task.space, task._id,
-        { status: 'Submitted', $unset: { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' } } as any,
-        false, Date.now(), core.account.System
+    // Re-derived, server-side, from the task's OWN project — never from task.approvers.
+    const derived = await deriveTaskApprovers(control, task, owner)
+
+    const isSelf = actorId !== undefined && owner !== undefined && actorId === owner
+    const isOwnerApprover = actorId !== undefined && derived.includes(actorId)
+    const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
+    // Self-approval is forbidden for everyone, including admins — the isSelf check is not
+    // short-circuited by isAdmin.
+    const authorized = !isSelf && (isAdmin || isOwnerApprover)
+
+    if (statusOp !== undefined && authorized) {
+      // Legitimate transition. Force the authoritative values regardless of what the client
+      // sent for approvers/approvedBy/approvedOn — these fields are never trusted from the tx.
+      const fix: Record<string, any> = { approvers: derived }
+      if (statusOp === 'Approved') {
+        fix.approvedBy = actorId ?? null
+        fix.approvedOn = Date.now()
+      } else {
+        fix.$unset = { approvedBy: '', approvedOn: '' }
+      }
+      const t = control.txFactory.createTxUpdateDoc(
+        task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
       )
-      await control.apply(control.ctx, [revert])
+      await control.apply(control.ctx, [t])
       continue
     }
 
-    if (ops.status === 'Approved' && actorId !== undefined) {
-      const stamp = control.txFactory.createTxUpdateDoc(
-        task._class, task.space, task._id,
-        { approvedBy: actorId, approvedOn: Date.now() } as any,
-        false, Date.now(), core.account.System
-      )
-      await control.apply(control.ctx, [stamp])
+    // Everything else is illegitimate: an unauthorized/self status change, or a naked write to
+    // approvers/approvedBy/approvedOn outside of a status transition (Critical 1 / Critical 2 —
+    // those fields are never client-settable, status change or not).
+    control.ctx.warn('yg-timesheet: unauthorized TimesheetTask write reverted', {
+      task: task._id,
+      project: task.project,
+      actor: actorId,
+      modifiedBy: tx.modifiedBy,
+      attemptedStatus: statusOp,
+      touchesApprovers,
+      touchesStamps,
+      isSelf,
+      isAdmin
+    })
+
+    // Important 3: don't destroy a still-valid prior approval. `task.approvedBy` here is the
+    // POST-APPLY value — trustworthy as "the value before this tx" only when THIS tx did not
+    // itself touch approvedBy/approvedOn (TxUpdateDoc only mutates fields named in `operations`;
+    // untouched fields keep their pre-tx value). If this tx forged the stamp fields directly,
+    // we cannot recover a trustworthy prior value from post-apply state, so we fall back to a
+    // full reset — never launder a forged approvedBy into a restored "Approved".
+    const priorApprovedByTrustworthy = !touchesStamps ? task.approvedBy : undefined
+    const restore = priorApprovedByTrustworthy !== undefined &&
+      priorApprovedByTrustworthy !== null &&
+      derived.includes(priorApprovedByTrustworthy)
+
+    const fix: Record<string, any> = { approvers: derived }
+    if (restore) {
+      // Still-valid approval — restore it instead of wiping it. approvedBy/approvedOn/
+      // approvedHours are untouched by this tx (touchesStamps is false in this branch) so their
+      // current post-apply values are already the legitimate ones; only status needs restoring.
+      fix.status = 'Approved'
+    } else {
+      fix.status = 'Submitted'
+      fix.$unset = { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' }
     }
+    const revert = control.txFactory.createTxUpdateDoc(
+      task._class, task.space, task._id, fix as any, false, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [revert])
   }
   return []
 }
