@@ -37,7 +37,12 @@
     navigate,
     type DropdownTextItem
   } from '@hcengineering/ui'
-  import ygTimesheet, { type TimesheetApproval, type TimesheetTask } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, {
+    type Timesheet,
+    type TimesheetApproval,
+    type TimesheetDay,
+    type TimesheetTask
+  } from '@hcengineering/yg-timesheet'
   import { filterRows, priorityLabel, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
@@ -109,8 +114,12 @@
   })
 
   // Per-task approval overlay (private ygTimesheet.space.Approvals — non-members get []). Indexed
-  // by issue+day so the row builder can look up approved hours/approver per logged time entry.
-  // Reuses `employeeNames` (above) for the approver's display name — no second name lookup.
+  // by employee+issue+day so the row builder can look up approved hours/approver per logged time
+  // entry WITHOUT crossing employees: two different employees can log the same issue on the same
+  // calendar day, and without the employee in the key one's approval would bleed onto the other's
+  // row (payroll misattribution). Nested $lookup resolves the employee via task → day → timesheet
+  // (mirrors Approvals.svelte). Reuses `employeeNames` (above) for the approver's display name —
+  // no second name lookup.
   const approvalQuery = createQuery()
   let approvedByKey: Map<string, WithLookup<TimesheetApproval>> = new Map()
   approvalQuery.query(
@@ -119,13 +128,22 @@
     (res: Array<WithLookup<TimesheetApproval>>) => {
       const m = new Map<string, WithLookup<TimesheetApproval>>()
       for (const a of res) {
-        const task = a.$lookup?.task as TimesheetTask | undefined
-        if (task === undefined) continue
-        m.set(`${task.issue}|${localDayKey(task.date)}`, a)
+        const task = a.$lookup?.task as WithLookup<TimesheetTask> | undefined
+        const day = task?.$lookup?.attachedTo as WithLookup<TimesheetDay> | undefined
+        const ts = day?.$lookup?.attachedTo as Timesheet | undefined
+        const emp = ts?.employee
+        // Fail SAFE: an unresolved employee yields no key, so the row's approval columns come out
+        // blank (never wrongly attributed to the wrong employee).
+        if (task === undefined || emp == null) continue
+        m.set(`${emp}|${task.issue}|${localDayKey(task.date)}`, a)
       }
       approvedByKey = m
     },
-    { lookup: { task: ygTimesheet.class.TimesheetTask } }
+    {
+      lookup: {
+        task: [ygTimesheet.class.TimesheetTask, { attachedTo: [ygTimesheet.class.TimesheetDay, { attachedTo: ygTimesheet.class.Timesheet }] }]
+      }
+    }
   )
 
   // --- Build ReportRow[] ---------------------------------------------------
@@ -137,7 +155,7 @@
     const date = r.date ?? 0
     const status = (issue?.status ?? '') as string
     const issueId = (issue?._id ?? r.attachedTo) as string
-    const approved = approvedByKey.get(`${issueId}|${localDayKey(date)}`)
+    const approved = approvedByKey.get(`${employee}|${issueId}|${localDayKey(date)}`)
     return {
       date,
       employee,
