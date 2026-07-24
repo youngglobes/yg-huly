@@ -105,45 +105,52 @@
 
 <div class="ap-root">
   {#if !canApprove}
-    <div class="ap-empty">Restricted</div>
+    <div class="yg-empty">Restricted</div>
   {:else if queue.length === 0}
-    <div class="ap-empty"><Label label={ygTimesheet.string.NothingToApprove} /></div>
+    <div class="yg-empty"><Label label={ygTimesheet.string.NothingToApprove} /></div>
   {:else}
-    {#each queue as task (task._id)}
-      {@const employee = employeeOf(task)}
-      <div class="ap-day">
-        <div class="ap-day__head">
-          <span class="ap-owner">
-            {#if employee !== undefined}
-              <EmployeeRefPresenter value={employee} readonly />
-            {:else}
-              <span>—</span>
-            {/if}
-          </span>
-          <span class="ap-date">{dayFmt.format(task.date)}</span>
-          <span class="ap-line__id">{task.identifier}</span>
-          <span class="ap-line__title">{task.title}</span>
-          <span class="ap-total">{formatHours(task.submittedHours)}</span>
-        </div>
-
-        <div class="ap-actions">
-          <Button kind="primary" size="small" label={ygTimesheet.string.Approve} on:click={() => onApprove(task)} />
-          <Button kind="regular" size="small" label={ygTimesheet.string.Reject} on:click={() => onReject(task)} />
-        </div>
-      </div>
-    {/each}
+    <table class="yg-table">
+      <thead>
+        <tr>
+          <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+          <th class="left"><Label label={ygTimesheet.string.Date} /></th>
+          <th class="left"><Label label={ygTimesheet.string.HulyId} /></th>
+          <th class="left">Title</th>
+          <th class="yg-num"><Label label={ygTimesheet.string.SubmittedHours} /></th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each queue as task (task._id)}
+          {@const employee = employeeOf(task)}
+          <tr class="yg-row">
+            <td class="left">
+              {#if employee !== undefined}
+                <EmployeeRefPresenter value={employee} readonly />
+              {:else}
+                <span>—</span>
+              {/if}
+            </td>
+            <td class="left">{dayFmt.format(task.date)}</td>
+            <td class="left">{task.identifier}</td>
+            <td class="left">{task.title}</td>
+            <td class="yg-num">{formatHours(task.submittedHours)}</td>
+            <td>
+              <div class="ap-actions">
+                <Button kind="primary" size="small" label={ygTimesheet.string.Approve} on:click={() => onApprove(task)} />
+                <Button kind="regular" size="small" label={ygTimesheet.string.Reject} on:click={() => onReject(task)} />
+              </div>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
   {/if}
 </div>
 
 <style lang="scss">
-  .ap-root { padding: 1rem; overflow: auto; display: flex; flex-direction: column; gap: 0.5rem; }
-  .ap-empty { color: var(--theme-darker-color); padding: 1rem; text-align: center; }
-  .ap-day { border: 1px solid var(--theme-divider-color); border-radius: 0.5rem; padding: 0.75rem; }
-  .ap-day__head { display: flex; align-items: center; gap: 0.75rem; }
-  .ap-owner { min-width: 10rem; }
-  .ap-date { color: var(--theme-content-color); }
-  .ap-line__id { color: var(--theme-dark-color); }
-  .ap-line__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ap-total { font-weight: 600; font-variant-numeric: tabular-nums; margin-left: auto; }
-  .ap-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap; }
+  @use './yg-table' as *;
+
+  .ap-root { padding: 1rem; overflow: auto; }
+  .ap-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 </style>
