@@ -104,3 +104,17 @@ export function canApproveTask (
 export function taskDrift (submittedHours: number, liveHours: number): number {
   return Math.round((liveHours - submittedHours) * 100) / 100
 }
+
+/**
+ * May the current user SEE the Approvals/Reports surfaces? Admin (Maintainer+) OR assigned as PM or
+ * Team Lead on ANY project. `approverPairs` are the ProjectApprovers mixins across all projects;
+ * `me` is the current employee. Pure — the caller supplies isAdmin and the pairs.
+ */
+export function canApproveView (
+  isAdmin: boolean,
+  approverPairs: Array<{ pm?: string, teamLead?: string }>,
+  me: string
+): boolean {
+  if (isAdmin) return true
+  return approverPairs.some((a) => a.pm === me || a.teamLead === me)
+}

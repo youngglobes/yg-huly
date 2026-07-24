@@ -3,7 +3,7 @@
 //
 import type { Employee } from '@hcengineering/contact'
 import { type AttachedDoc, type Class, type Doc, type Mixin, type Ref, type Space, type Timestamp } from '@hcengineering/core'
-import type { Asset, IntlString, Plugin } from '@hcengineering/platform'
+import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import type { AnyComponent } from '@hcengineering/ui'
@@ -202,5 +202,8 @@ export default plugin(ygTimesheetId, {
     ApproveTask: '' as IntlString,
     RejectTask: '' as IntlString,
     PartiallyApproved: '' as IntlString
+  },
+  function: {
+    CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
   }
 })

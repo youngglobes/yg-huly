@@ -1,4 +1,4 @@
-import { buildTaskUnits, deriveDayStatus, canApproveTask, taskDrift } from '../task-approval'
+import { buildTaskUnits, deriveDayStatus, canApproveTask, taskDrift, canApproveView } from '../task-approval'
 import type { DayReportLike, ProjectApproverLike } from '../workflow'
 
 function rep (issue: string, project: string, value: number, identifier = issue): DayReportLike {
@@ -97,4 +97,24 @@ test('self-approval is forbidden for everyone, including admins', () => {
 
 test('admins may approve without an approver role', () => {
   expect(canApproveTask(false, 'k2', 'some-admin', true)).toBe(true)
+})
+
+describe('canApproveView', () => {
+  const me = 'emp-me'
+  const other = 'emp-other'
+  test('admin may always see approvals/reports', () => {
+    expect(canApproveView(true, [], me)).toBe(true)
+  })
+  test('a PM on any project may see them', () => {
+    expect(canApproveView(false, [{ pm: me }], me)).toBe(true)
+  })
+  test('a Team Lead on any project may see them', () => {
+    expect(canApproveView(false, [{ teamLead: me }], me)).toBe(true)
+  })
+  test('someone who is neither admin nor PM/TL may not', () => {
+    expect(canApproveView(false, [{ pm: other, teamLead: other }], me)).toBe(false)
+  })
+  test('empty approver set + not admin => false', () => {
+    expect(canApproveView(false, [], me)).toBe(false)
+  })
 })
