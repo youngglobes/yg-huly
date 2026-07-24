@@ -1,0 +1,138 @@
+// Copyright © 2026 YoungGlobes
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Shared table shell + status tokens for HR/timesheet grids (yg-timesheet-resources).
+//
+// Lifted verbatim from HrOverview.svelte's `.hrTable` family (table/th/td/td.bold/row-hover/
+// amber/green/ok/warn/totals/empty) and from HrTimesheet.svelte's `.hrt-pill`/`.hrt-num` rules,
+// renamed to the neutral `yg-` namespace. Reused (via `@use './yg-table' as *;`) by HrOverview,
+// HrTimesheet, and later Reports/Approvals/My-Timesheet (Tasks 4-6) so all HR/timesheet grids
+// share one source of truth for their table chrome and status vocabulary.
+//
+// Every rule below is wrapped in `:global(...)`. Reason: Svelte scopes a component's <style>
+// block by suffixing selectors AND matching template elements with a per-component hash class.
+// A component that `@use`s this partial but doesn't reference every class in ITS OWN markup
+// (e.g. HrOverview never uses `.yg-pill`, HrTimesheet never uses `.yg-row`/`.ok`/`.warn`) would
+// otherwise get "Unused CSS selector" warnings for the classes it doesn't touch, and in some
+// cases Svelte simply won't apply a "shared" class it can't prove is used. `:global(...)`
+// opts these selectors out of that per-component usage analysis so every consumer gets exactly
+// the same, always-applied ruleset regardless of which subset of classes it happens to use.
+// It also means a component that legitimately needs a DIFFERENT look for the same class (see
+// HrTimesheet's local `.yg-table th`/`.yg-table td` overrides) can rely on Svelte's automatic
+// scope-hash suffix on its own (non-global) local rules to reliably out-specificity these
+// global base rules, with no dependency on cascade order.
+
+:global(.yg-table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+:global(.yg-table th) {
+  font-size: 0.625rem;
+  color: var(--theme-dark-color);
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 600;
+  padding: 0.5rem;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--theme-bg-color);
+  border-bottom: 1px solid var(--theme-divider-color);
+}
+:global(.yg-table th.left),
+:global(.yg-table td.left) {
+  text-align: left;
+}
+:global(.yg-table td) {
+  padding: 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--theme-divider-color);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:global(.yg-table td.bold) {
+  font-weight: 600;
+}
+:global(.yg-row:hover) {
+  background: var(--theme-list-row-color);
+  cursor: pointer;
+}
+:global(.amber) {
+  color: var(--theme-warning-color);
+  font-weight: 500;
+}
+:global(.green) {
+  color: var(--theme-won-color);
+}
+:global(.ok) {
+  color: var(--theme-won-color);
+  font-weight: 600;
+}
+:global(.warn) {
+  color: var(--theme-warning-color);
+  font-weight: 600;
+}
+:global(.yg-totals td) {
+  font-weight: 600;
+  border-top: 2px solid var(--theme-divider-color);
+  border-bottom: none;
+}
+:global(.yg-empty) {
+  text-align: center;
+  color: var(--theme-darker-color);
+  padding: 1.5rem;
+}
+
+// Numeric-column helper (right-aligned, tabular figures) — from HrTimesheet.svelte's `.hrt-num`.
+// Written as `th.yg-num, td.yg-num` (rather than a bare `.yg-num`) so its specificity matches
+// `.yg-table th`/`.yg-table td` above (class+tag vs class+tag) instead of losing to them —
+// a bare single-class `.yg-num` would tie-lose to the table-level rule's text-align on every
+// consumer, silently re-centering "numeric" columns.
+:global(th.yg-num),
+:global(td.yg-num) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// Per-day approval-status pill — from HrTimesheet.svelte's `.hrt-pill` + `--{status}` modifiers.
+:global(.yg-pill) {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.75rem;
+  background: var(--theme-button-default);
+  color: var(--theme-content-color);
+}
+:global(.yg-pill--submitted) {
+  background: var(--theme-warning-color);
+  color: #fff;
+}
+:global(.yg-pill--approved) {
+  background: var(--theme-won-color);
+  color: #fff;
+}
+:global(.yg-pill--rejected) {
+  background: var(--theme-lost-color);
+  color: #fff;
+}
+// Amber-family but distinct from the solid-amber Submitted pill — outline + amber text on the
+// neutral pill background, so a half-approved day reads as visually different from a freshly
+// submitted one.
+:global(.yg-pill--partiallyapproved) {
+  background: var(--theme-button-default);
+  color: var(--theme-warning-color);
+  border: 1px solid var(--theme-warning-color);
+}

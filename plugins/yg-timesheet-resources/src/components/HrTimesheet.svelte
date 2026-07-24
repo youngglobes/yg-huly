@@ -164,19 +164,19 @@
     <div class="hrt-empty"><Label label={ygTimesheet.string.NoEmployeeSelected} /></div>
   {:else}
     <div class="hrt-table-wrap">
-      <table class="hrt-table">
+      <table class="yg-table">
         <thead>
           <tr>
             <th><Label label={ygTimesheet.string.Project} /></th>
             {#each week.days as d, i (d.key)}
-              <th class="hrt-num" class:hrt-weekend={isWeekend(i)}>{dowFmt.format(d.date)}</th>
+              <th class="yg-num" class:hrt-weekend={isWeekend(i)}>{dowFmt.format(d.date)}</th>
             {/each}
-            <th class="hrt-num"><Label label={ygTimesheet.string.TotalHours} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.TotalHours} /></th>
           </tr>
         </thead>
         <tbody>
           {#if grid.rows.length === 0}
-            <tr><td colspan={9} class="hrt-empty-row"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
           {:else}
             {#each grid.rows as r (r.issue)}
               <tr>
@@ -188,38 +188,38 @@
                   </div>
                 </td>
                 {#each r.cells as c, i (i)}
-                  <td class="hrt-num" title={r.notesByDay[i]}>
+                  <td class="yg-num" title={r.notesByDay[i]}>
                     {c === 0 ? '—' : formatHours(c)}
                     {#if r.notesByDay[i] !== undefined}
                       <span class="hrt-note-dot" title={r.notesByDay[i]}>●</span>
                     {/if}
                   </td>
                 {/each}
-                <td class="hrt-num"><b>{formatHours(r.rowTotal)}</b></td>
+                <td class="yg-num"><b>{formatHours(r.rowTotal)}</b></td>
               </tr>
             {/each}
           {/if}
         </tbody>
         <tfoot>
-          <tr class="hrt-totals">
+          <tr class="yg-totals">
             <td><Label label={ygTimesheet.string.TotalHours} /></td>
             {#each grid.dayTotals as t, i (i)}
               <td
-                class="hrt-num"
+                class="yg-num"
                 class:amber={!isWeekend(i) && t < DAY_TARGET}
                 class:green={!isWeekend(i) && t >= DAY_TARGET}
               >
                 {formatHours(t)}
               </td>
             {/each}
-            <td class="hrt-num"><b>{formatHours(grid.grandTotal)}</b></td>
+            <td class="yg-num"><b>{formatHours(grid.grandTotal)}</b></td>
           </tr>
           <tr class="hrt-status-row">
             <td><Label label={ygTimesheet.string.Status} /></td>
             {#each statusRow as s, i (i)}
-              <td class="hrt-num">
+              <td class="yg-num">
                 {#if s !== undefined}
-                  <span class="hrt-pill hrt-pill--{s.toLowerCase()}">
+                  <span class="yg-pill yg-pill--{s.toLowerCase()}">
                     {#if s === 'PartiallyApproved'}
                       <Label label={ygTimesheet.string.PartiallyApproved} />
                     {:else}
@@ -240,44 +240,54 @@
 </div>
 
 <style lang="scss">
+  @use './yg-table' as *;
+
   .hrt-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
   .hrt-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 12rem; }
   .hrt-empty { color: var(--theme-darker-color); padding: 2rem; text-align: center; }
-  .hrt-empty-row { color: var(--theme-darker-color); text-align: center; padding: 1.5rem; }
   .hrt-table-wrap { overflow: auto; flex: 1; padding: 1rem; }
-  .hrt-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
-  .hrt-table th {
-    text-align: right; font-weight: 600; color: var(--theme-dark-color);
-    padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--theme-divider-color); white-space: nowrap;
-    position: sticky; top: 0; background: var(--theme-bg-color);
+
+  // HrTimesheet's table chrome (right-aligned/compact headers, top-aligned wrapping cells)
+  // differs from HrOverview's (centered/uppercase/middle-aligned) even though both now share
+  // `.yg-table`/`.yg-num` class names via yg-table.scss. These local rules are plain
+  // (non-`:global`) Svelte-scoped rules, so the compiler auto-suffixes them with this
+  // component's own scope class — that reliably out-specificities the shared partial's
+  // `:global(...)` (hash-less) base rules regardless of source order, letting this component
+  // keep its pre-existing look on top of the shared class names rather than adopting
+  // HrOverview's flavor. See yg-table.scss's header comment for the full rationale.
+  .yg-table th {
+    text-align: right;
+    font-weight: 600;
+    color: var(--theme-dark-color);
+    font-size: inherit;
+    text-transform: none;
+    padding: 0.375rem 0.5rem;
+    border-bottom: 1px solid var(--theme-divider-color);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    background: var(--theme-bg-color);
   }
-  .hrt-table th:first-child { text-align: left; }
-  .hrt-table td { padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--theme-divider-color); vertical-align: top; }
-  .hrt-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .yg-table th:first-child { text-align: left; }
+  .yg-table td {
+    padding: 0.375rem 0.5rem;
+    border-bottom: 1px solid var(--theme-divider-color);
+    vertical-align: top;
+    text-align: left;
+    font-variant-numeric: normal;
+    white-space: normal;
+  }
+  .yg-table th.yg-num,
+  .yg-table td.yg-num {
+    text-align: right;
+  }
+
   .hrt-weekend { color: var(--theme-darker-color); }
   .hrt-task { display: flex; flex-direction: column; gap: 0.0625rem; }
   .hrt-task__project { color: var(--theme-dark-color); font-size: 0.6875rem; }
   .hrt-task__id { color: var(--theme-dark-color); font-weight: 600; }
   .hrt-task__title { color: var(--theme-content-color); }
   .hrt-note-dot { color: var(--theme-link-color, var(--primary-button-default)); font-size: 0.5rem; margin-left: 0.1875rem; vertical-align: super; }
-  .hrt-totals td { font-weight: 600; border-top: 2px solid var(--theme-divider-color); }
-  .amber { color: var(--theme-warning-color); font-weight: 500; }
-  .green { color: var(--theme-won-color); }
   .hrt-status-row td { border-top: none; padding-top: 0.25rem; }
-  .hrt-pill {
-    font-size: 0.6875rem; font-weight: 600; padding: 0.0625rem 0.375rem; border-radius: 0.75rem;
-    background: var(--theme-button-default); color: var(--theme-content-color);
-  }
-  .hrt-pill--submitted { background: var(--theme-warning-color); color: #fff; }
-  .hrt-pill--approved { background: var(--theme-won-color); color: #fff; }
-  .hrt-pill--rejected { background: var(--theme-lost-color); color: #fff; }
-  // Amber-FAMILY but distinct from the solid-amber Submitted pill — outline + amber text on the
-  // neutral pill background (same treatment as Timesheet.svelte's .ts-pill--partiallyapproved),
-  // so a half-approved day reads as visually different from a freshly-submitted one.
-  .hrt-pill--partiallyapproved {
-    background: var(--theme-button-default);
-    color: var(--theme-warning-color);
-    border: 1px solid var(--theme-warning-color);
-  }
   .hrt-muted { color: var(--theme-dark-color); }
 </style>

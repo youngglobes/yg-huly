@@ -165,7 +165,7 @@
     </div>
   </div>
   <Scroller>
-    <table class="hrTable">
+    <table class="yg-table">
       <thead>
         <tr>
           <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
@@ -178,7 +178,7 @@
       </thead>
       <tbody>
         {#each rows as r (r.employee)}
-          <tr class="row" on:click={() => selectEmployee(r.employee)}>
+          <tr class="yg-row" on:click={() => selectEmployee(r.employee)}>
             <td class="left">
               <div class="flex-row-center flex-gap-2">
                 <Avatar size={'x-small'} person={employeeFor(r.employee)} name={r.name} />
@@ -200,11 +200,11 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan={10} class="empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+          <tr><td colspan={10} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
         {/each}
       </tbody>
       <tfoot>
-        <tr class="totals">
+        <tr class="yg-totals">
           <td class="left"><Label label={ygTimesheet.string.Total} /></td>
           {#each dailyTotals as t, i (i)}
             <td class:amber={i < 5 && t < DAY_TARGET} class:green={i < 5 && t >= DAY_TARGET}>{formatHours(t)}</td>
@@ -218,66 +218,5 @@
 </div>
 
 <style lang="scss">
-  .hrTable {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8125rem;
-  }
-  .hrTable th {
-    font-size: 0.625rem;
-    color: var(--theme-dark-color);
-    text-transform: uppercase;
-    text-align: center;
-    font-weight: 600;
-    padding: 0.5rem;
-    white-space: nowrap;
-    position: sticky;
-    top: 0;
-    background: var(--theme-bg-color);
-    border-bottom: 1px solid var(--theme-divider-color);
-  }
-  .hrTable th.left,
-  .hrTable td.left {
-    text-align: left;
-  }
-  .hrTable td {
-    padding: 0.5rem;
-    text-align: center;
-    vertical-align: middle;
-    border-bottom: 1px solid var(--theme-divider-color);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-  .hrTable td.bold {
-    font-weight: 600;
-  }
-  .row:hover {
-    background: var(--theme-list-row-color);
-    cursor: pointer;
-  }
-  .amber {
-    color: var(--theme-warning-color);
-    font-weight: 500;
-  }
-  .green {
-    color: var(--theme-won-color);
-  }
-  .ok {
-    color: var(--theme-won-color);
-    font-weight: 600;
-  }
-  .warn {
-    color: var(--theme-warning-color);
-    font-weight: 600;
-  }
-  .totals td {
-    font-weight: 600;
-    border-top: 2px solid var(--theme-divider-color);
-    border-bottom: none;
-  }
-  .empty {
-    text-align: center;
-    color: var(--theme-darker-color);
-    padding: 1.5rem;
-  }
+  @use './yg-table' as *;
 </style>
