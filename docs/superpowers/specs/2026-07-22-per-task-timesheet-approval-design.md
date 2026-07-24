@@ -273,16 +273,22 @@ a transaction.
 
 > **Private means READ-blocked, not WRITE-blocked.**
 
-Non-members cannot *read* `TimesheetApproval` rows (so the "employees must not see approved hours"
-requirement DOES hold), but anyone can *write* them.
+Non-members cannot *read* `TimesheetApproval` rows — but a non-member can make themselves a MEMBER of
+`ygTimesheet.space.Approvals` (see "Also open": the mixin self-promotion routes below), and membership
+grants READ. So the "employees must not see approved hours" requirement does NOT robustly hold. Anyone
+can also *write* the rows.
 
 ## What IS enforced today
 
 - Task `status` transitions to Approved/Rejected are role-checked server-side
   (`OnTimesheetTaskUpdate`), self-approval blocked for everyone including admins, unauthorized
   writes reverted and logged.
-- Approved hours are **not readable** by ordinary employees.
-- So the gap is *forgery of approval records*, not casual misuse or accidental exposure.
+- Approved hours are **not readable** by an employee who is *not a member* of the Approvals space —
+  but that membership is not robustly protected (see "Also open"), so a determined member CAN gain
+  read access to everyone's approved hours.
+- So the gap is BOTH *forgery of approval records* AND *read-exposure of approved hours via
+  Approvals-space membership poisoning*. **(Corrected 2026-07-24 after the final whole-branch review —
+  the earlier "read-privacy holds / forgery not exposure" wording was WRONG.)**
 
 ## Also open (same root cause / same review round)
 
@@ -294,6 +300,15 @@ requirement DOES hold), but anyone can *write* them.
   `updateDoc(Project, { 'ygTimesheet:mixin:ProjectApprovers': { pm: self } })` still self-promotes.
 - `OnTimesheetTaskUpdate` handles only `TxUpdateDoc` — a forged already-`Approved` task created via
   `TxCreateDoc`, or deletion of an approved task via `TxRemoveDoc`, is unguarded.
+- **Read-exposure (NOT just forgery — surfaced by the final whole-branch review 2026-07-24):** both
+  membership routes above put the attacker into `ygTimesheet.space.Approvals` members, which grants
+  READ of every employee's `approvedHours`. There is also a transient leak: a `TxMixin` self-set of
+  `pm` is reverted by `OnProjectApproversMixinGuard` via a **System** tx, but `OnProjectApproversChange`
+  skips System txes, so it never re-syncs membership DOWN — the attacker stays a member until an
+  unrelated admin edits some project (the loop-safety comment claiming it re-syncs is wrong). The
+  agreed fix must therefore also cover space **MEMBERSHIP**, not only row writes, and revert-on-denial
+  in `OnTimesheetTaskUpdate` must **restore the prior status/approval** rather than always resetting to
+  `Submitted` (today an unauthorized `Rejected` can downgrade someone else's *Approved* task).
 
 ## The agreed fix (NOT YET IMPLEMENTED)
 

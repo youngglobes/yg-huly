@@ -238,8 +238,12 @@ async function deriveApprovalsMembers (
 //     Why this trigger does not stop it: the design assumed a PRIVATE space refuses non-member
 //     writes. It does not. foundations/server/packages/middleware/src/spaceSecurity.ts has ZERO
 //     `throw` statements — it maintains read filters and indexes only, and never rejects a tx.
-//     PRIVATE = READ-BLOCKED, NOT WRITE-BLOCKED. (Read-privacy DOES hold: employees still cannot
-//     SEE approved hours. The gap is forgery, not exposure.)
+//     PRIVATE = READ-BLOCKED, NOT WRITE-BLOCKED. (Read-privacy does NOT robustly hold either —
+//     CORRECTED 2026-07-24 after the final whole-branch review; the earlier "forgery not exposure"
+//     note was WRONG. A member can self-promote into the Approvals space MEMBERSHIP — via
+//     updateDoc carrying the ProjectApprovers mixin attrs, or a TxMixin whose guard-revert is a
+//     System tx that OnProjectApproversChange skips so membership never re-syncs down — and
+//     membership grants READ of everyone's approvedHours. So the gap is forgery AND read-exposure.)
 //
 //     AGREED FIX (not implemented): clients must NEVER write TimesheetApproval. The approver's
 //     hours ride on the role-guarded task tx; the SERVER alone materialises/updates/deletes the
