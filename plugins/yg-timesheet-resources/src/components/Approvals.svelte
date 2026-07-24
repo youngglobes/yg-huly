@@ -29,8 +29,9 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  // Role gate — mirrors TimesheetApp.svelte EXACTLY (UI convenience only; the server trigger is
-  // the real enforcement). Any PM/TL on ANY project, or an HR admin (Maintainer), can approve.
+  // Role gate — mirrors ygTimesheet.function.CanApprove EXACTLY (UI convenience only; the server
+  // trigger is the real enforcement). Any PM/TL on ANY project, or an HR admin (Maintainer), can
+  // approve.
   const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
   let isApprover = false
   const projQuery = createQuery()

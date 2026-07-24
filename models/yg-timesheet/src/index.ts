@@ -148,7 +148,42 @@ export function createModel (builder: Builder): void {
       alias: ygTimesheetId,
       hidden: false,
       position: 'top',
-      component: ygTimesheet.component.TimesheetApp
+      navigatorModel: {
+        spaces: [],
+        specials: [
+          {
+            id: 'my',
+            label: ygTimesheet.string.Timesheet,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.Timesheet,
+            position: 'top'
+          },
+          {
+            id: 'approvals',
+            label: ygTimesheet.string.Approvals,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.Approvals,
+            visibleIf: ygTimesheet.function.CanApprove,
+            position: 'top'
+          },
+          {
+            id: 'reports',
+            label: ygTimesheet.string.Reports,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.Reports,
+            visibleIf: ygTimesheet.function.CanApprove,
+            position: 'top'
+          },
+          {
+            id: 'projects',
+            label: ygTimesheet.string.Projects,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.ProjectApproversEditor,
+            accessLevel: AccountRole.Maintainer,
+            position: 'bottom'
+          }
+        ]
+      }
     },
     ygTimesheet.app.Timesheet
   )

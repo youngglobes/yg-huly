@@ -118,7 +118,6 @@ export default plugin(ygTimesheetId, {
   },
   component: {
     Timesheet: '' as AnyComponent,
-    TimesheetApp: '' as AnyComponent,
     ProjectApproversEditor: '' as AnyComponent,
     Approvals: '' as AnyComponent,
     Reports: '' as AnyComponent,
