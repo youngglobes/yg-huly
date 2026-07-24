@@ -65,9 +65,11 @@
 :global(.yg-table td.bold) {
   font-weight: 600;
 }
+// NB: no `cursor: pointer` here — only HrOverview's rows are actually clickable (`on:click`).
+// Reports/Approvals/Timesheet rows are not, so the shared hover only highlights; clickable
+// consumers add their own local `cursor: pointer` (see HrOverview.svelte).
 :global(.yg-row:hover) {
   background: var(--theme-list-row-color);
-  cursor: pointer;
 }
 :global(.yg-amber) {
   color: var(--theme-warning-color);

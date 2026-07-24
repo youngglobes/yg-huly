@@ -219,4 +219,10 @@
 
 <style lang="scss">
   @use './yg-table' as *;
+
+  // This grid's rows ARE clickable (selectEmployee, on:click above) — the shared
+  // `:global(.yg-row:hover)` rule only highlights; add the pointer cursor back locally here.
+  .yg-row:hover {
+    cursor: pointer;
+  }
 </style>

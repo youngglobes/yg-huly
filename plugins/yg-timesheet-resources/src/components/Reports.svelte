@@ -18,10 +18,10 @@
   The all-employee / attendance views live in the (separate) HR report.
 -->
 <script lang="ts">
-  import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
+  import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import { type Ref, type WithLookup } from '@hcengineering/core'
-  import { createQuery } from '@hcengineering/presentation'
+  import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, {
     trackerId,
     type Issue,
@@ -38,6 +38,7 @@
     type DropdownTextItem
   } from '@hcengineering/ui'
   import ygTimesheet, {
+    type ProjectApprovers,
     type Timesheet,
     type TimesheetApproval,
     type TimesheetDay,
@@ -45,6 +46,25 @@
   } from '@hcengineering/yg-timesheet'
   import { filterRows, priorityLabel, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
+
+  const me = getCurrentEmployee()
+  const client = getClient()
+  const hierarchy = client.getHierarchy()
+
+  // Role gate — mirrors Approvals.svelte EXACTLY (UI convenience only; render-block for direct-URL
+  // access, since the sidebar `visibleIf` only hides the menu item). Any PM/TL on ANY project, or
+  // an HR admin (Maintainer), can view Reports.
+  const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
+  let isApprover = false
+  const approverProjQuery = createQuery()
+  approverProjQuery.query(tracker.class.Project, {}, (projects: Project[]) => {
+    isApprover = projects.some((p) => {
+      if (!hierarchy.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
+      const a = hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
+      return a.pm === me || a.teamLead === me
+    })
+  })
+  $: canApprove = isHRAdmin || isApprover
 
   // --- Filter state (default = current week) -------------------------------
   const initialWeek = weekRange(Date.now())
@@ -263,125 +283,129 @@
     </div>
   </div>
 
-  <!-- Filter bar -->
-  <div class="rp-filters">
-    <label class="rp-field">
-      <span class="rp-field__label"><Label label={ygTimesheet.string.From} /></span>
-      <input class="rp-date" type="date" bind:value={fromStr} />
-    </label>
-    <label class="rp-field">
-      <span class="rp-field__label"><Label label={ygTimesheet.string.To} /></span>
-      <input class="rp-date" type="date" bind:value={toStr} />
-    </label>
-    <div class="rp-field">
-      <span class="rp-field__label"><Label label={ygTimesheet.string.Member} /></span>
-      <EmployeeBox
-        label={ygTimesheet.string.Member}
-        bind:value={member}
-        allowDeselect
-        titleDeselect={ygTimesheet.string.All}
-        kind="regular"
-      />
-    </div>
-    <div class="rp-field">
-      <span class="rp-field__label"><Label label={ygTimesheet.string.Project} /></span>
-      <DropdownLabels
-        items={projectItems}
-        bind:selected={projectSel}
-        label={ygTimesheet.string.Project}
-        autoSelect={false}
-        allowDeselect
-        kind="regular"
-      />
-    </div>
-    <div class="rp-field">
-      <span class="rp-field__label"><Label label={ygTimesheet.string.Status} /></span>
-      <DropdownLabels
-        items={statusItems}
-        bind:selected={statusSel}
-        label={ygTimesheet.string.Status}
-        autoSelect={false}
-        allowDeselect
-        kind="regular"
-      />
-    </div>
-    <div class="rp-field rp-field--end">
-      <Button
-        kind="regular"
-        label={ygTimesheet.string.ExportCsv}
-        disabled={rows.length === 0}
-        on:click={exportCsv}
-      />
-    </div>
-  </div>
-
-  <!-- Results -->
-  {#if rows.length === 0}
-    <div class="yg-empty"><Label label={ygTimesheet.string.NoData} /></div>
+  {#if !canApprove}
+    <div class="yg-empty">Restricted to approvers.</div>
   {:else}
-    <div class="rp-table-wrap">
-      <table class="yg-table">
-        <thead>
-          <tr>
-            <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-            <th class="left"><Label label={ygTimesheet.string.Project} /></th>
-            <th class="left"><Label label={ygTimesheet.string.HulyId} /></th>
-            <th class="yg-num"><Label label={ygTimesheet.string.Estimated} /></th>
-            <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
-            <th><Label label={ygTimesheet.string.Status} /></th>
-            <th><Label label={ygTimesheet.string.Priority} /></th>
-            <th><Label label={ygTimesheet.string.DueDate} /></th>
-            <th class="left"><Label label={ygTimesheet.string.Notes} /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each pageRows as r, i (r.issue + '|' + r.date + '|' + r.employee + '|' + i)}
-            <tr class="yg-row">
-              <td class="left">{dateFmt.format(r.date)}</td>
-              <td class="left">{r.employeeName}</td>
-              <td class="left">{r.projectName}</td>
-              <td class="left">
-                {#if r.identifier !== '—'}
-                  <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
-                    {r.identifier}
-                  </a>
-                {:else}
-                  <span class="rp-muted">{r.identifier}</span>
-                {/if}
-              </td>
-              <td class="yg-num">{formatHours(r.estimation)}</td>
-              <td class="yg-num">{formatHours(r.hours)}</td>
-              <td>{r.statusName}</td>
-              <td>{priorityLabel(r.priority)}</td>
-              <td>{r.dueDate != null ? dateFmt.format(r.dueDate) : '—'}</td>
-              <td class="left rp-note">{r.note}</td>
-            </tr>
-          {/each}
-        </tbody>
-        <tfoot>
-          <tr class="yg-totals">
-            <td colspan="5" class="left"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
-            <td class="yg-num"><b>{formatHours(totalSpent)}</b></td>
-            <td colspan="4" />
-          </tr>
-        </tfoot>
-      </table>
+    <!-- Filter bar -->
+    <div class="rp-filters">
+      <label class="rp-field">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.From} /></span>
+        <input class="rp-date" type="date" bind:value={fromStr} />
+      </label>
+      <label class="rp-field">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.To} /></span>
+        <input class="rp-date" type="date" bind:value={toStr} />
+      </label>
+      <div class="rp-field">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.Member} /></span>
+        <EmployeeBox
+          label={ygTimesheet.string.Member}
+          bind:value={member}
+          allowDeselect
+          titleDeselect={ygTimesheet.string.All}
+          kind="regular"
+        />
+      </div>
+      <div class="rp-field">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.Project} /></span>
+        <DropdownLabels
+          items={projectItems}
+          bind:selected={projectSel}
+          label={ygTimesheet.string.Project}
+          autoSelect={false}
+          allowDeselect
+          kind="regular"
+        />
+      </div>
+      <div class="rp-field">
+        <span class="rp-field__label"><Label label={ygTimesheet.string.Status} /></span>
+        <DropdownLabels
+          items={statusItems}
+          bind:selected={statusSel}
+          label={ygTimesheet.string.Status}
+          autoSelect={false}
+          allowDeselect
+          kind="regular"
+        />
+      </div>
+      <div class="rp-field rp-field--end">
+        <Button
+          kind="regular"
+          label={ygTimesheet.string.ExportCsv}
+          disabled={rows.length === 0}
+          on:click={exportCsv}
+        />
+      </div>
     </div>
 
-    <!-- Pager -->
-    <div class="rp-pager">
-      <div class="rp-pager__size">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.RowsPerPage} /></span>
-        <DropdownLabels items={pageSizeItems} bind:selected={pageSizeSel} autoSelect={false} kind="regular" />
+    <!-- Results -->
+    {#if rows.length === 0}
+      <div class="yg-empty"><Label label={ygTimesheet.string.NoData} /></div>
+    {:else}
+      <div class="rp-table-wrap">
+        <table class="yg-table">
+          <thead>
+            <tr>
+              <th class="left"><Label label={ygTimesheet.string.Date} /></th>
+              <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+              <th class="left"><Label label={ygTimesheet.string.Project} /></th>
+              <th class="left"><Label label={ygTimesheet.string.HulyId} /></th>
+              <th class="yg-num"><Label label={ygTimesheet.string.Estimated} /></th>
+              <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
+              <th class="left"><Label label={ygTimesheet.string.Status} /></th>
+              <th class="left"><Label label={ygTimesheet.string.Priority} /></th>
+              <th class="left"><Label label={ygTimesheet.string.DueDate} /></th>
+              <th class="left"><Label label={ygTimesheet.string.Notes} /></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each pageRows as r, i (r.issue + '|' + r.date + '|' + r.employee + '|' + i)}
+              <tr class="yg-row">
+                <td class="left">{dateFmt.format(r.date)}</td>
+                <td class="left">{r.employeeName}</td>
+                <td class="left">{r.projectName}</td>
+                <td class="left">
+                  {#if r.identifier !== '—'}
+                    <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
+                      {r.identifier}
+                    </a>
+                  {:else}
+                    <span class="rp-muted">{r.identifier}</span>
+                  {/if}
+                </td>
+                <td class="yg-num">{formatHours(r.estimation)}</td>
+                <td class="yg-num">{formatHours(r.hours)}</td>
+                <td class="left">{r.statusName}</td>
+                <td class="left">{priorityLabel(r.priority)}</td>
+                <td class="left">{r.dueDate != null ? dateFmt.format(r.dueDate) : '—'}</td>
+                <td class="left rp-note">{r.note}</td>
+              </tr>
+            {/each}
+          </tbody>
+          <tfoot>
+            <tr class="yg-totals">
+              <td colspan="5" class="left"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
+              <td class="yg-num"><b>{formatHours(totalSpent)}</b></td>
+              <td colspan="4" />
+            </tr>
+          </tfoot>
+        </table>
       </div>
-      <div class="rp-pager__range">{firstIdx}–{lastIdx} / {rows.length}</div>
-      <div class="rp-pager__nav">
-        <button class="rp-arrow" disabled={safePage <= 1} on:click={() => (page = safePage - 1)}>‹</button>
-        <span class="rp-pager__page">{safePage} / {totalPages}</span>
-        <button class="rp-arrow" disabled={safePage >= totalPages} on:click={() => (page = safePage + 1)}>›</button>
+
+      <!-- Pager -->
+      <div class="rp-pager">
+        <div class="rp-pager__size">
+          <span class="rp-field__label"><Label label={ygTimesheet.string.RowsPerPage} /></span>
+          <DropdownLabels items={pageSizeItems} bind:selected={pageSizeSel} autoSelect={false} kind="regular" />
+        </div>
+        <div class="rp-pager__range">{firstIdx}–{lastIdx} / {rows.length}</div>
+        <div class="rp-pager__nav">
+          <button class="rp-arrow" disabled={safePage <= 1} on:click={() => (page = safePage - 1)}>‹</button>
+          <span class="rp-pager__page">{safePage} / {totalPages}</span>
+          <button class="rp-arrow" disabled={safePage >= totalPages} on:click={() => (page = safePage + 1)}>›</button>
+        </div>
       </div>
-    </div>
+    {/if}
   {/if}
 </div>
 
