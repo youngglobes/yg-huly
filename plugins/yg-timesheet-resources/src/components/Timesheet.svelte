@@ -210,92 +210,99 @@
   </div>
 </div>
 
-<div class="ts-grid">
-  {#each days as day (day.key)}
-    {@const persisted = dayByKey.get(day.key)}
-    {@const dayTasks = tasksByKey.get(day.key) ?? []}
-    {@const status = deriveDayStatus(dayTasks.map((t) => t.status))}
-    {@const drift = status === 'Approved' ? driftHours(persisted?.totalHours ?? 0, day.total) : 0}
-    <div class="ts-day">
-      <div class="ts-day__head">
-        <span>{weekdayFmt.format(day.date)}</span>
-        <span class="ts-day__total">{formatHours(day.total)}</span>
-      </div>
-      <div class="ts-day__status">
-        <span class="ts-pill ts-pill--{status.toLowerCase()}"><Label label={statusString(status)} /></span>
-        {#if status === 'Approved' && drift !== 0}
-          <span class="ts-drift" title="">⚠ <Label label={ygTimesheet.string.Drift} /></span>
-        {/if}
-      </div>
-      {#if day.issues.length === 0}
-        <div class="ts-empty">—</div>
-      {:else}
-        {#each day.issues as it (it.issueId)}
-          {@const task = dayTasks.find((t) => t.issue === it.issueId)}
-          <div class="ts-line">
-            <span class="ts-line__id">{it.identifier}</span>
-            <span class="ts-line__title">{it.title}</span>
-            {#if task !== undefined}
-              <span class="ts-pill ts-pill--sm ts-pill--{task.status.toLowerCase()}">
-                <Label label={statusString(task.status)} />
-              </span>
+<div class="ts-table-wrap">
+  <table class="yg-table">
+    <thead>
+      <tr>
+        <th class="left"><Label label={ygTimesheet.string.Day} /></th>
+        <th><Label label={ygTimesheet.string.Status} /></th>
+        <th class="yg-num"><Label label={ygTimesheet.string.Hours} /></th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {#each days as day (day.key)}
+        {@const persisted = dayByKey.get(day.key)}
+        {@const dayTasks = tasksByKey.get(day.key) ?? []}
+        {@const status = deriveDayStatus(dayTasks.map((t) => t.status))}
+        {@const drift = status === 'Approved' ? driftHours(persisted?.totalHours ?? 0, day.total) : 0}
+        <tr class="yg-row">
+          <td class="left ts-day-td">
+            <div class="ts-day__date">{weekdayFmt.format(day.date)}</div>
+            {#if day.issues.length === 0}
+              <div class="ts-empty">—</div>
+            {:else}
+              {#each day.issues as it (it.issueId)}
+                {@const task = dayTasks.find((t) => t.issue === it.issueId)}
+                <div class="ts-line">
+                  <span class="ts-line__id">{it.identifier}</span>
+                  <span class="ts-line__title">{it.title}</span>
+                  {#if task !== undefined}
+                    <span class="yg-pill ts-pill--sm yg-pill--{task.status.toLowerCase()}">
+                      <Label label={statusString(task.status)} />
+                    </span>
+                  {/if}
+                  <span class="ts-line__hrs">{formatHours(it.hours)}</span>
+                </div>
+                {#if task?.status === 'Rejected' && (task.rejectReason ?? '') !== ''}
+                  <div class="ts-reason">
+                    <b><Label label={ygTimesheet.string.RejectReason} />:</b>
+                    {task.rejectReason}
+                  </div>
+                {/if}
+              {/each}
             {/if}
-            <span class="ts-line__hrs">{formatHours(it.hours)}</span>
-          </div>
-          {#if task?.status === 'Rejected' && (task.rejectReason ?? '') !== ''}
-            <div class="ts-reason">
-              <b><Label label={ygTimesheet.string.RejectReason} />:</b>
-              {task.rejectReason}
+          </td>
+          <td>
+            <span class="yg-pill yg-pill--{status.toLowerCase()}"><Label label={statusString(status)} /></span>
+            {#if status === 'Approved' && drift !== 0}
+              <span class="ts-drift" title="">⚠ <Label label={ygTimesheet.string.Drift} /></span>
+            {/if}
+          </td>
+          <td class="yg-num">{formatHours(day.total)}</td>
+          <td>
+            <div class="ts-actions">
+              {#if (status === 'Draft' || status === 'Rejected') && day.issues.length > 0}
+                <Button kind="primary" size="small" label={ygTimesheet.string.Submit} on:click={() => onSubmit(day)} />
+              {:else if status === 'Submitted'}
+                <Button kind="regular" size="small" label={ygTimesheet.string.Recall} on:click={() => onRecall(day)} />
+              {/if}
+              {#if noApproverKey === day.key}
+                <span class="ts-noapprover">
+                  <Label label={ygTimesheet.string.NoApprover} />
+                  {#if noApproverProjects.length > 0}: {noApproverProjects.join(', ')}{/if}
+                </span>
+              {/if}
             </div>
-          {/if}
-        {/each}
-      {/if}
-      <div class="ts-actions">
-        {#if (status === 'Draft' || status === 'Rejected') && day.issues.length > 0}
-          <Button kind="primary" size="small" label={ygTimesheet.string.Submit} on:click={() => onSubmit(day)} />
-        {:else if status === 'Submitted'}
-          <Button kind="regular" size="small" label={ygTimesheet.string.Recall} on:click={() => onRecall(day)} />
-        {/if}
-        {#if noApproverKey === day.key}
-          <span class="ts-noapprover">
-            <Label label={ygTimesheet.string.NoApprover} />
-            {#if noApproverProjects.length > 0}: {noApproverProjects.join(', ')}{/if}
-          </span>
-        {/if}
-      </div>
-    </div>
-  {/each}
+          </td>
+        </tr>
+      {/each}
+    </tbody>
+  </table>
 </div>
 
 <style lang="scss">
-  .ts-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 0.5rem; padding: 1rem; overflow: auto; }
-  .ts-day { border: 1px solid var(--theme-divider-color); border-radius: 0.5rem; padding: 0.5rem; min-height: 6rem; }
-  .ts-day__head { display: flex; justify-content: space-between; font-weight: 600; margin-bottom: 0.5rem; }
-  .ts-day__total { color: var(--theme-content-color); }
+  @use './yg-table' as *;
+
+  .ts-table-wrap { padding: 1rem; overflow: auto; }
+
+  // Day/date + nested per-issue list column: needs to wrap and top-align, unlike the shared
+  // `.yg-table td`'s single-line/vertically-centered default (Task 3 convention) — a plain local
+  // class (not shaped as `.yg-table td`/`th`) so it out-specificities the shared rule via Svelte's
+  // own scope-hash on ANY selector, with no risk to the `td.yg-num` numeric-formatting rule (see
+  // yg-table.scss's header comment / Task 3 lesson: only a local `.yg-table td`/`th` rule would
+  // require restating `.yg-num`).
+  .ts-day-td { white-space: normal; vertical-align: top; }
+  .ts-day__date { font-weight: 600; margin-bottom: 0.25rem; }
   .ts-line { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; padding: 0.125rem 0; }
   .ts-line__id { color: var(--theme-dark-color); }
   .ts-line__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ts-line__hrs { font-variant-numeric: tabular-nums; }
-  .ts-empty { color: var(--theme-darker-color); text-align: center; }
-  .ts-day__status { display: flex; align-items: center; gap: 0.375rem; margin-bottom: 0.375rem; }
-  .ts-pill {
-    font-size: 0.6875rem; font-weight: 600; padding: 0.0625rem 0.375rem; border-radius: 0.75rem;
-    background: var(--theme-button-default); color: var(--theme-content-color);
-  }
-  .ts-pill--submitted { background: var(--theme-warning-color); color: #fff; }
-  .ts-pill--approved { background: var(--theme-won-color); color: #fff; }
-  .ts-pill--rejected { background: var(--theme-lost-color); color: #fff; }
-  // PartiallyApproved: amber-FAMILY but deliberately NOT a second solid amber pill (that would
-  // read as indistinguishable from a freshly-submitted day) — amber outline + amber text on the
-  // neutral pill background instead, so a half-approved day reads as visually distinct.
-  .ts-pill--partiallyapproved {
-    background: var(--theme-button-default);
-    color: var(--theme-warning-color);
-    border: 1px solid var(--theme-warning-color);
-  }
+  .ts-empty { color: var(--theme-darker-color); }
+  // Smaller size modifier for the per-issue inline pill, layered on top of the shared `.yg-pill`.
   .ts-pill--sm { font-size: 0.625rem; padding: 0 0.3125rem; }
   .ts-drift { font-size: 0.6875rem; color: var(--theme-warning-color); }
   .ts-reason { font-size: 0.75rem; color: var(--theme-content-color); margin: 0.125rem 0 0.25rem; }
-  .ts-actions { display: flex; align-items: center; gap: 0.375rem; margin-top: 0.5rem; flex-wrap: wrap; }
+  .ts-actions { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
   .ts-noapprover { font-size: 0.6875rem; color: var(--theme-lost-color); }
 </style>
