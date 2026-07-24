@@ -317,31 +317,31 @@
 
   <!-- Results -->
   {#if rows.length === 0}
-    <div class="rp-empty"><Label label={ygTimesheet.string.NoData} /></div>
+    <div class="yg-empty"><Label label={ygTimesheet.string.NoData} /></div>
   {:else}
     <div class="rp-table-wrap">
-      <table class="rp-table">
+      <table class="yg-table">
         <thead>
           <tr>
-            <th><Label label={ygTimesheet.string.Date} /></th>
-            <th><Label label={ygTimesheet.string.Employee} /></th>
-            <th><Label label={ygTimesheet.string.Project} /></th>
-            <th><Label label={ygTimesheet.string.HulyId} /></th>
-            <th class="rp-num"><Label label={ygTimesheet.string.Estimated} /></th>
-            <th class="rp-num"><Label label={ygTimesheet.string.Spent} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Date} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Project} /></th>
+            <th class="left"><Label label={ygTimesheet.string.HulyId} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.Estimated} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
             <th><Label label={ygTimesheet.string.Status} /></th>
             <th><Label label={ygTimesheet.string.Priority} /></th>
             <th><Label label={ygTimesheet.string.DueDate} /></th>
-            <th><Label label={ygTimesheet.string.Notes} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Notes} /></th>
           </tr>
         </thead>
         <tbody>
           {#each pageRows as r, i (r.issue + '|' + r.date + '|' + r.employee + '|' + i)}
-            <tr>
-              <td class="rp-nowrap">{dateFmt.format(r.date)}</td>
-              <td>{r.employeeName}</td>
-              <td>{r.projectName}</td>
-              <td>
+            <tr class="yg-row">
+              <td class="left">{dateFmt.format(r.date)}</td>
+              <td class="left">{r.employeeName}</td>
+              <td class="left">{r.projectName}</td>
+              <td class="left">
                 {#if r.identifier !== '—'}
                   <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
                     {r.identifier}
@@ -350,19 +350,19 @@
                   <span class="rp-muted">{r.identifier}</span>
                 {/if}
               </td>
-              <td class="rp-num">{formatHours(r.estimation)}</td>
-              <td class="rp-num">{formatHours(r.hours)}</td>
-              <td class="rp-nowrap">{r.statusName}</td>
-              <td class="rp-nowrap">{priorityLabel(r.priority)}</td>
-              <td class="rp-nowrap">{r.dueDate != null ? dateFmt.format(r.dueDate) : '—'}</td>
-              <td class="rp-note">{r.note}</td>
+              <td class="yg-num">{formatHours(r.estimation)}</td>
+              <td class="yg-num">{formatHours(r.hours)}</td>
+              <td>{r.statusName}</td>
+              <td>{priorityLabel(r.priority)}</td>
+              <td>{r.dueDate != null ? dateFmt.format(r.dueDate) : '—'}</td>
+              <td class="left rp-note">{r.note}</td>
             </tr>
           {/each}
         </tbody>
         <tfoot>
-          <tr>
-            <td colspan="5"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
-            <td class="rp-num"><b>{formatHours(totalSpent)}</b></td>
+          <tr class="yg-totals">
+            <td colspan="5" class="left"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
+            <td class="yg-num"><b>{formatHours(totalSpent)}</b></td>
             <td colspan="4" />
           </tr>
         </tfoot>
@@ -386,6 +386,8 @@
 </div>
 
 <style lang="scss">
+  @use './yg-table' as *;
+
   .rp-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
   .rp-filters {
     display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem;
@@ -398,21 +400,16 @@
     padding: 0.25rem 0.5rem; border: 1px solid var(--theme-divider-color); border-radius: 0.25rem;
     background: var(--theme-bg-color); color: var(--theme-content-color); font-size: 0.8125rem;
   }
-  .rp-empty { color: var(--theme-darker-color); padding: 2rem; text-align: center; }
   .rp-table-wrap { overflow: auto; flex: 1; padding: 1rem; }
-  .rp-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
-  .rp-table th {
-    text-align: left; font-weight: 600; color: var(--theme-dark-color);
-    padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--theme-divider-color); white-space: nowrap;
-    position: sticky; top: 0; background: var(--theme-bg-color);
-  }
-  .rp-table td { padding: 0.375rem 0.5rem; border-bottom: 1px solid var(--theme-divider-color); vertical-align: top; }
-  .rp-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .rp-nowrap { white-space: nowrap; }
   .rp-link { color: var(--theme-link-color, var(--primary-button-default)); font-weight: 600; text-decoration: none; }
   .rp-link:hover { text-decoration: underline; }
   .rp-muted { color: var(--theme-dark-color); }
-  .rp-note { color: var(--theme-content-color); max-width: 24rem; }
+  // Notes is the one column with genuinely variable-length free text (a user-entered
+  // description, not a short code/name), so it needs to keep wrapping — the shared
+  // `.yg-table td` rule sets `white-space: nowrap` for every cell (Task 3's convention).
+  // `.rp-note`'s two classes (0,2,0) out-specificity the global `.yg-table td` (0,1,1) for the
+  // properties it restates, same mechanism as HrTimesheet's local `.yg-num` fix in Task 3.
+  .rp-note { color: var(--theme-content-color); max-width: 24rem; white-space: normal; vertical-align: top; }
   .rp-pager {
     display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem;
     border-top: 1px solid var(--theme-divider-color);
