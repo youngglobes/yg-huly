@@ -206,8 +206,8 @@
             {#each grid.dayTotals as t, i (i)}
               <td
                 class="yg-num"
-                class:amber={!isWeekend(i) && t < DAY_TARGET}
-                class:green={!isWeekend(i) && t >= DAY_TARGET}
+                class:yg-amber={!isWeekend(i) && t < DAY_TARGET}
+                class:yg-green={!isWeekend(i) && t >= DAY_TARGET}
               >
                 {formatHours(t)}
               </td>
@@ -280,6 +280,8 @@
   .yg-table th.yg-num,
   .yg-table td.yg-num {
     text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .hrt-weekend { color: var(--theme-darker-color); }

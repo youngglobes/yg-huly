@@ -69,18 +69,18 @@
   background: var(--theme-list-row-color);
   cursor: pointer;
 }
-:global(.amber) {
+:global(.yg-amber) {
   color: var(--theme-warning-color);
   font-weight: 500;
 }
-:global(.green) {
+:global(.yg-green) {
   color: var(--theme-won-color);
 }
-:global(.ok) {
+:global(.yg-ok) {
   color: var(--theme-won-color);
   font-weight: 600;
 }
-:global(.warn) {
+:global(.yg-warn) {
   color: var(--theme-warning-color);
   font-weight: 600;
 }

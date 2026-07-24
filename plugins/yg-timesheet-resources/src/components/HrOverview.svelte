@@ -186,16 +186,16 @@
               </div>
             </td>
             {#each r.days as h, i (i)}
-              <td class:amber={i < 5 && h < DAY_TARGET} class:green={i < 5 && h >= DAY_TARGET}>
+              <td class:yg-amber={i < 5 && h < DAY_TARGET} class:yg-green={i < 5 && h >= DAY_TARGET}>
                 {h > 0 ? formatHours(h) : '—'}
               </td>
             {/each}
             <td class="bold">{formatHours(r.total)}</td>
             <td>
               {#if r.complete}
-                <span class="ok">✓ complete</span>
+                <span class="yg-ok">✓ complete</span>
               {:else}
-                <span class="warn">under {formatHours(r.shortfall)}</span>
+                <span class="yg-warn">under {formatHours(r.shortfall)}</span>
               {/if}
             </td>
           </tr>
@@ -207,7 +207,7 @@
         <tr class="yg-totals">
           <td class="left"><Label label={ygTimesheet.string.Total} /></td>
           {#each dailyTotals as t, i (i)}
-            <td class:amber={i < 5 && t < DAY_TARGET} class:green={i < 5 && t >= DAY_TARGET}>{formatHours(t)}</td>
+            <td class:yg-amber={i < 5 && t < DAY_TARGET} class:yg-green={i < 5 && t >= DAY_TARGET}>{formatHours(t)}</td>
           {/each}
           <td class="bold">{formatHours(grandTotal)}</td>
           <td />
