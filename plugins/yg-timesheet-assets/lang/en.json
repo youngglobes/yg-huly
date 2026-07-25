@@ -71,6 +71,10 @@
     "SubmittedHours": "Submitted hours",
     "ApproveTask": "Approve task",
     "RejectTask": "Reject task",
-    "PartiallyApproved": "Partially approved"
+    "PartiallyApproved": "Partially approved",
+    "Reset": "Reset",
+    "AllProjects": "All projects",
+    "AllMembers": "All members",
+    "SelectedCount": "{count} selected"
   }
 }

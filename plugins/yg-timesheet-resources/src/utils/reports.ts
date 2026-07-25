@@ -23,13 +23,15 @@ export interface ReportRow {
 }
 
 // status here = the issue's workflow-status NAME (not the timesheet approval status).
-export interface ReportFilter { from: number; to: number; project?: string; member?: string; status?: string }
+// projects/members are multi-select: undefined or an empty array means "All" (no filtering);
+// a non-empty array matches rows whose project/employee is ANY of the listed values.
+export interface ReportFilter { from: number; to: number; projects?: string[]; members?: string[]; status?: string }
 
 export function filterRows (rows: ReportRow[], f: ReportFilter): ReportRow[] {
   return rows.filter((r) =>
     r.date >= f.from && r.date < f.to &&
-    (f.project == null || r.project === f.project) &&
-    (f.member == null || r.employee === f.member) &&
+    (f.projects == null || f.projects.length === 0 || f.projects.includes(r.project)) &&
+    (f.members == null || f.members.length === 0 || f.members.includes(r.employee)) &&
     (f.status == null || r.statusName === f.status)
   )
 }

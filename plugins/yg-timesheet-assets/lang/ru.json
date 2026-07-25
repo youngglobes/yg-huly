@@ -71,6 +71,10 @@
     "SubmittedHours": "Отправленные часы",
     "ApproveTask": "Утвердить задачу",
     "RejectTask": "Отклонить задачу",
-    "PartiallyApproved": "Частично утверждено"
+    "PartiallyApproved": "Частично утверждено",
+    "Reset": "Сбросить",
+    "AllProjects": "Все проекты",
+    "AllMembers": "Все сотрудники",
+    "SelectedCount": "Выбрано: {count}"
   }
 }

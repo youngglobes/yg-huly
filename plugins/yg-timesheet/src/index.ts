@@ -202,7 +202,11 @@ export default plugin(ygTimesheetId, {
     SubmittedHours: '' as IntlString,
     ApproveTask: '' as IntlString,
     RejectTask: '' as IntlString,
-    PartiallyApproved: '' as IntlString
+    PartiallyApproved: '' as IntlString,
+    Reset: '' as IntlString,
+    AllProjects: '' as IntlString,
+    AllMembers: '' as IntlString,
+    SelectedCount: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>

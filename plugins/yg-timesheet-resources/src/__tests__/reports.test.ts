@@ -18,9 +18,21 @@ describe('filterRows', () => {
     expect(r).toHaveLength(1); expect(r[0].hours).toBe(2)
   })
   it('filters by project + member + status(name)', () => {
-    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), project: 'p2' })).toHaveLength(1)
-    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), member: 'e2' })).toHaveLength(1)
+    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), projects: ['p2'] })).toHaveLength(1)
+    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), members: ['e2'] })).toHaveLength(1)
     expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), status: 'Todo' })).toHaveLength(1)
+  })
+  it('matches rows from EITHER project when multiple projects are selected', () => {
+    const r = filterRows(rows, { from: 0, to: D(2027, 0, 1), projects: ['p1', 'p2'] })
+    expect(r).toHaveLength(3)
+  })
+  it('matches rows from EITHER member when multiple members are selected', () => {
+    const r = filterRows(rows, { from: 0, to: D(2027, 0, 1), members: ['e1', 'e2'] })
+    expect(r).toHaveLength(3)
+  })
+  it('treats an empty projects/members array as "All" (no filtering)', () => {
+    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), projects: [] })).toHaveLength(3)
+    expect(filterRows(rows, { from: 0, to: D(2027, 0, 1), members: [] })).toHaveLength(3)
   })
 })
 

@@ -19,7 +19,7 @@
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
-  import { EmployeeBox } from '@hcengineering/contact-resources'
+  import { UserBoxList } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
@@ -59,8 +59,9 @@
   // The To picker is inclusive; the query/filter use an exclusive [from, to) window.
   let toStr = localDayKey(initialWeek.end - 1)
 
-  let member: Ref<Person> | null | undefined
-  let projectSel: string | undefined
+  // Project and Member are multi-select (empty = "All"); Status stays single-select.
+  let members: Ref<Person>[] = []
+  let projectSels: string[] = []
   let statusSel: string | undefined
 
   function parseDay (s: string): number {
@@ -188,8 +189,8 @@
   $: baseFilter = {
     from,
     to,
-    project: projectSel != null && projectSel !== '' ? projectSel : undefined,
-    member: (member ?? undefined) as string | undefined
+    projects: projectSels.length > 0 ? projectSels : undefined,
+    members: members.length > 0 ? (members as string[]) : undefined
   } satisfies ReportFilter
   $: preStatusRows = filterRows(allRows, baseFilter)
   $: statusItems = [...new Set(preStatusRows.map((r) => r.statusName).filter((s) => s !== ''))]
@@ -222,7 +223,7 @@
   $: pageSize = Number(pageSizeSel)
   let page = 1
   // Reset to page 1 whenever the filtered set or page size changes.
-  $: filterSig = `${fromStr}|${toStr}|${member ?? ''}|${projectSel ?? ''}|${statusSel ?? ''}|${pageSize}`
+  $: filterSig = `${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}`
   $: {
     filterSig
     page = 1
@@ -262,6 +263,15 @@
     if (n.includes('done') || n.includes('complet') || n.includes('closed') || n.includes('resolved')) return 'done'
     if (n.includes('progress') || n.includes('review') || n.includes('active') || n.includes('doing')) return 'prog'
     return 'back'
+  }
+
+  // Clears every filter back to its default (current week, All projects, All members, All statuses).
+  function resetFilters (): void {
+    fromStr = localDayKey(initialWeek.start)
+    toStr = localDayKey(initialWeek.end - 1)
+    projectSels = []
+    members = []
+    statusSel = undefined
   }
 
   // Export ALL filtered rows (not just the current page), with the full column set incl. title.
@@ -315,22 +325,25 @@
       </span>
       <span class="rp-ctrl">
         <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Project} /></span>
-        <DropdownLabels
-          items={projectItems}
-          bind:selected={projectSel}
-          label={ygTimesheet.string.Project}
-          autoSelect={false}
-          allowDeselect
-          kind="regular"
-        />
+        <DropdownLabels items={projectItems} bind:selected={projectSels} label={ygTimesheet.string.Project} autoSelect={false} multiselect kind="regular">
+          <span slot="content" class="overflow-label">
+            {#if projectSels.length === 0}
+              <Label label={ygTimesheet.string.AllProjects} />
+            {:else if projectSels.length === 1}
+              {projectNames.get(projectSels[0]) ?? projectSels[0]}
+            {:else}
+              <Label label={ygTimesheet.string.SelectedCount} params={{ count: projectSels.length }} />
+            {/if}
+          </span>
+        </DropdownLabels>
       </span>
       <span class="rp-ctrl">
         <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Member} /></span>
-        <EmployeeBox
+        <UserBoxList
+          bind:items={members}
+          _class={contact.mixin.Employee}
           label={ygTimesheet.string.Member}
-          bind:value={member}
-          allowDeselect
-          titleDeselect={ygTimesheet.string.All}
+          emptyLabel={ygTimesheet.string.AllMembers}
           kind="regular"
         />
       </span>
@@ -345,6 +358,10 @@
           kind="regular"
         />
       </span>
+      <span class="rp-spacer" />
+      <button class="yg-btn yg-btn--ghost" on:click={resetFilters}>
+        <Label label={ygTimesheet.string.Reset} />
+      </button>
     </div>
 
     <!-- Results -->
