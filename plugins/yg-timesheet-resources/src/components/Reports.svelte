@@ -274,6 +274,14 @@
     statusSel = undefined
   }
 
+  // Open the native date picker when the user clicks anywhere on the field, not just the calendar
+  // icon. showPicker() must run from a user gesture (a click qualifies); guard for older browsers.
+  function openDatePicker (e: MouseEvent): void {
+    try {
+      ;(e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.()
+    } catch {}
+  }
+
   // Export ALL filtered rows (not just the current page), with the full column set incl. title.
   // Prepend a UTF-8 BOM so Excel opens it with the right encoding (accented names render).
   function exportCsv (): void {
@@ -318,10 +326,10 @@
     <div class="rp-toolbar">
       <span class="rp-ctrl rp-ctrl--range">
         <span class="rp-ctrl__k"><Label label={ygTimesheet.string.From} /></span>
-        <input class="rp-date" type="date" bind:value={fromStr} />
+        <input class="rp-date" type="date" bind:value={fromStr} on:click={openDatePicker} />
         <span class="rp-ctrl__sep">&rarr;</span>
         <span class="rp-ctrl__k"><Label label={ygTimesheet.string.To} /></span>
-        <input class="rp-date" type="date" bind:value={toStr} />
+        <input class="rp-date" type="date" bind:value={toStr} on:click={openDatePicker} />
       </span>
       <span class="rp-ctrl">
         <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Project} /></span>
