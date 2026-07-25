@@ -68,7 +68,7 @@
           date: r.date,
           value: r.value,
           issueId: (issue?._id ?? r.attachedTo) as string,
-          issueIdentifier: issue?.identifier ?? '—',
+          issueIdentifier: issue?.identifier ?? '-',
           issueTitle: issue?.title ?? '(unknown issue)',
           project: (issue?.space ?? '') as string
         })
@@ -80,7 +80,7 @@
           project,
           employee: r.employee as string,
           issue: (issue?._id ?? r.attachedTo) as string,
-          identifier: issue?.identifier ?? '—',
+          identifier: issue?.identifier ?? '-',
           title: issue?.title ?? '(unknown issue)',
           value: r.value,
           note: r.description ?? ''

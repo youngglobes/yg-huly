@@ -170,7 +170,7 @@
       project,
       projectName: projectNames.get(project) ?? project,
       issue: issueId,
-      identifier: issue?.identifier ?? '—',
+      identifier: issue?.identifier ?? '-',
       title: issue?.title ?? '(unknown issue)',
       estimation: issue?.estimation ?? 0,
       hours: r.value,
@@ -378,7 +378,7 @@
                 <td class="left">
                   <span class="rp-task">
                     <span class="yg-idbadge rp-idbadge">{r.identifier}</span>
-                    {#if r.identifier !== '—'}
+                    {#if r.identifier !== '-'}
                       <a
                         class="rp-link"
                         href="#{getPanelURI(tracker.component.EditIssue, r.issue, tracker.class.Issue, 'content')}"
