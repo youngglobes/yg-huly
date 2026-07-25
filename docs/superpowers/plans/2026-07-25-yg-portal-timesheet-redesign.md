@@ -138,7 +138,7 @@ In the `<script>` (this is the ONE allowed logic addition here): derive a groupe
 
 - [ ] **Step 2: Re-mark-up to the mockup**
 
-Render the summary ("<N> tasks from <M> people · <H>h awaiting your review", computed from the grouped data), then a `.group` card per employee (avatar initials via a small helper on the name, name, submitted date = min task date, count, pending-hours total), then each task as a row with the id badge, title link (same issue-link approach as Task 2 Step 2), submitted hours, and the Approve/Reject `.yg-btn`s calling the unchanged handlers. Empty state: the "Nothing to approve — you're all caught up." `.yg-empty` variant. Use Task 1 tokens/classes.
+Render the summary ("<N> tasks from <M> people · <H>h awaiting your review", computed from the grouped data), then a `.group` card per employee (avatar initials via a small helper on the name, name, submitted date = min task date, count, pending-hours total), then each task as a row with the id badge, title link (same issue-link approach as Task 2 Step 2), submitted hours, and the Approve/Reject `.yg-btn`s calling the unchanged handlers. Empty state: the "Nothing to approve. You're all caught up." `.yg-empty` variant. Use Task 1 tokens/classes.
 
 - [ ] **Step 3: Restyle the Approve/Reject dialogs**
 
@@ -179,7 +179,7 @@ git commit -m "yg-timesheet: Approvals redesign grouped by person; YG approve/re
 - [ ] **Step 4: Commit**
 ```bash
 git add plugins/yg-timesheet-resources/src/components/Reports.svelte
-git commit -m "yg-timesheet: Reports redesign — toolbar, scannable table, approver column"
+git commit -m "yg-timesheet: Reports redesign with toolbar, scannable table, approver column"
 ```
 
 ---
