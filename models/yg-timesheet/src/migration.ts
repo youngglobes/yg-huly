@@ -35,9 +35,11 @@ async function createHrSpace (tx: TxOperations): Promise<void> {
   )
 }
 
-// Private space holding the approval overlay (approved hours + who approved). Members are the
-// assigned PMs/TLs and admins — maintained by OnProjectApproversChange (Task R3). Private so the
-// server refuses every row to a non-member: employees must not see approved hours.
+// Space holding the approval overlay (approved hours + who approved). READABLE for beta (user
+// decision 2026-07-25): a private space refused the read to legitimate approvers/admins who are not
+// members, so Reports and the CSV export came back empty on refresh. Proper per-employee privacy is
+// deferred to the server-materialization security fix; until then the space is public so the
+// approver audience can read approved hours reliably.
 async function createApprovalsSpace (tx: TxOperations): Promise<void> {
   const existing = await tx.findOne(core.class.Space, { _id: ygTimesheet.space.Approvals })
   if (existing !== undefined) return
@@ -46,8 +48,8 @@ async function createApprovalsSpace (tx: TxOperations): Promise<void> {
     core.space.Space,
     {
       name: 'Timesheet Approvals',
-      description: 'Approved hours + approver attribution. Members = assigned PMs/TLs.',
-      private: true,
+      description: 'Approved hours + approver attribution. Readable by the approver audience.',
+      private: false,
       archived: false,
       members: [],
       owners: [],
@@ -55,6 +57,15 @@ async function createApprovalsSpace (tx: TxOperations): Promise<void> {
     },
     ygTimesheet.space.Approvals
   )
+}
+
+// Flip an EXISTING private Approvals space to public (beta) so approvers/admins can read approved
+// hours in Reports + export on refresh. Idempotent: only updates when currently private.
+async function openApprovalsSpace (tx: TxOperations): Promise<void> {
+  const space = await tx.findOne(core.class.Space, { _id: ygTimesheet.space.Approvals })
+  if (space !== undefined && space.private) {
+    await tx.updateDoc(core.class.Space, space.space, space._id, { private: false })
+  }
 }
 
 // Hide Huly's built-in HR app so there is one HR menu (ours). Best-effort: an existing app doc can
@@ -167,6 +178,15 @@ export const ygTimesheetOperation: MigrateOperation = {
         // migrateApprovalRows above for why this can't run in the `migrate` phase.
         state: 'approval-rows-0001',
         func: migrateApprovalRows
+      },
+      {
+        // Beta: make the Approvals space readable so the approver audience (admins + PMs/TLs) can
+        // read approved hours in Reports + export on refresh. Flips any existing private space.
+        state: 'approvals-space-public-0001',
+        func: async (client) => {
+          const ops = new TxOperations(client, core.account.System)
+          await openApprovalsSpace(ops)
+        }
       }
     ])
   }
