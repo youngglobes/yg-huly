@@ -26,17 +26,11 @@
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import ui, {
-    Breadcrumb,
-    Button,
-    ButtonIcon,
     getCurrentLocation,
-    Header,
     IconBack,
     IconForward,
     Label,
-    ModernButton,
     navigate,
-    Scroller,
     showPopup
   } from '@hcengineering/ui'
   import ygTimesheet, { type HrTimeEntry } from '@hcengineering/yg-timesheet'
@@ -150,21 +144,25 @@
   }
 </script>
 
-<div class="hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={ygTimesheet.icon.Timesheet} label={ygTimesheet.string.HrOverview} size={'large'} isCurrent />
-  </Header>
-  <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
-    <div class="flex-row-center flex-gap-2">
-      <ButtonIcon icon={IconBack} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(-7)} />
-      <ModernButton label={ui.string.Today} kind={'tertiary'} size={'small'} on:click={() => (weekMs = Date.now())} />
-      <ButtonIcon icon={IconForward} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(7)} />
-      <div class="hulyHeader-divider short" />
-      <div class="fs-title flex-row-center">{weekLabel}</div>
-      <Button label={ygTimesheet.string.Export} disabled={exporting} on:click={openExport} />
+<div class="yg-page">
+  <div class="yg-head">
+    <h1 class="yg-title"><Label label={ygTimesheet.string.HrOverview} /></h1>
+    <div class="yg-weekbar">
+      <button class="yg-weekbar__nav" aria-label="Previous week" on:click={() => shiftWeek(-7)}>
+        <IconBack size="small" />
+      </button>
+      <button class="yg-weekbar__today" on:click={() => (weekMs = Date.now())}><Label label={ui.string.Today} /></button>
+      <span class="yg-weekbar__range">{weekLabel}</span>
+      <button class="yg-weekbar__nav" aria-label="Next week" on:click={() => shiftWeek(7)}>
+        <IconForward size="small" />
+      </button>
+      <span class="yg-weekbar__spacer" />
+      <button class="yg-btn yg-btn--primary" disabled={exporting} on:click={openExport}>
+        <Label label={ygTimesheet.string.Export} />
+      </button>
     </div>
   </div>
-  <Scroller>
+  <div class="yg-scroll">
     <table class="yg-table">
       <thead>
         <tr>
@@ -187,15 +185,15 @@
             </td>
             {#each r.days as h, i (i)}
               <td class:yg-amber={i < 5 && h < DAY_TARGET} class:yg-green={i < 5 && h >= DAY_TARGET}>
-                {h > 0 ? formatHours(h) : '—'}
+                {h > 0 ? formatHours(h) : '·'}
               </td>
             {/each}
             <td class="bold">{formatHours(r.total)}</td>
-            <td>
+            <td class="left">
               {#if r.complete}
-                <span class="yg-ok">✓ complete</span>
+                <span class="yg-tag yg-tag--approved"><span class="tick" />Complete</span>
               {:else}
-                <span class="yg-warn">under {formatHours(r.shortfall)}</span>
+                <span class="yg-tag yg-tag--submitted"><span class="tick" />Under {formatHours(r.shortfall)}</span>
               {/if}
             </td>
           </tr>
@@ -214,7 +212,7 @@
         </tr>
       </tfoot>
     </table>
-  </Scroller>
+  </div>
 </div>
 
 <style lang="scss">

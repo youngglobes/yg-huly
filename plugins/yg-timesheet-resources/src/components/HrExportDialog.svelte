@@ -4,7 +4,7 @@
   // common case (export what I'm looking at) is Export -> Export: two clicks.
   //
   import { createEventDispatcher } from 'svelte'
-  import ui, { Button, Label } from '@hcengineering/ui'
+  import ui, { Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import { weekPeriod, monthPeriod, type Period } from '../utils/period'
 
@@ -49,61 +49,46 @@
   }
 </script>
 
-<div class="hr-export-dialog">
-  <div class="title"><Label label={ygTimesheet.string.ExportPeriod} /></div>
+<div class="yg-dialog">
+  <div class="yg-dialog__title"><Label label={ygTimesheet.string.ExportPeriod} /></div>
 
-  <div class="row">
-    <Button
-      kind={kind === 'week' ? 'primary' : 'regular'}
-      label={ygTimesheet.string.PeriodWeekly}
-      on:click={() => { kind = 'week' }}
-    />
-    <Button
-      kind={kind === 'month' ? 'primary' : 'regular'}
-      label={ygTimesheet.string.PeriodMonthly}
-      on:click={() => { kind = 'month' }}
-    />
+  <div class="yg-seg">
+    <button class="yg-seg__opt" class:yg-seg__opt--on={kind === 'week'} on:click={() => { kind = 'week' }}>
+      <Label label={ygTimesheet.string.PeriodWeekly} />
+    </button>
+    <button class="yg-seg__opt" class:yg-seg__opt--on={kind === 'month'} on:click={() => { kind = 'month' }}>
+      <Label label={ygTimesheet.string.PeriodMonthly} />
+    </button>
   </div>
 
   {#if kind === 'week'}
-    <div class="row">
-      <span class="lbl"><Label label={ygTimesheet.string.SelectWeek} /></span>
-      <input type="date" bind:value={weekDate} />
+    <div class="yg-dialog__row">
+      <span class="yg-dialog__label"><Label label={ygTimesheet.string.SelectWeek} /></span>
+      <input class="yg-input" type="date" bind:value={weekDate} />
     </div>
   {:else}
-    <div class="row">
-      <span class="lbl"><Label label={ygTimesheet.string.SelectMonth} /></span>
-      <select bind:value={month0}>
+    <div class="yg-dialog__row">
+      <span class="yg-dialog__label"><Label label={ygTimesheet.string.SelectMonth} /></span>
+      <select class="yg-input" bind:value={month0}>
         {#each MONTHS as m, i}<option value={i}>{m}</option>{/each}
       </select>
-      <select bind:value={year}>
+      <select class="yg-input" bind:value={year}>
         {#each YEARS as y}<option value={y}>{y}</option>{/each}
       </select>
     </div>
   {/if}
 
   <!-- Always show the resolved range: the week picker snaps, and the user must see what they get. -->
-  <div class="range">{rangeLabel}</div>
+  <div class="yg-dialog__range">{rangeLabel}</div>
 
-  <div class="row actions">
-    <Button label={ui.string.Cancel} on:click={cancel} />
-    <Button kind="primary" label={ygTimesheet.string.Export} on:click={confirm} disabled={kind === 'week' && !isFinite(weekMs)} />
+  <div class="yg-dialog__actions">
+    <button class="yg-btn yg-btn--ghost" on:click={cancel}><Label label={ui.string.Cancel} /></button>
+    <button class="yg-btn yg-btn--primary" on:click={confirm} disabled={kind === 'week' && !isFinite(weekMs)}>
+      <Label label={ygTimesheet.string.Export} />
+    </button>
   </div>
 </div>
 
 <style lang="scss">
-  .hr-export-dialog {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1.5rem;
-    min-width: 22rem;
-    background: var(--theme-popup-color);
-    border-radius: 0.75rem;
-  }
-  .title { font-weight: 500; }
-  .row { display: flex; align-items: center; gap: 0.75rem; }
-  .lbl { min-width: 4rem; color: var(--theme-dark-color); }
-  .range { color: var(--theme-dark-color); font-size: 0.8125rem; }
-  .actions { justify-content: flex-end; }
+  @use './yg-table' as *;
 </style>

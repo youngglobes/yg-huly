@@ -39,15 +39,25 @@
   }
 </script>
 
-<div class="hr-roster flex-col p-4">
-  <div class="fs-title mb-2"><Label label={ygTimesheet.string.HrRoster} /></div>
-  {#if space !== undefined}
-    <AccountArrayEditor
-      label={ygTimesheet.string.Employees}
-      value={space.members}
-      onChange={updateMembers}
-      kind={'regular'}
-      size={'large'}
-    />
-  {/if}
+<div class="yg-page">
+  <div class="yg-scroll roster-scroll">
+    <div class="yg-section">
+      <h2 class="yg-section__title"><Label label={ygTimesheet.string.HrRoster} /></h2>
+      <p class="yg-section__desc"><Label label={ygTimesheet.string.HrRosterDesc} /></p>
+      {#if space !== undefined}
+        <AccountArrayEditor
+          label={ygTimesheet.string.Employees}
+          value={space.members}
+          onChange={updateMembers}
+          kind={'regular'}
+          size={'large'}
+        />
+      {/if}
+    </div>
+  </div>
 </div>
+
+<style lang="scss">
+  @use './yg-table' as *;
+  .roster-scroll { padding-top: 1.25rem; }
+</style>

@@ -25,7 +25,7 @@
   import { EmployeeBox } from '@hcengineering/contact-resources'
   import core, { type Ref } from '@hcengineering/core'
   import { createQuery } from '@hcengineering/presentation'
-  import ui, { Breadcrumb, ButtonIcon, Header, IconBack, IconForward, Label, ModernButton } from '@hcengineering/ui'
+  import ui, { IconBack, IconForward, Label } from '@hcengineering/ui'
   import ygTimesheet, {
     type HrTimeEntry,
     type TaskStatus,
@@ -141,29 +141,31 @@
   }
 </script>
 
-<div class="hrt-root hulyComponent">
-  <Header adaptive={'disabled'}>
-    <Breadcrumb icon={ygTimesheet.icon.Timesheet} label={ygTimesheet.string.HrTimesheets} size={'large'} isCurrent />
-  </Header>
-  <div class="hulyHeader-container clearPadding justify-between flex-gap-4">
-    <div class="flex-row-center flex-gap-2">
-      <ButtonIcon icon={IconBack} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(-7)} />
-      <ModernButton label={ui.string.Today} kind={'tertiary'} size={'small'} on:click={() => (weekMs = Date.now())} />
-      <ButtonIcon icon={IconForward} kind={'tertiary'} size={'small'} on:click={() => shiftWeek(7)} />
-      <div class="hulyHeader-divider short" />
-      <div class="fs-title flex-row-center">
-        {rangeFmt.format(week.days[0].date)} – {rangeFmt.format(week.days[6].date)}
+<div class="yg-page">
+  <div class="yg-head">
+    <h1 class="yg-title"><Label label={ygTimesheet.string.HrTimesheets} /></h1>
+    <div class="yg-weekbar">
+      <button class="yg-weekbar__nav" aria-label="Previous week" on:click={() => shiftWeek(-7)}>
+        <IconBack size="small" />
+      </button>
+      <button class="yg-weekbar__today" on:click={() => (weekMs = Date.now())}><Label label={ui.string.Today} /></button>
+      <span class="yg-weekbar__range">
+        {rangeFmt.format(week.days[0].date)} to {rangeFmt.format(week.days[6].date)}
+      </span>
+      <button class="yg-weekbar__nav" aria-label="Next week" on:click={() => shiftWeek(7)}>
+        <IconForward size="small" />
+      </button>
+      <span class="yg-weekbar__spacer" />
+      <div class="hrt-field">
+        <EmployeeBox label={ygTimesheet.string.Employee} bind:value={employee} allowDeselect kind="regular" />
       </div>
-    </div>
-    <div class="hrt-field">
-      <EmployeeBox label={ygTimesheet.string.Employee} bind:value={employee} allowDeselect kind="regular" />
     </div>
   </div>
 
   {#if employee == null}
     <div class="hrt-empty"><Label label={ygTimesheet.string.NoEmployeeSelected} /></div>
   {:else}
-    <div class="hrt-table-wrap">
+    <div class="yg-scroll">
       <table class="yg-table">
         <thead>
           <tr>
@@ -189,7 +191,7 @@
                 </td>
                 {#each r.cells as c, i (i)}
                   <td class="yg-num" title={r.notesByDay[i]}>
-                    {c === 0 ? '—' : formatHours(c)}
+                    {c === 0 ? '·' : formatHours(c)}
                     {#if r.notesByDay[i] !== undefined}
                       <span class="hrt-note-dot" title={r.notesByDay[i]}>●</span>
                     {/if}
@@ -227,7 +229,7 @@
                     {/if}
                   </span>
                 {:else}
-                  <span class="hrt-muted">—</span>
+                  <span class="hrt-muted">·</span>
                 {/if}
               </td>
             {/each}
@@ -242,10 +244,8 @@
 <style lang="scss">
   @use './yg-table' as *;
 
-  .hrt-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-  .hrt-field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 12rem; }
-  .hrt-empty { color: var(--theme-darker-color); padding: 2rem; text-align: center; }
-  .hrt-table-wrap { overflow: auto; flex: 1; padding: 1rem; }
+  .hrt-field { min-width: 12rem; }
+  .hrt-empty { color: var(--yg-text-dim); padding: 2rem; text-align: center; }
 
   // HrTimesheet's table chrome (right-aligned/compact headers, top-aligned wrapping cells)
   // differs from HrOverview's (centered/uppercase/middle-aligned) even though both now share

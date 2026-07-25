@@ -297,3 +297,207 @@
   color: var(--theme-warning-color);
   border: 1px solid var(--theme-warning-color);
 }
+
+// ---------------------------------------------------------------------------
+// Portal/HR page chrome (2026-07-25). Shared page shell + black-primary weekbar,
+// section panel and dialog, so the HR views (HrOverview / HrTimesheet / HrRoster /
+// HrExportDialog) match the redesigned My Timesheet portal. The weekbar mirrors
+// Timesheet.svelte's local `.weekbar` verbatim (that shipped screen keeps its own
+// identical copy); this is the canonical version for every other view.
+// ---------------------------------------------------------------------------
+
+// Page shell: fills the app pane, sits on the YG background, owns its own scroll.
+:global(.yg-page) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--yg-bg);
+  overflow: hidden;
+}
+:global(.yg-scroll) {
+  flex: 1;
+  overflow: auto;
+  padding: 0 1.25rem 1.25rem;
+}
+
+// Page header + title.
+:global(.yg-head) {
+  flex: none;
+  padding: 1rem 1.25rem 0;
+}
+:global(.yg-title) {
+  font-size: 1.375rem;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  margin: 0 0 18px;
+  color: var(--yg-text);
+}
+
+// Weekbar: prev / today / range / next / spacer / right-slot (total pill or Export).
+:global(.yg-weekbar) {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 4px 18px;
+}
+:global(.yg-weekbar__nav) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--yg-border);
+  background: var(--yg-panel);
+  color: var(--yg-text-dim);
+  cursor: pointer;
+  box-shadow: var(--yg-shadow);
+}
+:global(.yg-weekbar__nav:hover) {
+  color: var(--yg-text);
+}
+:global(.yg-weekbar__today) {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--yg-border);
+  background: var(--yg-panel);
+  color: var(--yg-text-dim);
+  cursor: pointer;
+  box-shadow: var(--yg-shadow);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+:global(.yg-weekbar__today:hover) {
+  color: var(--yg-text);
+}
+:global(.yg-weekbar__range) {
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--yg-text);
+}
+:global(.yg-weekbar__spacer) {
+  flex: 1;
+}
+:global(.yg-weekbar__total) {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--yg-panel);
+  border: 1px solid var(--yg-border);
+  box-shadow: var(--yg-shadow);
+}
+:global(.yg-weekbar__total-label) {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--yg-text-faint);
+}
+:global(.yg-weekbar__total-val) {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--yg-text);
+}
+
+// Section panel: a titled card with a one-line description, for config-style pages (HR Roster).
+:global(.yg-section) {
+  background: var(--yg-panel);
+  border: 1px solid var(--yg-border);
+  border-radius: var(--yg-radius);
+  box-shadow: var(--yg-shadow);
+  padding: 20px 22px;
+  max-width: 640px;
+}
+:global(.yg-section__title) {
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  color: var(--yg-text);
+  margin: 0 0 4px;
+}
+:global(.yg-section__desc) {
+  font-size: 13px;
+  color: var(--yg-text-dim);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+// Dialog shell (the Approve/Reject popups' look), for the HR export chooser.
+:global(.yg-dialog) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  min-width: 24rem;
+  background: var(--yg-panel);
+  border: 1px solid var(--yg-border);
+  border-radius: var(--yg-radius);
+  box-shadow: var(--yg-shadow);
+  color: var(--yg-text);
+}
+:global(.yg-dialog__title) {
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+}
+:global(.yg-dialog__row) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:global(.yg-dialog__label) {
+  min-width: 4.5rem;
+  color: var(--yg-text-dim);
+  font-size: 13px;
+}
+:global(.yg-dialog__range) {
+  font-size: 13px;
+  color: var(--yg-text-dim);
+}
+:global(.yg-dialog__actions) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+// Segmented toggle (Weekly / Monthly) used inside the export dialog.
+:global(.yg-seg) {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 9px;
+  background: var(--yg-panel-soft);
+  border: 1px solid var(--yg-border);
+}
+:global(.yg-seg__opt) {
+  height: 26px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--yg-text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+:global(.yg-seg__opt--on) {
+  background: var(--yg-ink);
+  color: var(--yg-ink-fg);
+}
+// Native date/select controls styled to the YG surface (dialog + date pickers).
+:global(.yg-input) {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--yg-border-strong);
+  background: var(--yg-panel);
+  color: var(--yg-text);
+  font: inherit;
+  font-size: 13px;
+}

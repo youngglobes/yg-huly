@@ -188,6 +188,7 @@ export default plugin(ygTimesheetId, {
     HumanResource: '' as IntlString,
     HrTimesheets: '' as IntlString,
     HrRoster: '' as IntlString,
+    HrRosterDesc: '' as IntlString,
     HrOverview: '' as IntlString,
     Worker: '' as IntlString,
     WorkingDays: '' as IntlString,
