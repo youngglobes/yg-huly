@@ -6,7 +6,7 @@ import { type AttachedDoc, type Class, type Doc, type Mixin, type Ref, type Spac
 import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-import type { AnyComponent } from '@hcengineering/ui'
+import type { AnyComponent, Location, ResolvedLocation } from '@hcengineering/ui'
 
 export type DayStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
 
@@ -206,5 +206,8 @@ export default plugin(ygTimesheetId, {
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
+  },
+  resolver: {
+    Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>
   }
 })

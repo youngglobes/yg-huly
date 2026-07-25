@@ -149,6 +149,7 @@ export function createModel (builder: Builder): void {
       alias: ygTimesheetId,
       hidden: false,
       position: 'top',
+      locationResolver: ygTimesheet.resolver.Location,
       navigatorModel: {
         spaces: [],
         specials: [

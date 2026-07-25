@@ -3,7 +3,8 @@ import { AccountRole, getCurrentAccount, hasAccountRole, type Space } from '@hce
 import { getClient } from '@hcengineering/presentation'
 import { getCurrentEmployee } from '@hcengineering/contact'
 import tracker from '@hcengineering/tracker'
-import ygTimesheet, { type ProjectApprovers } from '@hcengineering/yg-timesheet'
+import type { Location, ResolvedLocation } from '@hcengineering/ui'
+import ygTimesheet, { ygTimesheetId, type ProjectApprovers } from '@hcengineering/yg-timesheet'
 import { canApproveView } from './utils/task-approval'
 import Timesheet from './components/Timesheet.svelte'
 import ProjectApproversList from './components/ProjectApproversList.svelte'
@@ -32,6 +33,19 @@ async function CanApprove (_spaces: Space[]): Promise<boolean> {
   return canApproveView(isAdmin, pairs, me)
 }
 
+// App root has no special selected (loc.path[3] == null): default it to the 'my' special
+// (My Timesheet) so a first visit doesn't land on the blank Application shell. Workbench only
+// restores the last-visited special from localStorage, so a fresh browser/profile has nothing
+// to restore from — see Workbench.svelte:502-523.
+export async function resolveLocation (loc: Location): Promise<ResolvedLocation | undefined> {
+  if (loc.path[2] !== ygTimesheetId || loc.path[3] != null) {
+    return undefined
+  }
+
+  const special = { ...loc, path: [loc.path[0], loc.path[1], ygTimesheetId, 'my'] }
+  return { loc: special, defaultLocation: special }
+}
+
 export default async (): Promise<Resources> => ({
   component: {
     Timesheet,
@@ -45,5 +59,6 @@ export default async (): Promise<Resources> => ({
     ApproveTaskPopup,
     RejectTaskPopup
   },
-  function: { CanApprove }
+  function: { CanApprove },
+  resolver: { Location: resolveLocation }
 })
