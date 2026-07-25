@@ -220,7 +220,7 @@
 
 <div class="ac-header full divide">
   <div class="ac-header__wrap-title">
-    <span class="ac-header__title"><Label label={ygTimesheet.string.Timesheet} /></span>
+    <span class="ac-header__title"><Label label={ygTimesheet.string.MyTimesheet} /></span>
   </div>
   <div class="ac-header-full">
     <Button icon={IconBack} kind="ghost" on:click={() => shift(-1)} />

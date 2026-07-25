@@ -1,6 +1,7 @@
 {
   "string": {
-    "Timesheet": "Мой табель",
+    "Timesheet": "Табель",
+    "MyTimesheet": "Мой табель",
     "Week": "Неделя",
     "Today": "Сегодня",
     "Total": "Итого",

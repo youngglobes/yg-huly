@@ -133,6 +133,7 @@ export default plugin(ygTimesheetId, {
   },
   string: {
     Timesheet: '' as IntlString,
+    MyTimesheet: '' as IntlString,
     Today: '' as IntlString,
     Total: '' as IntlString,
     Draft: '' as IntlString,

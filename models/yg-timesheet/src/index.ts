@@ -154,7 +154,7 @@ export function createModel (builder: Builder): void {
         specials: [
           {
             id: 'my',
-            label: ygTimesheet.string.Timesheet,
+            label: ygTimesheet.string.MyTimesheet,
             icon: ygTimesheet.icon.Timesheet,
             component: ygTimesheet.component.Timesheet,
             position: 'top'

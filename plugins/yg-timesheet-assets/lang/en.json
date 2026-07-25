@@ -1,6 +1,7 @@
 {
   "string": {
-    "Timesheet": "My Timesheet",
+    "Timesheet": "Timesheet",
+    "MyTimesheet": "My Timesheet",
     "Week": "Week",
     "Today": "Today",
     "Total": "Total",
