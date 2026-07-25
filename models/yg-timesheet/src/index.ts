@@ -161,7 +161,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'approvals',
             label: ygTimesheet.string.Approvals,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: tracker.icon.Issue,
             component: ygTimesheet.component.Approvals,
             visibleIf: ygTimesheet.function.CanApprove,
             position: 'top'
@@ -169,7 +169,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'reports',
             label: ygTimesheet.string.Reports,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: tracker.icon.TimeReport,
             component: ygTimesheet.component.Reports,
             visibleIf: ygTimesheet.function.CanApprove,
             position: 'top'
@@ -177,7 +177,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'projects',
             label: ygTimesheet.string.Projects,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: tracker.icon.Component,
             component: ygTimesheet.component.ProjectApproversEditor,
             accessLevel: AccountRole.Maintainer,
             position: 'bottom'
