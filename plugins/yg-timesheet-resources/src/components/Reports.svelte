@@ -22,21 +22,8 @@
   import { EmployeeBox } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import tracker, {
-    trackerId,
-    type Issue,
-    type IssueStatus,
-    type Project,
-    type TimeSpendReport
-  } from '@hcengineering/tracker'
-  import {
-    Button,
-    DropdownLabels,
-    getCurrentLocation,
-    Label,
-    navigate,
-    type DropdownTextItem
-  } from '@hcengineering/ui'
+  import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
+  import { DropdownLabels, getPanelURI, Label, type DropdownTextItem } from '@hcengineering/ui'
   import ygTimesheet, {
     type ProjectApprovers,
     type Timesheet,
@@ -44,7 +31,7 @@
     type TimesheetDay,
     type TimesheetTask
   } from '@hcengineering/yg-timesheet'
-  import { filterRows, priorityLabel, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
+  import { filterRows, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
   const me = getCurrentEmployee()
@@ -222,6 +209,7 @@
       a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
   )
   $: totalSpent = rows.reduce((s, r) => s + r.hours, 0)
+  $: totalApproved = rows.reduce((s, r) => s + (r.approvedHours ?? 0), 0)
 
   // --- Pagination ----------------------------------------------------------
   const pageSizeItems: DropdownTextItem[] = [
@@ -245,23 +233,36 @@
   $: firstIdx = rows.length === 0 ? 0 : (safePage - 1) * pageSize + 1
   $: lastIdx = Math.min(safePage * pageSize, rows.length)
 
-  // --- Issue link ----------------------------------------------------------
-  function issueHref (identifier: string): string {
-    const loc = getCurrentLocation()
-    return `/${loc.path[0]}/${loc.path[1]}/${trackerId}/${identifier}`
-  }
-  function openIssue (e: MouseEvent, identifier: string): void {
-    // Let ctrl/cmd/middle-click fall through to the browser (open in a new tab).
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
-    e.preventDefault()
-    const loc = getCurrentLocation()
-    loc.path = [loc.path[0], loc.path[1], trackerId, identifier]
-    loc.fragment = undefined
-    loc.query = undefined
-    navigate(loc)
+  const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+
+  // --- Presentation-only helpers (no data/query impact) ---------------------
+  // Avatar initials from a display name, e.g. "Oliver User" -> "OU" (mirrors Approvals.svelte).
+  function initials (name: string): string {
+    const parts = name.trim().split(/\s+/).filter((p) => p.length > 0)
+    if (parts.length === 0) return '?'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
-  const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+  // Deterministic 1-4 avatar color bucket from an id/name string, so the same person always
+  // gets the same color across rows (unlike Approvals.svelte's per-group `i % 4`, Reports has
+  // many rows per person, so the bucket must be a function of identity, not row position).
+  function avatarBucket (key: string): number {
+    let h = 0
+    for (let i = 0; i < key.length; i++) h = (h + key.charCodeAt(i)) % 4
+    return h + 1
+  }
+
+  // Best-effort status-chip variant from the issue workflow status NAME (statusQuery/statusNames
+  // is preserved as-is and only ever carries names, no category ref) — purely a display bucket,
+  // same idiom as HrTimesheet's `deriveDayStatus`-driven pill classing. Unrecognized/custom
+  // status names fall back to the neutral "back" (backlog-style) look.
+  function statusChipVariant (name: string): 'done' | 'prog' | 'back' {
+    const n = name.toLowerCase()
+    if (n.includes('done') || n.includes('complet') || n.includes('closed') || n.includes('resolved')) return 'done'
+    if (n.includes('progress') || n.includes('review') || n.includes('active') || n.includes('doing')) return 'prog'
+    return 'back'
+  }
 
   // Export ALL filtered rows (not just the current page), with the full column set incl. title.
   // Prepend a UTF-8 BOM so Excel opens it with the right encoding (accented names render).
@@ -277,37 +278,43 @@
 </script>
 
 <div class="rp-root">
-  <div class="ac-header full divide">
-    <div class="ac-header__wrap-title">
-      <span class="ac-header__title"><Label label={ygTimesheet.string.Reports} /></span>
-    </div>
-  </div>
-
   {#if !canApprove}
     <div class="yg-empty">Restricted to approvers.</div>
   {:else}
-    <!-- Filter bar -->
-    <div class="rp-filters">
-      <label class="rp-field">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.From} /></span>
+    <!-- Header: title + summary + export -->
+    <div class="rp-head">
+      <h1 class="rp-title"><Label label={ygTimesheet.string.Reports} /></h1>
+      <span class="rp-summary">
+        <b>{rows.length}</b> {rows.length === 1 ? 'entry' : 'entries'} · <b>{formatHours(totalSpent)}</b> logged ·
+        <b>{formatHours(totalApproved)}</b> approved
+      </span>
+      <span class="rp-spacer" />
+      <button class="yg-btn yg-btn--primary" disabled={rows.length === 0} on:click={exportCsv}>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+          <path
+            d="M8 2v8m0 0 3-3m-3 3L5 7"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+          <path d="M2.5 11.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+        <Label label={ygTimesheet.string.ExportCsv} />
+      </button>
+    </div>
+
+    <!-- Filter toolbar -->
+    <div class="rp-toolbar">
+      <span class="rp-ctrl rp-ctrl--range">
+        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.From} /></span>
         <input class="rp-date" type="date" bind:value={fromStr} />
-      </label>
-      <label class="rp-field">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.To} /></span>
+        <span class="rp-ctrl__sep">&rarr;</span>
+        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.To} /></span>
         <input class="rp-date" type="date" bind:value={toStr} />
-      </label>
-      <div class="rp-field">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.Member} /></span>
-        <EmployeeBox
-          label={ygTimesheet.string.Member}
-          bind:value={member}
-          allowDeselect
-          titleDeselect={ygTimesheet.string.All}
-          kind="regular"
-        />
-      </div>
-      <div class="rp-field">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.Project} /></span>
+      </span>
+      <span class="rp-ctrl">
+        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Project} /></span>
         <DropdownLabels
           items={projectItems}
           bind:selected={projectSel}
@@ -316,9 +323,19 @@
           allowDeselect
           kind="regular"
         />
-      </div>
-      <div class="rp-field">
-        <span class="rp-field__label"><Label label={ygTimesheet.string.Status} /></span>
+      </span>
+      <span class="rp-ctrl">
+        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Member} /></span>
+        <EmployeeBox
+          label={ygTimesheet.string.Member}
+          bind:value={member}
+          allowDeselect
+          titleDeselect={ygTimesheet.string.All}
+          kind="regular"
+        />
+      </span>
+      <span class="rp-ctrl">
+        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Status} /></span>
         <DropdownLabels
           items={statusItems}
           bind:selected={statusSel}
@@ -327,15 +344,7 @@
           allowDeselect
           kind="regular"
         />
-      </div>
-      <div class="rp-field rp-field--end">
-        <Button
-          kind="regular"
-          label={ygTimesheet.string.ExportCsv}
-          disabled={rows.length === 0}
-          on:click={exportCsv}
-        />
-      </div>
+      </span>
     </div>
 
     <!-- Results -->
@@ -347,46 +356,78 @@
           <thead>
             <tr>
               <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-              <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+              <th class="left">Person</th>
+              <th class="left">Task</th>
               <th class="left"><Label label={ygTimesheet.string.Project} /></th>
-              <th class="left"><Label label={ygTimesheet.string.HulyId} /></th>
-              <th class="yg-num"><Label label={ygTimesheet.string.Estimated} /></th>
               <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
+              <th class="yg-num"><Label label={ygTimesheet.string.Approved} /></th>
+              <th class="left">Approved by</th>
               <th class="left"><Label label={ygTimesheet.string.Status} /></th>
-              <th class="left"><Label label={ygTimesheet.string.Priority} /></th>
-              <th class="left"><Label label={ygTimesheet.string.DueDate} /></th>
-              <th class="left"><Label label={ygTimesheet.string.Notes} /></th>
             </tr>
           </thead>
           <tbody>
             {#each pageRows as r, i (r.issue + '|' + r.date + '|' + r.employee + '|' + i)}
               <tr class="yg-row">
-                <td class="left">{dateFmt.format(r.date)}</td>
-                <td class="left">{r.employeeName}</td>
-                <td class="left">{r.projectName}</td>
+                <td class="left rp-date-cell">{dateFmt.format(r.date)}</td>
                 <td class="left">
-                  {#if r.identifier !== '—'}
-                    <a class="rp-link" href={issueHref(r.identifier)} on:click={(e) => openIssue(e, r.identifier)}>
-                      {r.identifier}
-                    </a>
+                  <span class="rp-who">
+                    <span class="yg-avatar yg-av{avatarBucket(r.employee)}">{initials(r.employeeName)}</span>
+                    {r.employeeName}
+                  </span>
+                </td>
+                <td class="left">
+                  <span class="rp-task">
+                    <span class="yg-idbadge rp-idbadge">{r.identifier}</span>
+                    {#if r.identifier !== '—'}
+                      <a
+                        class="rp-link"
+                        href="#{getPanelURI(tracker.component.EditIssue, r.issue, tracker.class.Issue, 'content')}"
+                      >
+                        {r.title}
+                      </a>
+                    {:else}
+                      <span class="rp-muted">-</span>
+                    {/if}
+                  </span>
+                </td>
+                <td class="left rp-proj">{r.projectName}</td>
+                <td class="yg-num">{formatHours(r.hours)}</td>
+                <td class="yg-num">
+                  {#if r.approvedHours != null}
+                    {formatHours(r.approvedHours)}
                   {:else}
-                    <span class="rp-muted">{r.identifier}</span>
+                    <span class="rp-muted">-</span>
                   {/if}
                 </td>
-                <td class="yg-num">{formatHours(r.estimation)}</td>
-                <td class="yg-num">{formatHours(r.hours)}</td>
-                <td class="left">{r.statusName}</td>
-                <td class="left">{priorityLabel(r.priority)}</td>
-                <td class="left">{r.dueDate != null ? dateFmt.format(r.dueDate) : '—'}</td>
-                <td class="left rp-note">{r.note}</td>
+                <td class="left">
+                  {#if r.approvedByName != null}
+                    <span class="rp-who">
+                      <span class="yg-avatar yg-avatar--sm yg-av{avatarBucket(r.approvedByName)}">
+                        {initials(r.approvedByName)}
+                      </span>
+                      {r.approvedByName}
+                    </span>
+                  {:else}
+                    <span class="rp-muted">Pending</span>
+                  {/if}
+                </td>
+                <td class="left">
+                  <span class="schip schip--{statusChipVariant(r.statusName)}">
+                    <span class="schip__dot" />
+                    {r.statusName}
+                  </span>
+                </td>
               </tr>
             {/each}
           </tbody>
           <tfoot>
             <tr class="yg-totals">
-              <td colspan="5" class="left"><b><Label label={ygTimesheet.string.TotalHours} /></b></td>
+              <td colspan="4" class="left">
+                <b><Label label={ygTimesheet.string.TotalHours} /> · {rows.length} {rows.length === 1 ? 'entry' : 'entries'}</b>
+              </td>
               <td class="yg-num"><b>{formatHours(totalSpent)}</b></td>
-              <td colspan="4" />
+              <td class="yg-num"><b>{formatHours(totalApproved)}</b></td>
+              <td colspan="2" />
             </tr>
           </tfoot>
         </table>
@@ -398,11 +439,11 @@
           <span class="rp-field__label"><Label label={ygTimesheet.string.RowsPerPage} /></span>
           <DropdownLabels items={pageSizeItems} bind:selected={pageSizeSel} autoSelect={false} kind="regular" />
         </div>
-        <div class="rp-pager__range">{firstIdx}–{lastIdx} / {rows.length}</div>
+        <div class="rp-pager__range">Showing {firstIdx}-{lastIdx} of {rows.length}</div>
         <div class="rp-pager__nav">
-          <button class="rp-arrow" disabled={safePage <= 1} on:click={() => (page = safePage - 1)}>‹</button>
+          <button class="rp-arrow" disabled={safePage <= 1} on:click={() => (page = safePage - 1)}>&lsaquo; Prev</button>
           <span class="rp-pager__page">{safePage} / {totalPages}</span>
-          <button class="rp-arrow" disabled={safePage >= totalPages} on:click={() => (page = safePage + 1)}>›</button>
+          <button class="rp-arrow" disabled={safePage >= totalPages} on:click={() => (page = safePage + 1)}>Next &rsaquo;</button>
         </div>
       </div>
     {/if}
@@ -412,41 +453,73 @@
 <style lang="scss">
   @use './yg-table' as *;
 
-  .rp-root { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-  .rp-filters {
-    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem;
-    padding: 0.75rem 1rem; border-bottom: 1px solid var(--theme-divider-color);
+  .rp-root { display: flex; flex-direction: column; height: 100%; overflow: auto; padding: 1rem 1.25rem 1.5rem; }
+
+  // --- Header: title + summary + export ------------------------------------
+  .rp-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 1rem; }
+  .rp-title { font-size: 1.1rem; font-weight: 680; letter-spacing: -0.01em; margin: 0; color: var(--yg-text); }
+  .rp-summary { font-size: 0.8125rem; color: var(--yg-text-dim); }
+  .rp-summary b { color: var(--yg-text); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .rp-spacer { flex: 1; }
+
+  // --- Filter toolbar --------------------------------------------------------
+  // Each `.rp-ctrl` is a "pill" wrapper (mockup's `.ctrl`) around the REAL, functional Huly
+  // control (native date input, DropdownLabels, EmployeeBox) — restyle-only, the controls
+  // underneath stay interactive and bound to the existing filter state.
+  .rp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 1rem; }
+  .rp-ctrl {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 3px 11px;
+    border-radius: 9px; background: var(--yg-panel); border: 1px solid var(--yg-border-strong);
+    box-shadow: var(--yg-shadow); font-size: 13px; color: var(--yg-text);
   }
-  .rp-field { display: flex; flex-direction: column; gap: 0.25rem; }
-  .rp-field--end { margin-left: auto; align-self: flex-end; }
-  .rp-field__label { font-size: 0.6875rem; color: var(--theme-dark-color); text-transform: uppercase; }
+  .rp-ctrl__k { color: var(--yg-text-faint); font-size: 12px; white-space: nowrap; }
+  .rp-ctrl__sep { color: var(--yg-text-faint); }
   .rp-date {
-    padding: 0.25rem 0.5rem; border: 1px solid var(--theme-divider-color); border-radius: 0.25rem;
-    background: var(--theme-bg-color); color: var(--theme-content-color); font-size: 0.8125rem;
+    padding: 0.1875rem 0.375rem; border: 1px solid var(--yg-border); border-radius: 0.25rem;
+    background: var(--yg-panel-soft); color: var(--yg-text); font: inherit; font-size: 0.8125rem;
   }
-  .rp-table-wrap { overflow: auto; flex: 1; padding: 1rem; }
-  .rp-link { color: var(--theme-link-color, var(--primary-button-default)); font-weight: 600; text-decoration: none; }
-  .rp-link:hover { text-decoration: underline; }
-  .rp-muted { color: var(--theme-dark-color); }
-  // Notes is the one column with genuinely variable-length free text (a user-entered
-  // description, not a short code/name), so it needs to keep wrapping — the shared
-  // `.yg-table td` rule sets `white-space: nowrap` for every cell (Task 3's convention).
-  // `.rp-note`'s two classes (0,2,0) out-specificity the global `.yg-table td` (0,1,1) for the
-  // properties it restates, same mechanism as HrTimesheet's local `.yg-num` fix in Task 3.
-  .rp-note { color: var(--theme-content-color); max-width: 24rem; white-space: normal; vertical-align: top; }
+
+  // --- Table -----------------------------------------------------------------
+  .rp-table-wrap {
+    overflow: auto; background: var(--yg-panel); border: 1px solid var(--yg-border);
+    border-radius: var(--yg-radius); box-shadow: var(--yg-shadow);
+  }
+  .rp-date-cell { color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
+  .rp-who { display: inline-flex; align-items: center; gap: 8px; }
+  .rp-task { display: inline-flex; align-items: center; gap: 8px; }
+  // `.yg-idbadge` (Task 1) is sized for the roomier timesheet/approvals rows; a bit large for
+  // this dense table, so a local size tweak only (the shared class itself is untouched).
+  .rp-idbadge { font-size: 11px; padding: 1px 6px; }
+  .rp-link { color: var(--yg-text); text-decoration: none; font-weight: 500; }
+  .rp-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .rp-proj { color: var(--yg-text-dim); }
+  .rp-muted { color: var(--yg-text-faint); }
+
+  // Issue workflow-status chip (dot + label). Not part of the shared `yg-table.scss` vocabulary
+  // (that file has no `.schip`), so it is defined locally here — mirrors the mockup's
+  // `.schip`/`.schip.done`/`.schip.prog`/`.schip.back` family 1:1.
+  .schip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yg-text-dim); font-weight: 500; }
+  .schip__dot { width: 7px; height: 7px; border-radius: 2px; background: var(--yg-grey); flex: none; }
+  .schip--done { color: var(--yg-green); }
+  .schip--done .schip__dot { background: var(--yg-green); }
+  .schip--prog .schip__dot { background: var(--yg-amber); }
+  .schip--back .schip__dot { background: var(--yg-grey); }
+
+  // --- Pager -------------------------------------------------------------------
   .rp-pager {
-    display: flex; align-items: center; gap: 1rem; padding: 0.5rem 1rem;
-    border-top: 1px solid var(--theme-divider-color);
+    display: flex; align-items: center; gap: 1rem; padding: 0.75rem 1rem;
+    border-top: 1px solid var(--yg-border); background: var(--yg-panel-soft);
   }
   .rp-pager__size { display: flex; align-items: center; gap: 0.5rem; }
-  .rp-pager__range { color: var(--theme-dark-color); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+  .rp-field__label { font-size: 0.6875rem; color: var(--yg-text-faint); text-transform: uppercase; }
+  .rp-pager__range { color: var(--yg-text-faint); font-size: 0.78125rem; font-variant-numeric: tabular-nums; }
   .rp-pager__nav { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
   .rp-pager__page { font-size: 0.8125rem; font-variant-numeric: tabular-nums; min-width: 3rem; text-align: center; }
   .rp-arrow {
-    width: 1.75rem; height: 1.75rem; display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--theme-divider-color); border-radius: 0.25rem; cursor: pointer;
-    background: var(--theme-bg-color); color: var(--theme-content-color); font-size: 1rem; line-height: 1;
+    height: 1.875rem; padding: 0 0.625rem; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--yg-border-strong); border-radius: 0.5rem; cursor: pointer;
+    background: var(--yg-panel); color: var(--yg-text-dim); font: inherit; font-size: 0.8125rem; font-weight: 600;
   }
-  .rp-arrow:hover:not(:disabled) { background: var(--theme-button-hovered); }
-  .rp-arrow:disabled { opacity: 0.4; cursor: default; }
+  .rp-arrow:hover:not(:disabled) { background: var(--yg-panel-soft); }
+  .rp-arrow:disabled { opacity: 0.45; cursor: default; }
 </style>
