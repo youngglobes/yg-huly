@@ -27,6 +27,7 @@ import core, {
   hasAccountRole,
   type AccountUuid,
   type Data,
+  type Doc,
   type PersonId,
   type Ref,
   type Space,
@@ -37,18 +38,175 @@ import core, {
   type TxUpdateDoc,
   TxProcessor
 } from '@hcengineering/core'
-import contact, { type Employee } from '@hcengineering/contact'
+import contact, { type Employee, formatName } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
 import { getEmployee, getSocialIdsByAccounts } from '@hcengineering/server-contact'
+import notification, { type CommonInboxNotification } from '@hcengineering/notification'
+import { type SenderInfo } from '@hcengineering/server-notification'
+import {
+  getCommonNotificationTxes,
+  getReceiversInfo,
+  getSenderInfo,
+  type NotifyResult
+} from '@hcengineering/server-notification-resources'
+import { jsonToMarkup, nodeDoc, nodeParagraph, nodeText } from '@hcengineering/text-core'
 import ygTimesheet, {
   type DayStatus,
   type HrTimeEntry,
   type ProjectApprovers,
+  type Timesheet,
   type TimesheetDay,
   type TimesheetTask
 } from '@hcengineering/yg-timesheet'
 import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
+
+// ---------------------------------------------------------------------------
+// Inbox notifications (2026-07-25). The approval workflow now pushes Huly inbox
+// notifications: the PM/TL approvers on submit, and the employee on approve/reject.
+// These are operational, must-deliver notifications, so we DELIBERATELY bypass the
+// per-user NotificationType/provider settings (no NotificationType is declared in the
+// model): we hand-build a NotifyResult naming only the Inbox provider, so delivery is
+// deterministic and cannot be silently muted. Rendering uses the proven
+// CommonInboxNotification header + messageHtml path (identical to server-time-resources'
+// OnToDoCreate). Every notification is attached to a real Issue so the Inbox row renders
+// and its header chip clicks through.
+// ---------------------------------------------------------------------------
+
+/** Resolve an Employee ref to a display name for notification copy (best-effort). */
+async function displayName (control: TriggerControl, emp: Ref<Employee> | undefined): Promise<string> {
+  if (emp == null) return 'Someone'
+  const person = (
+    await control.findAll(control.ctx, contact.class.Person, { _id: emp }, { limit: 1 })
+  )[0]
+  return person !== undefined ? formatName(person.name) : 'Someone'
+}
+
+/**
+ * Push one CommonInboxNotification (a "Timesheet approval" header + a one-line body) to each
+ * target employee, attached to `issueRef` (used for the Inbox DocNotifyContext + the clickable
+ * header chip). Targets that are not active employees (no PersonSpace / social id) are silently
+ * dropped by getReceiversInfo. The notification is created with a hand-built NotifyResult (Inbox
+ * provider only) so it always delivers, regardless of the recipient's notification settings.
+ *
+ * We do NOT notify the tx author: submit excludes the employee from `approvers` (buildTaskUnits),
+ * and approve/reject already forbid self-approval, so `targets` never contains the actor.
+ */
+async function notifyInbox (
+  control: TriggerControl,
+  tx: Tx,
+  targets: Ref<Employee>[],
+  issueRef: Ref<Issue>,
+  message: string
+): Promise<void> {
+  const uniqueTargets = [...new Set(targets)].filter((t) => t != null)
+  if (uniqueTargets.length === 0) return
+
+  const employees = await control.findAll(
+    control.ctx, contact.mixin.Employee, { _id: { $in: uniqueTargets } }
+  )
+  const accounts = employees.map((e) => e.personUuid).filter((a): a is AccountUuid => a != null)
+  if (accounts.length === 0) return
+
+  const receivers = await getReceiversInfo(control.ctx, accounts, control)
+  if (receivers.length === 0) return
+
+  const issue = (
+    await control.findAll(control.ctx, tracker.class.Issue, { _id: issueRef }, { limit: 1 })
+  )[0]
+  if (issue === undefined) return
+
+  const sender: SenderInfo = await getSenderInfo(control.ctx, tx.modifiedBy, control)
+  const notifyResult: NotifyResult = new Map([[notification.providers.InboxNotificationProvider, []]])
+  const messageHtml = jsonToMarkup(nodeDoc(nodeParagraph(nodeText(message))))
+
+  const allTxes: Tx[] = []
+  const broadcastTo: AccountUuid[] = []
+  for (const receiver of receivers) {
+    const data: Partial<Data<CommonInboxNotification>> = {
+      header: ygTimesheet.string.ApprovalNotification,
+      headerObjectId: issue._id,
+      headerObjectClass: issue._class,
+      messageHtml
+    }
+    const txes = await getCommonNotificationTxes(
+      control.ctx,
+      control,
+      issue,
+      data,
+      receiver,
+      sender,
+      issue._id,
+      issue._class,
+      issue.space,
+      tx.modifiedOn,
+      notifyResult,
+      notification.class.CommonInboxNotification,
+      tx as TxCUD<Doc>
+    )
+    if (txes.length > 0) {
+      allTxes.push(...txes)
+      broadcastTo.push(receiver.account)
+    }
+  }
+
+  if (allTxes.length === 0) return
+  await control.apply(control.ctx, allTxes)
+
+  // Live-update each receiver's Inbox (same idiom as server-time-resources' OnToDoCreate).
+  const ids = new Set(allTxes.map((it) => it._id))
+  control.ctx.contextData.broadcast.targets.notifications = async (it) =>
+    ids.has(it._id) ? { target: broadcastTo } : undefined
+}
+
+//
+// Submit -> notify approvers. Fires on the day-level update that submitDay writes AFTER creating
+// the TimesheetTask rows (approvers/submittedOn/totalHours). A submit sets `submittedOn` to a
+// positive timestamp; a recall $unsets it (absent from operations); approve/reject act on
+// TimesheetTask, never the day — so a set `submittedOn` here uniquely identifies a fresh submit.
+// One notification per approver per submit (user decision 2026-07-25), attached to the day's
+// lowest-identifier issue for a stable, navigable header chip.
+//
+// This is intentionally SEPARATE from OnTimesheetDayUpdate (the authorization trigger): submit is
+// not an authorization event, so notification never touches the security-critical logic.
+//
+export async function OnTimesheetDaySubmitNotify (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const utx = tx as TxUpdateDoc<TimesheetDay>
+    if (utx.objectClass !== ygTimesheet.class.TimesheetDay) continue
+
+    const ops = utx.operations as Partial<TimesheetDay>
+    if (ops.submittedOn == null) continue
+
+    const day = (
+      await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (day === undefined) continue
+
+    const approvers = day.approvers ?? []
+    if (approvers.length === 0) continue
+
+    const tasks = await control.findAll(
+      control.ctx, ygTimesheet.class.TimesheetTask, { attachedTo: day._id, status: 'Submitted' }
+    )
+    if (tasks.length === 0) continue
+    const rep = [...tasks].sort((a, b) =>
+      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+    )[0]
+
+    const sheet = (
+      await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo as Ref<Timesheet> }, { limit: 1 })
+    )[0]
+    const who = await displayName(control, sheet?.employee)
+    const issueWord = tasks.length === 1 ? 'issue' : 'issues'
+    const message = `${who} submitted a timesheet for approval (${day.totalHours}h, ${tasks.length} ${issueWord})`
+
+    await notifyInbox(control, tx, approvers, rep.issue, message)
+  }
+  return []
+}
 
 export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
@@ -67,7 +225,7 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 
     // Parent Timesheet.employee is the day's owner (the person the timesheet belongs to).
     const parent = (
-      await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo }, { limit: 1 })
+      await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo as Ref<Timesheet> }, { limit: 1 })
     )[0]
     const owner: Ref<Employee> | undefined = parent?.employee
 
@@ -278,11 +436,11 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
     // Timesheet owner = the employee this task's day belongs to (task -> day -> timesheet). This
     // is the "self" in the self-approval bar — never the task's own (client-writable) approvers.
     const day = (
-      await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: task.attachedTo }, { limit: 1 })
+      await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: task.attachedTo as Ref<TimesheetDay> }, { limit: 1 })
     )[0]
     const sheet = day === undefined
       ? undefined
-      : (await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo }, { limit: 1 }))[0]
+      : (await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo as Ref<Timesheet> }, { limit: 1 }))[0]
     const owner: Ref<Employee> | undefined = sheet?.employee
 
     const actor = await getEmployee(control, utx.modifiedBy)
@@ -337,6 +495,22 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
           )
           await control.apply(control.ctx, [stamp])
         }
+      }
+
+      // Notify the employee (owner) that their task was approved/rejected. This is inside the
+      // `authorized` branch ON PURPOSE — a forged/unauthorized approval that the trigger reverts
+      // (below) never reaches here, so no false "approved" ping is ever sent. task.rejectReason is
+      // read post-apply (the client's reject sets status + rejectReason in one tx). We do NOT
+      // include approved HOURS in the employee's copy (they may be reduced from submitted, and
+      // per-employee visibility of approved hours is deferred to the server-materialization fix).
+      if (owner !== undefined) {
+        const who = await displayName(control, actorId)
+        const message = statusOp === 'Approved'
+          ? `${who} approved your timesheet for ${task.identifier}`
+          : `${who} rejected your timesheet for ${task.identifier}${
+              task.rejectReason != null && task.rejectReason !== '' ? `: ${task.rejectReason}` : ''
+            }`
+        await notifyInbox(control, tx, [owner], task.issue, message)
       }
       continue
     }
@@ -941,6 +1115,7 @@ export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): 
 export default async () => ({
   trigger: {
     OnTimesheetDayUpdate,
+    OnTimesheetDaySubmitNotify,
     OnTimesheetTaskUpdate,
     OnProjectApproversChange,
     OnApprovalsMembershipGuard,

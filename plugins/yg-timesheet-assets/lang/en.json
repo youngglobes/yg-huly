@@ -75,6 +75,7 @@
     "Reset": "Reset",
     "AllProjects": "All projects",
     "AllMembers": "All members",
-    "SelectedCount": "{count} selected"
+    "SelectedCount": "{count} selected",
+    "ApprovalNotification": "Timesheet approval"
   }
 }

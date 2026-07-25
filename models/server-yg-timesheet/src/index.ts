@@ -18,6 +18,16 @@ export function createModel (builder: Builder): void {
     txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.TimesheetDay }
   })
 
+  // Submit notification (2026-07-25): fires on the day-level submit update (submittedOn set) and
+  // pushes one inbox notification to each approver in day.approvers. Separate from the auth trigger
+  // above — submit is not an authorization event. Async: it does findAll + control.apply like the
+  // rest of this file.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnTimesheetDaySubmitNotify,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.TimesheetDay }
+  })
+
   // Per-task approval authorization (REVISION 2, task-3, 2026-07-2x): reverts an approve/reject
   // by anyone whose role is not PM/TeamLead on some project (or admin), or who is the timesheet's
   // own owner (self-approval, forbidden for everyone). Role is derived server-side from the

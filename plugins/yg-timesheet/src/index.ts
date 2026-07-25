@@ -206,7 +206,8 @@ export default plugin(ygTimesheetId, {
     Reset: '' as IntlString,
     AllProjects: '' as IntlString,
     AllMembers: '' as IntlString,
-    SelectedCount: '' as IntlString
+    SelectedCount: '' as IntlString,
+    ApprovalNotification: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>

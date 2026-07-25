@@ -36250,6 +36250,9 @@ importers:
       '@hcengineering/core':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/core
+      '@hcengineering/notification':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/notification
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
@@ -36259,9 +36262,18 @@ importers:
       '@hcengineering/server-core':
         specifier: workspace:^0.7.426
         version: link:../../foundations/server/packages/core
+      '@hcengineering/server-notification':
+        specifier: workspace:^0.7.426
+        version: link:../notification
+      '@hcengineering/server-notification-resources':
+        specifier: workspace:^0.7.426
+        version: link:../notification-resources
       '@hcengineering/server-yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../yg-timesheet
+      '@hcengineering/text-core':
+        specifier: workspace:^0.7.426
+        version: link:../../foundations/core/packages/text-core
       '@hcengineering/tracker':
         specifier: workspace:^0.7.426
         version: link:../../plugins/tracker

@@ -75,6 +75,7 @@
     "Reset": "Сбросить",
     "AllProjects": "Все проекты",
     "AllMembers": "Все сотрудники",
-    "SelectedCount": "Выбрано: {count}"
+    "SelectedCount": "Выбрано: {count}",
+    "ApprovalNotification": "Утверждение табеля"
   }
 }
