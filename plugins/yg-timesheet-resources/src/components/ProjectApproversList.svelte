@@ -37,16 +37,56 @@
   }
 </script>
 
-{#if isAdmin}
-  <Scroller>
-    <div class="flex-col p-4">
-      {#each projects as project (project._id)}
-        <ProjectApprovers {project} />
-      {/each}
+<div class="pa-root">
+  {#if isAdmin}
+    <div class="pa-head">
+      <h1 class="pa-title">Approvers per project</h1>
+      <span class="pa-desc">
+        Assign a PM or Team Lead to each project. They can approve any submitted timesheet task.
+      </span>
     </div>
-  </Scroller>
-{:else}
-  <div class="p-4">
-    <span>Restricted to workspace admins.</span>
-  </div>
-{/if}
+    <Scroller>
+      <div class="pa-list">
+        {#each projects as project (project._id)}
+          <ProjectApprovers {project} />
+        {/each}
+        {#if projects.length === 0}
+          <div class="yg-empty">No projects yet.</div>
+        {/if}
+      </div>
+    </Scroller>
+  {:else}
+    <div class="yg-empty">Restricted to workspace admins.</div>
+  {/if}
+</div>
+
+<style lang="scss">
+  @use './yg-table' as *;
+
+  .pa-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .pa-head {
+    padding: 1rem 1.25rem 0.75rem;
+  }
+  .pa-title {
+    margin: 0 0 4px;
+    font-size: 1.1rem;
+    font-weight: 680;
+    letter-spacing: -0.01em;
+    color: var(--yg-text);
+  }
+  .pa-desc {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--yg-text-dim);
+  }
+  .pa-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 0 1.25rem 1.5rem;
+  }
+</style>

@@ -16,6 +16,7 @@
   import { EmployeeBox } from '@hcengineering/contact-resources'
   import { getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
+  import { Label } from '@hcengineering/ui'
   import ygTimesheet, { type ProjectApprovers } from '@hcengineering/yg-timesheet'
 
   export let project: Project
@@ -48,24 +49,72 @@
   }
 </script>
 
-<div class="flex-row-center gap-2">
-  <span class="p-2">{project.name}</span>
-  <EmployeeBox
-    label={ygTimesheet.string.PM}
-    kind="regular"
-    size="large"
-    value={mixin?.pm}
-    allowDeselect
-    showNavigate={false}
-    on:change={(e) => set({ pm: e.detail ?? undefined })}
-  />
-  <EmployeeBox
-    label={ygTimesheet.string.TeamLead}
-    kind="regular"
-    size="large"
-    value={mixin?.teamLead}
-    allowDeselect
-    showNavigate={false}
-    on:change={(e) => set({ teamLead: e.detail ?? undefined })}
-  />
+<div class="pa-row">
+  <span class="pa-row__name">{project.name}</span>
+  <div class="pa-row__fields">
+    <div class="pa-field">
+      <span class="pa-field__label"><Label label={ygTimesheet.string.PM} /></span>
+      <EmployeeBox
+        label={ygTimesheet.string.PM}
+        kind="regular"
+        size="large"
+        value={mixin?.pm}
+        allowDeselect
+        showNavigate={false}
+        on:change={(e) => set({ pm: e.detail ?? undefined })}
+      />
+    </div>
+    <div class="pa-field">
+      <span class="pa-field__label"><Label label={ygTimesheet.string.TeamLead} /></span>
+      <EmployeeBox
+        label={ygTimesheet.string.TeamLead}
+        kind="regular"
+        size="large"
+        value={mixin?.teamLead}
+        allowDeselect
+        showNavigate={false}
+        on:change={(e) => set({ teamLead: e.detail ?? undefined })}
+      />
+    </div>
+  </div>
 </div>
+
+<style lang="scss">
+  @use './yg-table' as *;
+
+  .pa-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    background: var(--yg-panel);
+    border: 1px solid var(--yg-border);
+    border-radius: var(--yg-radius);
+    padding: 12px 16px;
+  }
+  .pa-row__name {
+    flex: 1 1 160px;
+    min-width: 120px;
+    font-weight: 650;
+    font-size: 14px;
+    letter-spacing: -0.01em;
+    color: var(--yg-text);
+  }
+  .pa-row__fields {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .pa-field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .pa-field__label {
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--yg-text-faint);
+  }
+</style>

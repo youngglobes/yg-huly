@@ -19,6 +19,7 @@ import contact from '@hcengineering/contact'
 import hr from '@hcengineering/hr'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import tracker, { TProject } from '@hcengineering/model-tracker'
+import setting from '@hcengineering/setting'
 import workbench from '@hcengineering/model-workbench'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
@@ -176,8 +177,8 @@ export function createModel (builder: Builder): void {
           },
           {
             id: 'projects',
-            label: ygTimesheet.string.Projects,
-            icon: tracker.icon.Component,
+            label: ygTimesheet.string.Configuration,
+            icon: setting.icon.Setting,
             component: ygTimesheet.component.ProjectApproversEditor,
             accessLevel: AccountRole.Maintainer,
             position: 'bottom'

@@ -153,6 +153,7 @@ export default plugin(ygTimesheetId, {
     Days: '' as IntlString,
     NoApprover: '' as IntlString,
     Projects: '' as IntlString,
+    Configuration: '' as IntlString,
     Reports: '' as IntlString,
     From: '' as IntlString,
     To: '' as IntlString,
