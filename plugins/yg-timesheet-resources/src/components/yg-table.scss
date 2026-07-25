@@ -32,7 +32,7 @@
 // scope-hash suffix on its own (non-global) local rules to reliably out-specificity these
 // global base rules, with no dependency on cascade order.
 
-// YG portal design tokens (Task 1) — shared `--yg-*` custom properties for the redesigned
+// YG portal design tokens (Task 1), shared `--yg-*` custom properties for the redesigned
 // Timesheet/Approvals/Reports views. Values are lifted verbatim from the committed mockups
 // (docs/superpowers/specs/mockups/{my-timesheet,approvals,reports}.html): light hexes from
 // their `:root`, dark hexes from their `@media (prefers-color-scheme: dark)` block.
@@ -64,7 +64,7 @@
   --yg-av1:#37b3a4; --yg-av2:#d873a1; --yg-av3:#7d8bec; --yg-av4:#d99a4a;
 }
 
-// Shared action button — from the mockups' `.btn` rule family. Base sizing/type and the
+// Shared action button, from the mockups' `.btn` rule family. Base sizing/type and the
 // primary/ghost variants are from my-timesheet.html's `.btn`/`.btn.primary`/`.btn.ghost`; the
 // `inline-flex`/`gap` addition and the danger variant come from approvals.html's `.btn`
 // (icon + label buttons) and `.btn.reject` (used for the Approvals "Reject" action).
@@ -102,7 +102,7 @@
   background: var(--yg-red-bg);
 }
 
-// Mono id chip (e.g. "TSK-1") — from my-timesheet.html's `.task__id` (identical rule in
+// Mono id chip (e.g. "TSK-1"), from my-timesheet.html's `.task__id` (identical rule in
 // approvals.html as `.approw__id`).
 :global(.yg-idbadge) {
   font-family: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -117,7 +117,7 @@
   letter-spacing: -0.02em;
 }
 
-// Avatar chip — from reports.html's `.avatar`/`.avatar.sm`/`.a1..a4` (the fullest variant
+// Avatar chip, from reports.html's `.avatar`/`.avatar.sm`/`.a1..a4` (the fullest variant
 // across the mockups: 4-color palette plus the compact `sm` size used by Reports' "who" column).
 :global(.yg-avatar) {
   width: 24px;
@@ -150,7 +150,7 @@
   background: var(--yg-av4);
 }
 
-// Task-level status tag (dot + label) — from my-timesheet.html's `.tag` family. Distinct from
+// Task-level status tag (dot + label), from my-timesheet.html's `.tag` family. Distinct from
 // the day-level `.yg-pill--*` below: no background/border chip, just a colored dot (`.tick`)
 // plus colored text, used inside a task row.
 :global(.yg-tag) {
@@ -224,7 +224,7 @@
 :global(.yg-table td.bold) {
   font-weight: 600;
 }
-// NB: no `cursor: pointer` here — only HrOverview's rows are actually clickable (`on:click`).
+// NB: no `cursor: pointer` here, only HrOverview's rows are actually clickable (`on:click`).
 // Reports/Approvals/Timesheet rows are not, so the shared hover only highlights; clickable
 // consumers add their own local `cursor: pointer` (see HrOverview.svelte).
 :global(.yg-row:hover) {
@@ -256,10 +256,10 @@
   padding: 1.5rem;
 }
 
-// Numeric-column helper (right-aligned, tabular figures) — from HrTimesheet.svelte's `.hrt-num`.
+// Numeric-column helper (right-aligned, tabular figures), from HrTimesheet.svelte's `.hrt-num`.
 // Written as `th.yg-num, td.yg-num` (rather than a bare `.yg-num`) so its specificity matches
-// `.yg-table th`/`.yg-table td` above (class+tag vs class+tag) instead of losing to them —
-// a bare single-class `.yg-num` would tie-lose to the table-level rule's text-align on every
+// `.yg-table th`/`.yg-table td` above (class+tag vs class+tag) instead of losing to them.
+// A bare single-class `.yg-num` would tie-lose to the table-level rule's text-align on every
 // consumer, silently re-centering "numeric" columns.
 :global(th.yg-num),
 :global(td.yg-num) {
@@ -268,7 +268,7 @@
   white-space: nowrap;
 }
 
-// Per-day approval-status pill — from HrTimesheet.svelte's `.hrt-pill` + `--{status}` modifiers.
+// Per-day approval-status pill, from HrTimesheet.svelte's `.hrt-pill` + `--{status}` modifiers.
 :global(.yg-pill) {
   font-size: 0.6875rem;
   font-weight: 600;
@@ -289,7 +289,7 @@
   background: var(--theme-lost-color);
   color: #fff;
 }
-// Amber-family but distinct from the solid-amber Submitted pill — outline + amber text on the
+// Amber-family but distinct from the solid-amber Submitted pill, outline + amber text on the
 // neutral pill background, so a half-approved day reads as visually different from a freshly
 // submitted one.
 :global(.yg-pill--partiallyapproved) {
