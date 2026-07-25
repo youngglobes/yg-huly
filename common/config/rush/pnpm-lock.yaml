@@ -13961,6 +13961,9 @@ importers:
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
+      '@hcengineering/setting':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/setting
       '@hcengineering/tracker':
         specifier: workspace:^0.7.426
         version: link:../../plugins/tracker
