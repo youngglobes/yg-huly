@@ -40,6 +40,15 @@ export function priorityLabel (p: number): string {
   return PRIORITY_LABELS[p] ?? PRIORITY_LABELS[0]
 }
 
+// CSV date format: DD-MM-YYYY (matches the report's From/To filter inputs; avoids Excel showing
+// ########). Uses local calendar parts, same as localDayKey.
+export function ddmmyyyy (ms: number): string {
+  const d = new Date(ms)
+  const day = `${d.getDate()}`.padStart(2, '0')
+  const month = `${d.getMonth() + 1}`.padStart(2, '0')
+  return `${day}-${month}-${d.getFullYear()}`
+}
+
 // CSV export — everything, including the Issue Title (the on-screen table shows the linked id
 // only). Hours are emitted as decimals (spreadsheet-friendly, matches the team's sheet); dates
 // as YYYY-MM-DD; due date blank when unset.
@@ -60,7 +69,7 @@ export function toCSV (rows: ReportRow[]): string {
   const head = COLS.join(',')
   if (rows.length === 0) return `${head}\n`
   const body = rows.map((r) => [
-    esc(localDayKey(r.date)),
+    esc(ddmmyyyy(r.date)),
     escText(r.employeeName || r.employee),
     escText(r.projectName || r.project),
     escText(r.identifier),
@@ -73,7 +82,7 @@ export function toCSV (rows: ReportRow[]): string {
     '', // Client Approved By — manual
     escText(r.statusName),
     escText(priorityLabel(r.priority)),
-    r.dueDate != null ? esc(localDayKey(r.dueDate)) : '""',
+    r.dueDate != null ? esc(ddmmyyyy(r.dueDate)) : '""',
     escText(r.note)
   ].join(',')).join('\n')
   return `${head}\n${body}\n`

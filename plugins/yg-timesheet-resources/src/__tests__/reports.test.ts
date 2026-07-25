@@ -62,7 +62,7 @@ describe('toCSV', () => {
     const lines = csv.trim().split('\n')
     expect(lines[1]).toContain('"Fix login"')
     expect(lines[1]).toContain('"Urgent"')
-    expect(lines[1]).toContain('"2026-07-31"')
+    expect(lines[1]).toContain('"31-07-2026"')
   })
   it('leaves due date blank when unset', () => {
     const csv = toCSV([row({ dueDate: null })])
