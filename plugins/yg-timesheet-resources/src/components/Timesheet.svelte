@@ -18,19 +18,19 @@
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { Label, Button, IconForward, IconBack } from '@hcengineering/ui'
+  import { Label, Button, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI } from '@hcengineering/ui'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
   import { weekRange, groupByDay, formatHours, localDayKey, type ReportLike, type DayGroup } from '../utils/week'
   import {
     submitDay,
     recallDay,
     loadProjectApprovers,
-    driftHours,
     NO_APPROVER,
     type DayReportLike,
     type ProjectApproverLike
   } from '../utils/day'
   import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
+  import SubmitErrorNotification from './SubmitErrorNotification.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -166,20 +166,36 @@
     }
   }
 
-  // Per-day key on which the last Submit attempt found no approver (drives the inline message),
-  // plus the names of the projects missing a PM/TL so the employee knows who to chase.
-  let noApproverKey: string | null = null
-  let noApproverProjects: string[] = []
+  // Status accent-rail class for a day card (mockup `.day.is-{status}`), a pure display mapping
+  // off the already-derived DerivedDayStatus, same spirit as statusString above.
+  function railClass (s: DerivedDayStatus): string {
+    switch (s) {
+      case 'Submitted':
+        return 'is-submitted'
+      case 'PartiallyApproved':
+        return 'is-partial'
+      case 'Approved':
+        return 'is-approved'
+      case 'Rejected':
+        return 'is-rejected'
+      default:
+        return 'is-draft'
+    }
+  }
 
   async function onSubmit (day: DayGroup): Promise<void> {
     const reports = reportsByKey.get(day.key) ?? []
     const res = await submitDay(client, { employee: me, date: day.date, reports, approversByProject })
     if (typeof res === 'object' && 'kind' in res && res.kind === NO_APPROVER) {
-      noApproverKey = day.key
-      noApproverProjects = res.projects.map((p) => projectNames.get(p) ?? p)
-    } else {
-      noApproverKey = null
-      noApproverProjects = []
+      // No inline error element (#2): surface the block as a toast instead of breaking the day card.
+      const projects = res.projects.map((p) => projectNames.get(p) ?? p).join(', ')
+      addNotification(
+        `Can't submit ${weekdayLongFmt.format(day.date)}`,
+        `No approver set for ${projects}. Ask an admin to assign a PM or Team Lead on that project, then submit.`,
+        SubmitErrorNotification,
+        undefined,
+        NotificationSeverity.Error
+      )
     }
   }
 
@@ -189,6 +205,11 @@
   }
 
   const weekdayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  // Day-card formatters (mockup `.day__dow` / `.day__day`) + the full weekday name for the toast title.
+  const dowFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
+  const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+  const weekdayLongFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long' })
+  const todayKey = localDayKey(Date.now())
   function shift (deltaWeeks: number): void {
     // Calendar-based shift (DST-safe): step whole days from this week's Monday.
     const d = new Date(week.start)
@@ -203,106 +224,174 @@
   </div>
   <div class="ac-header-full">
     <Button icon={IconBack} kind="ghost" on:click={() => shift(-1)} />
-    <span class="p-2">{weekdayFmt.format(week.days[0].date)} — {weekdayFmt.format(week.days[6].date)}</span>
+    <span class="p-2">{weekdayFmt.format(week.days[0].date)} to {weekdayFmt.format(week.days[6].date)}</span>
     <Button icon={IconForward} kind="ghost" on:click={() => shift(1)} />
     <Button kind="ghost" label={ygTimesheet.string.Today} on:click={() => (anchor = Date.now())} />
     <div class="ml-4"><Label label={ygTimesheet.string.Total} />: <b>{formatHours(weekTotal)}</b></div>
   </div>
 </div>
 
-<div class="ts-table-wrap">
-  <table class="yg-table">
-    <thead>
-      <tr>
-        <th class="left"><Label label={ygTimesheet.string.Day} /></th>
-        <th><Label label={ygTimesheet.string.Status} /></th>
-        <th class="yg-num"><Label label={ygTimesheet.string.Hours} /></th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each days as day (day.key)}
-        {@const persisted = dayByKey.get(day.key)}
-        {@const dayTasks = tasksByKey.get(day.key) ?? []}
-        {@const status = deriveDayStatus(dayTasks.map((t) => t.status))}
-        {@const drift = status === 'Approved' ? driftHours(persisted?.totalHours ?? 0, day.total) : 0}
-        <tr class="yg-row">
-          <td class="left ts-day-td">
-            <div class="ts-day__date">{weekdayFmt.format(day.date)}</div>
-            {#if day.issues.length === 0}
-              <div class="ts-empty">—</div>
-            {:else}
-              {#each day.issues as it (it.issueId)}
-                {@const task = dayTasks.find((t) => t.issue === it.issueId)}
-                <div class="ts-line">
-                  <span class="ts-line__id">{it.identifier}</span>
-                  <span class="ts-line__title">{it.title}</span>
-                  {#if task !== undefined}
-                    <span class="yg-pill ts-pill--sm yg-pill--{task.status.toLowerCase()}">
-                      <Label label={statusString(task.status)} />
-                    </span>
-                  {/if}
-                  <span class="ts-line__hrs">{formatHours(it.hours)}</span>
-                </div>
-                {#if task?.status === 'Rejected' && (task.rejectReason ?? '') !== ''}
-                  <div class="ts-reason">
-                    <b><Label label={ygTimesheet.string.RejectReason} />:</b>
-                    {task.rejectReason}
-                  </div>
+<div class="ts-days-wrap">
+  <div class="days">
+    {#each days as day (day.key)}
+      {@const dayTasks = tasksByKey.get(day.key) ?? []}
+      {@const status = deriveDayStatus(dayTasks.map((t) => t.status))}
+      {@const hasTasks = day.issues.length > 0}
+      {@const rejectedTask = dayTasks.find((t) => t.status === 'Rejected' && (t.rejectReason ?? '') !== '')}
+      <div
+        class="day {railClass(status)}"
+        class:has-tasks={hasTasks}
+        class:is-empty={!hasTasks}
+        class:is-today={day.key === todayKey}
+      >
+        <div class="day__head">
+          <div class="day__date">
+            <span class="day__dow">{dowFmt.format(day.date)}{day.key === todayKey ? ' · Today' : ''}</span>
+            <span class="day__day">{dateFmt.format(day.date)}</span>
+          </div>
+          {#if !hasTasks}
+            <span class="day__empty">No time logged yet</span>
+          {/if}
+          <span class="spacer" />
+          <span class="yg-pill yg-pill--{status.toLowerCase()}"><Label label={statusString(status)} /></span>
+          <span class="day__hours" class:zero={day.total === 0}>{formatHours(day.total)}</span>
+          {#if (status === 'Draft' || status === 'Rejected') && hasTasks}
+            <button class="yg-btn yg-btn--primary" on:click={() => onSubmit(day)}>
+              <Label label={ygTimesheet.string.Submit} />
+            </button>
+          {:else if status === 'Submitted'}
+            <button class="yg-btn yg-btn--ghost" on:click={() => onRecall(day)}>
+              <Label label={ygTimesheet.string.Recall} />
+            </button>
+          {/if}
+        </div>
+        {#if hasTasks}
+          <div class="tasks">
+            {#each day.issues as it (it.issueId)}
+              {@const task = dayTasks.find((t) => t.issue === it.issueId)}
+              <div class="task">
+                <span class="yg-idbadge">{it.identifier}</span>
+                <a
+                  class="task__title"
+                  href="#{getPanelURI(tracker.component.EditIssue, it.issueId, tracker.class.Issue, 'content')}"
+                >
+                  {it.title}
+                  <span class="go">↗</span>
+                </a>
+                <span class="task__hrs">{formatHours(it.hours)}</span>
+                {#if task !== undefined}
+                  <span class="yg-tag yg-tag--{task.status.toLowerCase()}">
+                    <span class="tick" />
+                    <Label label={statusString(task.status)} />
+                  </span>
                 {/if}
-              {/each}
-            {/if}
-          </td>
-          <td>
-            <span class="yg-pill yg-pill--{status.toLowerCase()}"><Label label={statusString(status)} /></span>
-            {#if status === 'Approved' && drift !== 0}
-              <span class="ts-drift" title="">⚠ <Label label={ygTimesheet.string.Drift} /></span>
-            {/if}
-          </td>
-          <td class="yg-num">{formatHours(day.total)}</td>
-          <td>
-            <div class="ts-actions">
-              {#if (status === 'Draft' || status === 'Rejected') && day.issues.length > 0}
-                <Button kind="primary" size="small" label={ygTimesheet.string.Submit} on:click={() => onSubmit(day)} />
-              {:else if status === 'Submitted'}
-                <Button kind="regular" size="small" label={ygTimesheet.string.Recall} on:click={() => onRecall(day)} />
-              {/if}
-              {#if noApproverKey === day.key}
-                <span class="ts-noapprover">
-                  <Label label={ygTimesheet.string.NoApprover} />
-                  {#if noApproverProjects.length > 0}: {noApproverProjects.join(', ')}{/if}
-                </span>
-              {/if}
-            </div>
-          </td>
-        </tr>
-      {/each}
-    </tbody>
-  </table>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if rejectedTask !== undefined}
+          <div class="reason">
+            <b>Rejected: "{rejectedTask.rejectReason}."</b>
+            <span class="fix">Open the task, fix it, then resubmit the day.</span>
+          </div>
+        {/if}
+      </div>
+    {/each}
+  </div>
 </div>
 
 <style lang="scss">
   @use './yg-table' as *;
 
-  .ts-table-wrap { padding: 1rem; overflow: auto; }
+  // This design uses `.day` cards (not `.yg-table`), so none of the classes below shadow
+  // `.yg-table th`/`td` or the `td.yg-num` numeric rule from yg-table.scss (Task 3's cascade
+  // lesson doesn't apply here): every selector is local to this component's own `.day` markup.
+  .ts-days-wrap { padding: 1rem; overflow: auto; }
 
-  // Day/date + nested per-issue list column: needs to wrap and top-align, unlike the shared
-  // `.yg-table td`'s single-line/vertically-centered default (Task 3 convention) — a plain local
-  // class (not shaped as `.yg-table td`/`th`) so it out-specificities the shared rule via Svelte's
-  // own scope-hash on ANY selector, with no risk to the `td.yg-num` numeric-formatting rule (see
-  // yg-table.scss's header comment / Task 3 lesson: only a local `.yg-table td`/`th` rule would
-  // require restating `.yg-num`).
-  .ts-day-td { white-space: normal; vertical-align: top; }
-  .ts-day__date { font-weight: 600; margin-bottom: 0.25rem; }
-  .ts-line { display: flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; padding: 0.125rem 0; }
-  .ts-line__id { color: var(--theme-dark-color); }
-  .ts-line__title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ts-line__hrs { font-variant-numeric: tabular-nums; }
-  .ts-empty { color: var(--theme-darker-color); }
-  // Smaller size modifier for the per-issue inline pill, layered on top of the shared `.yg-pill`.
-  .ts-pill--sm { font-size: 0.625rem; padding: 0 0.3125rem; }
-  .ts-drift { font-size: 0.6875rem; color: var(--theme-warning-color); }
-  .ts-reason { font-size: 0.75rem; color: var(--theme-content-color); margin: 0.125rem 0 0.25rem; }
-  .ts-actions { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
-  .ts-noapprover { font-size: 0.6875rem; color: var(--theme-lost-color); }
+  .days { display: flex; flex-direction: column; gap: 12px; }
+
+  .day {
+    position: relative;
+    background: var(--yg-panel);
+    border: 1px solid var(--yg-border);
+    border-radius: var(--yg-radius);
+    box-shadow: var(--yg-shadow);
+    overflow: hidden;
+  }
+  // Status accent rail, from the mockup's `.day::before`.
+  .day::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: transparent;
+  }
+  .day.is-approved::before { background: var(--yg-green); }
+  .day.is-submitted::before { background: var(--yg-amber); }
+  .day.is-partial::before { background: linear-gradient(var(--yg-green) 50%, var(--yg-amber) 50%); }
+  .day.is-rejected::before { background: var(--yg-red); }
+
+  .day.is-empty { background: var(--yg-panel-soft); }
+  .day.is-empty .day__head { padding-top: 12px; padding-bottom: 12px; }
+
+  .day__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px 14px 20px;
+  }
+  .day.has-tasks .day__head { border-bottom: 1px solid var(--yg-border); }
+
+  .day__date { display: flex; flex-direction: column; min-width: 116px; }
+  .day__dow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--yg-text-faint); font-weight: 600; }
+  .day__day { font-size: 15px; font-weight: 660; letter-spacing: -0.01em; margin-top: 1px; }
+  .day.is-today .day__dow { color: var(--yg-ink); font-weight: 700; }
+
+  .spacer { flex: 1; }
+  .day__hours { font-variant-numeric: tabular-nums; font-weight: 680; font-size: 15px; min-width: 44px; text-align: right; }
+  .day__hours.zero { color: var(--yg-text-faint); font-weight: 500; }
+  .day__empty { color: var(--yg-text-faint); font-size: 13px; }
+
+  .tasks { display: flex; flex-direction: column; }
+  .task {
+    display: grid;
+    grid-template-columns: 88px 1fr auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 18px 11px 20px;
+  }
+  .task + .task { border-top: 1px solid var(--yg-border); }
+  .task__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--yg-text);
+    text-decoration: none;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .task__title:hover { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+  .task__title .go { color: var(--yg-text-faint); font-size: 12px; transition: transform 0.12s; }
+  .task__title:hover .go { color: var(--yg-text); transform: translate(1px, -1px); }
+  .task__hrs { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--yg-text-dim); min-width: 40px; text-align: right; }
+
+  // Rejected-day reason callout, from the mockup's `.reason`.
+  .reason {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    margin: 0 18px 14px 20px;
+    padding: 10px 12px;
+    background: var(--yg-red-bg);
+    border: 1px solid var(--yg-red-line);
+    border-radius: 9px;
+    font-size: 13px;
+    color: var(--yg-text);
+  }
+  .reason b { font-weight: 650; }
+  .reason .fix { color: var(--yg-text-dim); }
 </style>
