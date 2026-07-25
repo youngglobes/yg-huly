@@ -82,6 +82,24 @@ async function hideStockHrApp (tx: TxOperations): Promise<void> {
   }
 }
 
+// Remove Huly's built-in right-sidebar widgets from the Calendar and Love (virtual office) plugins.
+// User decision 2026-07-25: the YG portal is timesheet-focused, so those default widgets are just
+// clutter. Matched by the doc _id prefix so no calendar/love dependency is needed. Best-effort like
+// hideStockHrApp: on the pinned model version nothing re-creates them, so the removal sticks. Never
+// let it fail the workspace provision.
+async function hideStockWidgets (tx: TxOperations): Promise<void> {
+  try {
+    const widgets = await tx.findAll(workbench.class.Widget, {})
+    for (const w of widgets) {
+      if (w._id.startsWith('calendar:') || w._id.startsWith('love:')) {
+        await tx.removeDoc(workbench.class.Widget, w.space, w._id)
+      }
+    }
+  } catch (err) {
+    console.error('yg-timesheet: could not remove stock right-sidebar widgets (non-fatal)', err)
+  }
+}
+
 // Per-task approval (2026-07-23): existing TimesheetDay rows carry a single status and a
 // snapshot of their lines. Derive one TimesheetTask per snapshot line so history survives.
 // Days with no snapshot yield no tasks and therefore read as Draft — accepted.
@@ -186,6 +204,14 @@ export const ygTimesheetOperation: MigrateOperation = {
         func: async (client) => {
           const ops = new TxOperations(client, core.account.System)
           await openApprovalsSpace(ops)
+        }
+      },
+      {
+        // Remove Huly's built-in Calendar + Love (Office) right-sidebar widgets for a clean portal.
+        state: 'hide-stock-widgets-0001',
+        func: async (client) => {
+          const ops = new TxOperations(client, core.account.System)
+          await hideStockWidgets(ops)
         }
       }
     ])
