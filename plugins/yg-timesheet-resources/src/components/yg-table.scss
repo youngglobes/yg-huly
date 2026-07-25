@@ -32,6 +32,165 @@
 // scope-hash suffix on its own (non-global) local rules to reliably out-specificity these
 // global base rules, with no dependency on cascade order.
 
+// YG portal design tokens (Task 1) — shared `--yg-*` custom properties for the redesigned
+// Timesheet/Approvals/Reports views. Values are lifted verbatim from the committed mockups
+// (docs/superpowers/specs/mockups/{my-timesheet,approvals,reports}.html): light hexes from
+// their `:root`, dark hexes from their `@media (prefers-color-scheme: dark)` block.
+//
+// Huly signals theme with a `.theme-light`/`.theme-dark` CLASS on an ancestor (packages/theme),
+// not a media query or a `:root[data-theme]` attribute, so the tokens are scoped there rather
+// than to `:root`. That is what makes `--yg-ink` (and everything else) flip between the two
+// themes: `--yg-ink` is the near-black brand ink in light mode but flips to a near-white in
+// dark mode, with `--yg-ink-fg` flipping the opposite way, so a `.yg-btn--primary` (ink
+// background, ink-fg text) stays legible in both.
+:global(.theme-light) {
+  --yg-ink:#17181f; --yg-ink-fg:#fff; --yg-bg:#f4f5f8; --yg-panel:#fff; --yg-panel-soft:#fafbfd;
+  --yg-border:#e7e8ef; --yg-border-strong:#dcdde6; --yg-text:#191a23; --yg-text-dim:#63657a; --yg-text-faint:#9a9caf;
+  --yg-green:#1f9d55; --yg-green-bg:#e8f6ee; --yg-green-line:#bfe6cd;
+  --yg-amber:#b7770a; --yg-amber-bg:#fbf1dc; --yg-amber-line:#eed9ab;
+  --yg-red:#d1434e; --yg-red-bg:#fbe9eb; --yg-red-line:#f2c4c8;
+  --yg-grey:#7c7e92; --yg-grey-bg:#eef0f4;
+  --yg-radius:12px; --yg-shadow:0 1px 2px rgba(20,22,40,.04),0 1px 3px rgba(20,22,40,.06);
+  --yg-av1:#2f9b8e; --yg-av2:#c65f8e; --yg-av3:#5566c4; --yg-av4:#c67f2f;
+}
+:global(.theme-dark) {
+  --yg-ink:#f2f3f8; --yg-ink-fg:#16171c; --yg-bg:#131419; --yg-panel:#1c1d25; --yg-panel-soft:#191a21;
+  --yg-border:#2a2c37; --yg-border-strong:#363845; --yg-text:#e8e9f1; --yg-text-dim:#a2a4b6; --yg-text-faint:#6f7183;
+  --yg-green:#4cc981; --yg-green-bg:#16281e; --yg-green-line:#244b34;
+  --yg-amber:#e0a441; --yg-amber-bg:#2a2213; --yg-amber-line:#4d3d1c;
+  --yg-red:#ec6b74; --yg-red-bg:#2c1619; --yg-red-line:#522a2f;
+  --yg-grey:#9092a6; --yg-grey-bg:#24262f;
+  --yg-radius:12px; --yg-shadow:0 1px 2px rgba(0,0,0,.3),0 1px 3px rgba(0,0,0,.35);
+  --yg-av1:#37b3a4; --yg-av2:#d873a1; --yg-av3:#7d8bec; --yg-av4:#d99a4a;
+}
+
+// Shared action button — from the mockups' `.btn` rule family. Base sizing/type and the
+// primary/ghost variants are from my-timesheet.html's `.btn`/`.btn.primary`/`.btn.ghost`; the
+// `inline-flex`/`gap` addition and the danger variant come from approvals.html's `.btn`
+// (icon + label buttons) and `.btn.reject` (used for the Approvals "Reject" action).
+:global(.yg-btn) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+:global(.yg-btn--primary) {
+  background: var(--yg-ink);
+  color: var(--yg-ink-fg);
+}
+:global(.yg-btn--primary:hover) {
+  filter: brightness(1.15);
+}
+:global(.yg-btn--ghost) {
+  background: var(--yg-panel);
+  color: var(--yg-text-dim);
+  border-color: var(--yg-border-strong);
+}
+:global(.yg-btn--danger) {
+  background: var(--yg-panel);
+  color: var(--yg-red);
+  border-color: var(--yg-red-line);
+}
+:global(.yg-btn--danger:hover) {
+  background: var(--yg-red-bg);
+}
+
+// Mono id chip (e.g. "TSK-1") — from my-timesheet.html's `.task__id` (identical rule in
+// approvals.html as `.approw__id`).
+:global(.yg-idbadge) {
+  font-family: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--yg-text-dim);
+  background: var(--yg-panel-soft);
+  border: 1px solid var(--yg-border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+// Avatar chip — from reports.html's `.avatar`/`.avatar.sm`/`.a1..a4` (the fullest variant
+// across the mockups: 4-color palette plus the compact `sm` size used by Reports' "who" column).
+:global(.yg-avatar) {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex: none;
+  letter-spacing: -0.02em;
+}
+:global(.yg-avatar--sm) {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+:global(.yg-av1) {
+  background: var(--yg-av1);
+}
+:global(.yg-av2) {
+  background: var(--yg-av2);
+}
+:global(.yg-av3) {
+  background: var(--yg-av3);
+}
+:global(.yg-av4) {
+  background: var(--yg-av4);
+}
+
+// Task-level status tag (dot + label) — from my-timesheet.html's `.tag` family. Distinct from
+// the day-level `.yg-pill--*` below: no background/border chip, just a colored dot (`.tick`)
+// plus colored text, used inside a task row.
+:global(.yg-tag) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 92px;
+}
+:global(.yg-tag .tick) {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+:global(.yg-tag--approved) {
+  color: var(--yg-green);
+}
+:global(.yg-tag--approved .tick) {
+  background: var(--yg-green);
+}
+:global(.yg-tag--submitted) {
+  color: var(--yg-amber);
+}
+:global(.yg-tag--submitted .tick) {
+  background: var(--yg-amber);
+}
+:global(.yg-tag--rejected) {
+  color: var(--yg-red);
+}
+:global(.yg-tag--rejected .tick) {
+  background: var(--yg-red);
+}
+:global(.yg-tag--draft) {
+  color: var(--yg-grey);
+}
+:global(.yg-tag--draft .tick) {
+  background: var(--yg-grey);
+}
+
 :global(.yg-table) {
   width: 100%;
   border-collapse: collapse;
