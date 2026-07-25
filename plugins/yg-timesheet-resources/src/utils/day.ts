@@ -7,8 +7,10 @@
 // re-exported for callers that only need one import site.
 //
 // Division of labour with the server trigger (server-yg-timesheet-resources): the CLIENT
-// sends the status change (+ approvers on submit, + snapshot/totalHours on approve). It does
-// NOT stamp approvedBy — the trigger authorizes the transition and stamps that authoritatively.
+// sends the status change (+ approvers on submit, + snapshot/totalHours on approve). For beta,
+// approveTask also stamps approvedBy/approvedOn on the TimesheetApproval directly, because the
+// trigger's stamp ran before the row existed and left the report's Approved By blank. The agreed
+// server-materialization security fix will move that stamp server-side; until then the client sets it.
 //
 import core, { type Ref, type TxOperations } from '@hcengineering/core'
 import { getCurrentEmployee, type Employee } from '@hcengineering/contact'
