@@ -13,12 +13,11 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getCurrentEmployee, type Employee } from '@hcengineering/contact'
-  import { EmployeeRefPresenter } from '@hcengineering/contact-resources'
+  import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
-  import { Button, Label, showPopup } from '@hcengineering/ui'
+  import { Label, getPanelURI, showPopup } from '@hcengineering/ui'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
   import { approveTask, rejectTask } from '../utils/day'
@@ -78,6 +77,63 @@
     return timesheet?.employee
   }
 
+  // Display names for the group headers, same Map<ref, formatted-name> idiom as Reports.svelte's
+  // employeeNames (Person.name is stored "Last,First"; formatName renders display order).
+  const empQuery = createQuery()
+  let employeeNames: Map<string, string> = new Map()
+  empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
+    const m = new Map<string, string>()
+    for (const e of res) m.set(e._id, formatName(e.name))
+    employeeNames = m
+  })
+
+  interface ApprovalGroup {
+    employee: Ref<Employee> | undefined
+    name: string
+    tasks: TimesheetTask[]
+    date: number
+    hours: number
+  }
+
+  // Group the flat, already-fetched queue by employee — the ONE allowed logic addition (pure
+  // presentation grouping; does not touch the query/gate/handlers above). Unresolved-employee
+  // tasks (lookup miss) fall into a single "Unknown" bucket rather than being dropped, so an
+  // approval task never silently disappears from the queue.
+  $: groups = ((): ApprovalGroup[] => {
+    const byEmployee = new Map<string, ApprovalGroup>()
+    for (const task of queue) {
+      const employee = employeeOf(task)
+      const key = employee ?? '__unknown__'
+      let g = byEmployee.get(key)
+      if (g === undefined) {
+        g = {
+          employee,
+          name: employee !== undefined ? employeeNames.get(employee) ?? employee : 'Unknown',
+          tasks: [],
+          date: task.date,
+          hours: 0
+        }
+        byEmployee.set(key, g)
+      }
+      g.tasks.push(task)
+      g.hours += task.submittedHours
+      if (task.date < g.date) g.date = task.date
+    }
+    return [...byEmployee.values()]
+  })()
+
+  $: totalTasks = queue.length
+  $: totalPeople = groups.length
+  $: totalHours = groups.reduce((sum, g) => sum + g.hours, 0)
+
+  // Avatar initials from a display name, e.g. "Oliver User" -> "OU", "Cher" -> "CH".
+  function initials (name: string): string {
+    const parts = name.trim().split(/\s+/).filter((p) => p.length > 0)
+    if (parts.length === 0) return '?'
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+
   function onApprove (task: TimesheetTask): void {
     showPopup(
       ApproveTaskPopup,
@@ -100,7 +156,7 @@
     )
   }
 
-  const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
 </script>
 
 <div class="ap-root">
@@ -109,48 +165,125 @@
   {:else if queue.length === 0}
     <div class="yg-empty"><Label label={ygTimesheet.string.NothingToApprove} /></div>
   {:else}
-    <table class="yg-table">
-      <thead>
-        <tr>
-          <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-          <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-          <th class="left"><Label label={ygTimesheet.string.HulyId} /></th>
-          <th class="left">Title</th>
-          <th class="yg-num"><Label label={ygTimesheet.string.SubmittedHours} /></th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each queue as task (task._id)}
-          {@const employee = employeeOf(task)}
-          <tr class="yg-row">
-            <td class="left">
-              {#if employee !== undefined}
-                <EmployeeRefPresenter value={employee} readonly />
-              {:else}
-                <span>—</span>
-              {/if}
-            </td>
-            <td class="left">{dayFmt.format(task.date)}</td>
-            <td class="left">{task.identifier}</td>
-            <td class="left">{task.title}</td>
-            <td class="yg-num">{formatHours(task.submittedHours)}</td>
-            <td>
-              <div class="ap-actions">
-                <Button kind="primary" size="small" label={ygTimesheet.string.Approve} on:click={() => onApprove(task)} />
-                <Button kind="regular" size="small" label={ygTimesheet.string.Reject} on:click={() => onReject(task)} />
-              </div>
-            </td>
-          </tr>
-        {/each}
-      </tbody>
-    </table>
+    <div class="ap-head">
+      <span class="ap-summary">
+        <b>{totalTasks}</b> task{totalTasks === 1 ? '' : 's'} from <b>{totalPeople}</b>
+        {totalPeople === 1 ? 'person' : 'people'} · <b>{formatHours(totalHours)}</b> awaiting your review
+      </span>
+    </div>
+    <div class="groups">
+      {#each groups as g, i (g.employee ?? i)}
+        <div class="group">
+          <div class="group__head">
+            <span class="yg-avatar yg-av{(i % 4) + 1}">{initials(g.name)}</span>
+            <span class="group__who">
+              <span class="group__name">{g.name}</span>
+              <span class="group__meta">Submitted {dayFmt.format(g.date)}</span>
+            </span>
+            <span class="spacer" />
+            <span class="group__count">{g.tasks.length} task{g.tasks.length === 1 ? '' : 's'}</span>
+            <span class="group__hrs">{formatHours(g.hours)}</span>
+          </div>
+          {#each g.tasks as task (task._id)}
+            <div class="approw">
+              <span class="approw__date">{dayFmt.format(task.date)}</span>
+              <span class="yg-idbadge">{task.identifier}</span>
+              <a
+                class="approw__title"
+                href="#{getPanelURI(tracker.component.EditIssue, task.issue, tracker.class.Issue, 'content')}"
+              >
+                {task.title}
+                <span class="go">↗</span>
+              </a>
+              <span class="approw__hrs">{formatHours(task.submittedHours)}</span>
+              <span class="ap-actions">
+                <button class="yg-btn yg-btn--primary" on:click={() => onApprove(task)}>
+                  <Label label={ygTimesheet.string.Approve} />
+                </button>
+                <button class="yg-btn yg-btn--danger" on:click={() => onReject(task)}>
+                  <Label label={ygTimesheet.string.Reject} />
+                </button>
+              </span>
+            </div>
+          {/each}
+        </div>
+      {/each}
+    </div>
   {/if}
 </div>
 
 <style lang="scss">
   @use './yg-table' as *;
 
-  .ap-root { padding: 1rem; overflow: auto; }
-  .ap-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .ap-root { padding: 1rem 1.25rem 1.5rem; overflow: auto; }
+
+  .ap-head { display: flex; align-items: baseline; margin-bottom: 1rem; }
+  .ap-summary { font-size: 0.8125rem; color: var(--yg-text-dim); }
+  .ap-summary b { color: var(--yg-text); font-weight: 650; font-variant-numeric: tabular-nums; }
+
+  .groups { display: flex; flex-direction: column; gap: 14px; }
+
+  .group {
+    background: var(--yg-panel);
+    border: 1px solid var(--yg-border);
+    border-radius: var(--yg-radius);
+    box-shadow: var(--yg-shadow);
+    overflow: hidden;
+  }
+  .group__head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--yg-border);
+    background: var(--yg-panel-soft);
+  }
+  .group__who { display: flex; flex-direction: column; }
+  .group__name { font-weight: 650; font-size: 14px; letter-spacing: -0.01em; }
+  .group__meta { font-size: 12px; color: var(--yg-text-faint); }
+  .spacer { flex: 1; }
+  .group__count {
+    font-size: 12px;
+    color: var(--yg-text-dim);
+    background: var(--yg-grey-bg);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-weight: 600;
+  }
+  .group__hrs { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; min-width: 44px; text-align: right; }
+
+  .approw {
+    display: grid;
+    grid-template-columns: 92px 96px 1fr auto auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+  }
+  .approw + .approw { border-top: 1px solid var(--yg-border); }
+  .approw__date { font-size: 12px; color: var(--yg-text-faint); font-variant-numeric: tabular-nums; }
+  .approw__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--yg-text);
+    text-decoration: none;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .approw__title:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .approw__title .go { color: var(--yg-text-faint); font-size: 12px; }
+  .approw__hrs { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 40px; text-align: right; }
+
+  .ap-actions { display: inline-flex; gap: 8px; }
+
+  @media (max-width: 660px) {
+    .approw { grid-template-columns: 1fr auto; grid-auto-rows: min-content; row-gap: 8px; }
+    .approw__date { grid-column: 1; }
+    .yg-idbadge { grid-column: 2; justify-self: end; }
+    .approw__title { grid-column: 1 / -1; }
+    .approw__hrs { grid-column: 1; }
+    .ap-actions { grid-column: 2; justify-self: end; }
+  }
 </style>

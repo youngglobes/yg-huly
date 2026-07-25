@@ -1,3 +1,17 @@
+<!--
+// Copyright © 2026 YoungGlobes
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+-->
 <script lang="ts">
   //
   // Approve one task, confirming the hours the approver actually agrees to. Defaults to the
@@ -5,47 +19,98 @@
   // NOT rewrite the employee's logged time — it is the approver's overlay.
   //
   import { createEventDispatcher } from 'svelte'
-  import ui, { Button, Label, EditBox } from '@hcengineering/ui'
-  import ygTimesheet from '@hcengineering/yg-timesheet'
+  import ui, { Label } from '@hcengineering/ui'
+  import { formatHours } from '../utils/week'
 
   export let identifier: string
   export let title: string
   export let submittedHours: number
+  // Not currently passed by Approvals.svelte's showPopup call (its wiring is unchanged) — kept
+  // optional so the sub-line can include the employee whenever a future caller provides it.
+  export let employee: string | undefined = undefined
 
   const dispatch = createEventDispatcher()
   let hours: number = submittedHours
 
   $: valid = Number.isFinite(hours) && hours >= 0
+  $: sub = employee !== undefined ? `${identifier} · ${title} · ${employee}` : `${identifier} · ${title}`
+  // Guard against a mid-edit invalid/empty numeric input — formatHours(NaN) would otherwise
+  // print "NaNm" on the (disabled) button for a moment while the field is being cleared.
+  $: approveLabel = valid ? `Approve ${formatHours(hours)}` : 'Approve'
 </script>
 
-<div class="approve-popup">
-  <div class="title">{identifier} — {title}</div>
-  <div class="row">
-    <span class="lbl"><Label label={ygTimesheet.string.SubmittedHours} /></span>
-    <span>{submittedHours}</span>
+<div class="dialog">
+  <div class="dialog__head">
+    <div class="dialog__title">Approve time</div>
+    <div class="dialog__sub">{sub}</div>
   </div>
-  <div class="row">
-    <span class="lbl"><Label label={ygTimesheet.string.ApprovedHours} /></span>
-    <EditBox bind:value={hours} format={'number'} />
+  <div class="dialog__body">
+    <div class="field">
+      <span class="lbl">Submitted</span>
+      <span class="val">{formatHours(submittedHours)}</span>
+    </div>
+    <div class="field">
+      <span class="lbl">Approve hours</span>
+      <span class="hours-input">
+        <input type="number" min="0" step="0.25" bind:value={hours} aria-label="Approved hours" />
+        <span class="unit">h</span>
+      </span>
+    </div>
   </div>
-  <div class="row actions">
-    <Button label={ui.string.Cancel} on:click={() => dispatch('close', undefined)} />
-    <Button
-      kind="primary"
-      label={ygTimesheet.string.ApproveTask}
+  <div class="dialog__note">
+    Set the hours you're approving for this task. This won't change the employee's logged time.
+  </div>
+  <div class="dialog__foot">
+    <button class="yg-btn yg-btn--ghost" on:click={() => dispatch('close', undefined)}>
+      <Label label={ui.string.Cancel} />
+    </button>
+    <button
+      class="yg-btn yg-btn--primary"
       disabled={!valid}
       on:click={() => dispatch('close', { approvedHours: hours })}
-    />
+    >
+      {approveLabel}
+    </button>
   </div>
 </div>
 
 <style lang="scss">
-  .approve-popup {
-    display: flex; flex-direction: column; gap: 1rem; padding: 1.5rem; min-width: 22rem;
-    background: var(--theme-popup-color); border-radius: 0.75rem;
+  @use './yg-table' as *;
+
+  .dialog {
+    width: 380px;
+    background: var(--yg-panel);
+    border: 1px solid var(--yg-border-strong);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(10, 12, 25, 0.32);
+    overflow: hidden;
   }
-  .title { font-weight: 500; }
-  .row { display: flex; align-items: center; gap: 0.75rem; }
-  .lbl { min-width: 9rem; color: var(--theme-dark-color); }
-  .actions { justify-content: flex-end; }
+  .dialog__head { padding: 16px 18px 6px; }
+  .dialog__title { font-weight: 660; font-size: 15px; letter-spacing: -0.01em; }
+  .dialog__sub { font-size: 12.5px; color: var(--yg-text-faint); margin-top: 2px; }
+  .dialog__body { padding: 12px 18px 4px; display: flex; flex-direction: column; gap: 12px; }
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .field .lbl { font-size: 13px; color: var(--yg-text-dim); }
+  .field .val { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .hours-input {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--yg-border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .hours-input input {
+    width: 56px;
+    border: 0;
+    background: transparent;
+    color: var(--yg-text);
+    font: inherit;
+    font-weight: 650;
+    text-align: right;
+    padding: 7px 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hours-input .unit { padding: 0 10px 0 2px; color: var(--yg-text-faint); font-size: 13px; }
+  .dialog__note { font-size: 12px; color: var(--yg-text-faint); padding: 10px 18px 0; }
+  .dialog__foot { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 18px; }
 </style>

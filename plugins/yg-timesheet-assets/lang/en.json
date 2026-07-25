@@ -16,7 +16,7 @@
     "ApproveWeek": "Approve week",
     "Reject": "Reject",
     "Approvals": "Approvals",
-    "NothingToApprove": "Nothing to approve",
+    "NothingToApprove": "Nothing to approve. You're all caught up.",
     "RejectReason": "Reason",
     "Drift": "Hours changed since approval",
     "PM": "PM",
