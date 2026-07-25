@@ -1,0 +1,236 @@
+<title>Reports — redesign preview</title>
+<style>
+  :root {
+    --bg: #f4f5f8; --panel: #ffffff; --panel-soft: #fafbfd;
+    --border: #e7e8ef; --border-strong: #dcdde6;
+    --text: #191a23; --text-dim: #63657a; --text-faint: #9a9caf;
+    --ink: #17181f; --ink-fg: #ffffff;
+    --green: #1f9d55; --green-bg: #e8f6ee; --green-line: #bfe6cd;
+    --amber: #b7770a; --amber-bg: #fbf1dc; --amber-line: #eed9ab;
+    --red: #d1434e; --red-bg: #fbe9eb; --red-line: #f2c4c8;
+    --grey: #7c7e92; --grey-bg: #eef0f4;
+    --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(20,22,40,.04), 0 1px 3px rgba(20,22,40,.06);
+    --av1: #2f9b8e; --av2: #c65f8e; --av3: #5566c4; --av4: #c67f2f; --av-fg: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131419; --panel: #1c1d25; --panel-soft: #191a21;
+      --border: #2a2c37; --border-strong: #363845;
+      --text: #e8e9f1; --text-dim: #a2a4b6; --text-faint: #6f7183;
+      --ink: #f2f3f8; --ink-fg: #16171c;
+      --green: #4cc981; --green-bg: #16281e; --green-line: #244b34;
+      --amber: #e0a441; --amber-bg: #2a2213; --amber-line: #4d3d1c;
+      --red: #ec6b74; --red-bg: #2c1619; --red-line: #522a2f;
+      --grey: #9092a6; --grey-bg: #24262f;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+      --av1: #37b3a4; --av2: #d873a1; --av3: #7d8bec; --av4: #d99a4a;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f4f5f8; --panel: #ffffff; --panel-soft: #fafbfd;
+    --border: #e7e8ef; --border-strong: #dcdde6;
+    --text: #191a23; --text-dim: #63657a; --text-faint: #9a9caf;
+    --ink: #17181f; --ink-fg: #ffffff;
+    --green: #1f9d55; --green-bg: #e8f6ee; --green-line: #bfe6cd;
+    --amber: #b7770a; --amber-bg: #fbf1dc; --amber-line: #eed9ab;
+    --red: #d1434e; --red-bg: #fbe9eb; --red-line: #f2c4c8;
+    --grey: #7c7e92; --grey-bg: #eef0f4;
+    --shadow: 0 1px 2px rgba(20,22,40,.04), 0 1px 3px rgba(20,22,40,.06);
+    --av1: #2f9b8e; --av2: #c65f8e; --av3: #5566c4; --av4: #c67f2f;
+  }
+  :root[data-theme="dark"] {
+    --bg: #131419; --panel: #1c1d25; --panel-soft: #191a21;
+    --border: #2a2c37; --border-strong: #363845;
+    --text: #e8e9f1; --text-dim: #a2a4b6; --text-faint: #6f7183;
+    --ink: #f2f3f8; --ink-fg: #16171c;
+    --green: #4cc981; --green-bg: #16281e; --green-line: #244b34;
+    --amber: #e0a441; --amber-bg: #2a2213; --amber-line: #4d3d1c;
+    --red: #ec6b74; --red-bg: #2c1619; --red-line: #522a2f;
+    --grey: #9092a6; --grey-bg: #24262f;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.35);
+    --av1: #37b3a4; --av2: #d873a1; --av3: #7d8bec; --av4: #d99a4a;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 24px 64px; }
+
+  .preview-note { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-faint); margin-bottom: 20px; letter-spacing: .02em; }
+  .preview-note b { color: var(--text-dim); font-weight: 600; }
+  .preview-note .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+
+  .head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+  .title { font-size: 22px; font-weight: 680; letter-spacing: -.01em; margin: 0; }
+  .summary { font-size: 13px; color: var(--text-dim); }
+  .summary b { color: var(--text); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .head .spacer { flex: 1; }
+  .btn { height: 34px; padding: 0 15px; border-radius: 9px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.primary { background: var(--ink); color: var(--ink-fg); }
+  .btn.primary:hover { filter: brightness(1.15); }
+
+  /* filter toolbar */
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .ctrl { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow); font-size: 13px; color: var(--text); }
+  .ctrl .k { color: var(--text-faint); font-size: 12px; }
+  .ctrl .v { font-weight: 600; }
+  .ctrl .chev { color: var(--text-faint); }
+  .ctrl.range .sep { color: var(--text-faint); }
+
+  /* table */
+  .tablecard { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .tscroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 780px; }
+  thead th {
+    position: sticky; top: 0; background: var(--panel-soft);
+    text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--text-faint); font-weight: 600; padding: 11px 14px; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; white-space: nowrap; }
+  tbody tr:hover td { background: var(--panel-soft); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  th.num { text-align: right; }
+
+  .date { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .emp { display: inline-flex; align-items: center; gap: 8px; }
+  .who { display: inline-flex; align-items: center; gap: 8px; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--av-fg); flex: none; letter-spacing: -.02em; }
+  .avatar.sm { width: 20px; height: 20px; font-size: 9px; }
+  .a1{background:var(--av1);} .a2{background:var(--av2);} .a3{background:var(--av3);} .a4{background:var(--av4);}
+  .task { display: inline-flex; align-items: center; gap: 8px; }
+  .id { font-family: var(--mono); font-size: 11.5px; font-weight: 600; color: var(--text-dim); background: var(--panel-soft); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+  .tlink { color: var(--text); text-decoration: none; font-weight: 500; }
+  .tlink:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .proj { color: var(--text-dim); }
+  .muted { color: var(--text-faint); }
+
+  .schip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); font-weight: 500; }
+  .schip .d { width: 7px; height: 7px; border-radius: 2px; }
+  .schip.done .d { background: var(--green); } .schip.done { color: var(--green); }
+  .schip.prog .d { background: var(--amber); }
+  .schip.back .d { background: var(--grey); }
+
+  tfoot td { padding: 12px 14px; font-weight: 700; background: var(--panel-soft); border-top: 1px solid var(--border-strong); }
+  tfoot .lbl { color: var(--text-dim); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .05em; }
+
+  .pager { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-top: 1px solid var(--border); }
+  .pager .info { font-size: 12.5px; color: var(--text-faint); }
+  .pager .pbtns { display: inline-flex; gap: 8px; }
+  .pbtn { height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border-strong); background: var(--panel); color: var(--text-dim); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .pbtn[disabled] { opacity: .45; cursor: default; }
+
+  .callout { display:flex; gap:8px; align-items:center; margin-top:14px; font-size:12.5px; color: var(--text-faint); }
+  .callout code { font-family: var(--mono); background: var(--panel); border:1px solid var(--border); border-radius:5px; padding:1px 5px; color: var(--text-dim); }
+</style>
+
+<div class="wrap">
+  <div class="preview-note"><span class="dot"></span> Redesign preview · <b>Reports</b> · static mockup — not wired</div>
+
+  <div class="head">
+    <h1 class="title">Reports</h1>
+    <span class="summary"><b>5</b> entries · <b>28.5h</b> logged · <b>19h</b> approved</span>
+    <span class="spacer"></span>
+    <button class="btn primary">
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 2v8m0 0 3-3m-3 3L5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 11.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Export CSV
+    </button>
+  </div>
+
+  <div class="toolbar">
+    <span class="ctrl range"><span class="k">From</span><span class="v">Jul 20</span><span class="sep">→</span><span class="k">To</span><span class="v">Jul 26</span></span>
+    <span class="ctrl"><span class="k">Project</span><span class="v">All projects</span><span class="chev">▾</span></span>
+    <span class="ctrl"><span class="k">Person</span><span class="v">All people</span><span class="chev">▾</span></span>
+    <span class="ctrl"><span class="k">Status</span><span class="v">All</span><span class="chev">▾</span></span>
+  </div>
+
+  <div class="tablecard">
+    <div class="tscroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Person</th>
+            <th>Task</th>
+            <th>Project</th>
+            <th class="num">Spent</th>
+            <th class="num">Approved</th>
+            <th>Approved by</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="date">Jul 23</td>
+            <td><span class="emp"><span class="avatar a1">OU</span>Oliver User</span></td>
+            <td><span class="task"><span class="id">NEW_P-1</span><a class="tlink" href="#">New test task</a></span></td>
+            <td class="proj">New Project</td>
+            <td class="num">6h</td>
+            <td class="num">6h</td>
+            <td><span class="who"><span class="avatar sm a2">MC</span>Maria Chen</span></td>
+            <td><span class="schip done"><span class="d"></span>Done</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jul 23</td>
+            <td><span class="emp"><span class="avatar a1">OU</span>Oliver User</span></td>
+            <td><span class="task"><span class="id">TSK-1</span><a class="tlink" href="#">Spent time UX verification</a></span></td>
+            <td class="proj">Default</td>
+            <td class="num">6h</td>
+            <td class="num muted">—</td>
+            <td class="muted">Pending</td>
+            <td><span class="schip prog"><span class="d"></span>In Progress</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jul 24</td>
+            <td><span class="emp"><span class="avatar a2">MC</span>Maria Chen</span></td>
+            <td><span class="task"><span class="id">TSK-1</span><a class="tlink" href="#">QA pass on release build</a></span></td>
+            <td class="proj">Default</td>
+            <td class="num">8h</td>
+            <td class="num">8h</td>
+            <td><span class="who"><span class="avatar sm a3">DP</span>David Park</span></td>
+            <td><span class="schip done"><span class="d"></span>Done</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jul 24</td>
+            <td><span class="emp"><span class="avatar a3">DP</span>David Park</span></td>
+            <td><span class="task"><span class="id">NEW_P-2</span><a class="tlink" href="#">API integration for billing</a></span></td>
+            <td class="proj">New Project</td>
+            <td class="num">7h</td>
+            <td class="num">5h</td>
+            <td><span class="who"><span class="avatar sm a4">PO</span>Praja Owner</span></td>
+            <td><span class="schip prog"><span class="d"></span>In Progress</span></td>
+          </tr>
+          <tr>
+            <td class="date">Jul 22</td>
+            <td><span class="emp"><span class="avatar a4">PO</span>Praja Owner</span></td>
+            <td><span class="task"><span class="id">TSK-1</span><a class="tlink" href="#">Spot check on staging</a></span></td>
+            <td class="proj">Default</td>
+            <td class="num">1.5h</td>
+            <td class="num muted">—</td>
+            <td class="muted">Pending</td>
+            <td><span class="schip back"><span class="d"></span>Backlog</span></td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4"><span class="lbl">Total · 5 entries</span></td>
+            <td class="num">28.5h</td>
+            <td class="num">19h</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="pager">
+      <span class="info">Showing 1–5 of 5</span>
+      <span class="pbtns">
+        <button class="pbtn" disabled>‹ Prev</button>
+        <button class="pbtn" disabled>Next ›</button>
+      </span>
+    </div>
+  </div>
+
+  <div class="callout">The CSV export carries the full set — including <code>Estimated</code>, <code>Due date</code>, <code>Notes</code>, and the manual <code>Client Approved</code> columns — while the on-screen table stays scannable.</div>
+</div>
