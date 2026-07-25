@@ -18,7 +18,7 @@
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { Label, Button, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI } from '@hcengineering/ui'
+  import { Label, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI } from '@hcengineering/ui'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
   import { weekRange, groupByDay, formatHours, localDayKey, type ReportLike, type DayGroup } from '../utils/week'
   import {
@@ -218,16 +218,21 @@
   }
 </script>
 
-<div class="ac-header full divide">
-  <div class="ac-header__wrap-title">
-    <span class="ac-header__title"><Label label={ygTimesheet.string.MyTimesheet} /></span>
-  </div>
-  <div class="ac-header-full">
-    <Button icon={IconBack} kind="ghost" on:click={() => shift(-1)} />
-    <span class="p-2">{weekdayFmt.format(week.days[0].date)} to {weekdayFmt.format(week.days[6].date)}</span>
-    <Button icon={IconForward} kind="ghost" on:click={() => shift(1)} />
-    <Button kind="ghost" label={ygTimesheet.string.Today} on:click={() => (anchor = Date.now())} />
-    <div class="ml-4"><Label label={ygTimesheet.string.Total} />: <b>{formatHours(weekTotal)}</b></div>
+<div class="ts-head">
+  <h1 class="ts-title"><Label label={ygTimesheet.string.MyTimesheet} /></h1>
+  <div class="weekbar">
+    <button class="weekbar__nav" aria-label="Previous week" on:click={() => shift(-1)}>
+      <IconBack size="small" />
+    </button>
+    <span class="weekbar__range">{weekdayFmt.format(week.days[0].date)} to {weekdayFmt.format(week.days[6].date)}</span>
+    <button class="weekbar__nav" aria-label="Next week" on:click={() => shift(1)}>
+      <IconForward size="small" />
+    </button>
+    <span class="spacer" />
+    <span class="weekbar__total">
+      <span class="weekbar__total-label">This week</span>
+      <span class="weekbar__total-val">{formatHours(weekTotal)}</span>
+    </span>
   </div>
 </div>
 
@@ -307,6 +312,74 @@
   // `.yg-table th`/`td` or the `td.yg-num` numeric rule from yg-table.scss (Task 3's cascade
   // lesson doesn't apply here): every selector is local to this component's own `.day` markup.
   .ts-days-wrap { padding: 1rem; overflow: auto; }
+
+  // Header: page title + weekbar, from the mockup (docs/superpowers/specs/mockups/my-timesheet.html)
+  // `.title` / `.weekbar`. Replaces the old stacked ac-header ("<" / ">" / Today / Total:) with a
+  // single clean row: chevron, week range, chevron, spacer, total-hours pill.
+  .ts-head { flex: none; padding: 1rem 1.25rem 0; }
+
+  .ts-title {
+    font-size: 1.375rem;
+    font-weight: 680;
+    letter-spacing: -0.01em;
+    margin: 0 0 18px;
+    color: var(--yg-text);
+  }
+
+  .weekbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 4px 18px;
+  }
+
+  .weekbar__nav {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid var(--yg-border);
+    background: var(--yg-panel);
+    color: var(--yg-text-dim);
+    cursor: pointer;
+    box-shadow: var(--yg-shadow);
+  }
+  .weekbar__nav:hover { color: var(--yg-text); }
+
+  .weekbar__range {
+    font-size: 15px;
+    font-weight: 620;
+    letter-spacing: -0.01em;
+    color: var(--yg-text);
+  }
+
+  .weekbar .spacer { flex: 1; }
+
+  .weekbar__total {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--yg-panel);
+    border: 1px solid var(--yg-border);
+    box-shadow: var(--yg-shadow);
+  }
+  .weekbar__total-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--yg-text-faint);
+  }
+  .weekbar__total-val {
+    font-size: 15px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--yg-text);
+  }
 
   .days { display: flex; flex-direction: column; gap: 12px; }
 
