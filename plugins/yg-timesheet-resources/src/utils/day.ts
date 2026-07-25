@@ -11,7 +11,7 @@
 // NOT stamp approvedBy — the trigger authorizes the transition and stamps that authoritatively.
 //
 import core, { type Ref, type TxOperations } from '@hcengineering/core'
-import { type Employee } from '@hcengineering/contact'
+import { getCurrentEmployee, type Employee } from '@hcengineering/contact'
 import tracker, { type Issue, type Project } from '@hcengineering/tracker'
 import ygTimesheet, {
   type Timesheet,
@@ -263,12 +263,16 @@ export async function approveTask (
   const existing = await client.findOne(ygTimesheet.class.TimesheetApproval, { task: taskId })
   if (existing !== undefined) {
     await client.updateDoc(ygTimesheet.class.TimesheetApproval, ygTimesheet.space.Approvals, existing._id, {
-      approvedHours
+      approvedHours,
+      approvedBy: getCurrentEmployee(),
+      approvedOn: Date.now()
     })
   } else {
     await client.createDoc(ygTimesheet.class.TimesheetApproval, ygTimesheet.space.Approvals, {
       task: taskId,
-      approvedHours
+      approvedHours,
+      approvedBy: getCurrentEmployee(),
+      approvedOn: Date.now()
     })
   }
 }
