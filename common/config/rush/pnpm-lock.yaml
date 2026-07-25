@@ -13955,6 +13955,9 @@ importers:
       '@hcengineering/model-tracker':
         specifier: workspace:^0.7.426
         version: link:../tracker
+      '@hcengineering/model-view':
+        specifier: workspace:^0.7.426
+        version: link:../view
       '@hcengineering/model-workbench':
         specifier: workspace:^0.7.426
         version: link:../workbench

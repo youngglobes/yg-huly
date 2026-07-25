@@ -20,6 +20,7 @@ import hr from '@hcengineering/hr'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import tracker, { TProject } from '@hcengineering/model-tracker'
 import setting from '@hcengineering/setting'
+import view from '@hcengineering/model-view'
 import workbench from '@hcengineering/model-workbench'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
@@ -253,4 +254,16 @@ export function createModel (builder: Builder): void {
   )
   // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) —
   // Builder has no updateDoc; only a TxOperations client (migration) can update an existing app doc.
+
+  // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
+  // (rendered embedded in the Inbox — see plugins/notification-resources). Our approval notifications
+  // attach to a TimesheetDay (submit) or TimesheetTask (approve/reject); registering
+  // NotificationRedirect as their ObjectPanel makes the click land on the right app view (Approvals
+  // vs My Timesheet) instead of a raw doc panel. The component just navigates away on mount.
+  builder.mixin(ygTimesheet.class.TimesheetDay, core.class.Class, view.mixin.ObjectPanel, {
+    component: ygTimesheet.component.NotificationRedirect
+  })
+  builder.mixin(ygTimesheet.class.TimesheetTask, core.class.Class, view.mixin.ObjectPanel, {
+    component: ygTimesheet.component.NotificationRedirect
+  })
 }

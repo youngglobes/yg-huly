@@ -96,7 +96,7 @@ async function notifyInbox (
   control: TriggerControl,
   tx: Tx,
   targets: Ref<Employee>[],
-  issueRef: Ref<Issue>,
+  obj: Doc,
   message: string
 ): Promise<void> {
   const uniqueTargets = [...new Set(targets)].filter((t) => t != null)
@@ -111,11 +111,10 @@ async function notifyInbox (
   const receivers = await getReceiversInfo(control.ctx, accounts, control)
   if (receivers.length === 0) return
 
-  const issue = (
-    await control.findAll(control.ctx, tracker.class.Issue, { _id: issueRef }, { limit: 1 })
-  )[0]
-  if (issue === undefined) return
-
+  // `obj` is the DocNotifyContext object the notification attaches to — a TimesheetDay (submit) or
+  // TimesheetTask (approve/reject). Its class drives the Inbox click-through: NotificationRedirect
+  // is registered as the ObjectPanel for both, sending a submit notification to Approvals and an
+  // approve/reject notification to My Timesheet (see models/yg-timesheet + NotificationRedirect.svelte).
   const sender: SenderInfo = await getSenderInfo(control.ctx, tx.modifiedBy, control)
   const notifyResult: NotifyResult = new Map([[notification.providers.InboxNotificationProvider, []]])
   const messageHtml = jsonToMarkup(nodeDoc(nodeParagraph(nodeText(message))))
@@ -125,20 +124,18 @@ async function notifyInbox (
   for (const receiver of receivers) {
     const data: Partial<Data<CommonInboxNotification>> = {
       header: ygTimesheet.string.ApprovalNotification,
-      headerObjectId: issue._id,
-      headerObjectClass: issue._class,
       messageHtml
     }
     const txes = await getCommonNotificationTxes(
       control.ctx,
       control,
-      issue,
+      obj,
       data,
       receiver,
       sender,
-      issue._id,
-      issue._class,
-      issue.space,
+      obj._id,
+      obj._class,
+      obj.space,
       tx.modifiedOn,
       notifyResult,
       notification.class.CommonInboxNotification,
@@ -192,9 +189,6 @@ export async function OnTimesheetDaySubmitNotify (txes: Tx[], control: TriggerCo
       control.ctx, ygTimesheet.class.TimesheetTask, { attachedTo: day._id, status: 'Submitted' }
     )
     if (tasks.length === 0) continue
-    const rep = [...tasks].sort((a, b) =>
-      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
-    )[0]
 
     const sheet = (
       await control.findAll(control.ctx, ygTimesheet.class.Timesheet, { _id: day.attachedTo as Ref<Timesheet> }, { limit: 1 })
@@ -203,7 +197,8 @@ export async function OnTimesheetDaySubmitNotify (txes: Tx[], control: TriggerCo
     const issueWord = tasks.length === 1 ? 'issue' : 'issues'
     const message = `${who} submitted a timesheet for approval (${day.totalHours}h, ${tasks.length} ${issueWord})`
 
-    await notifyInbox(control, tx, approvers, rep.issue, message)
+    // Attach to the TimesheetDay so the Inbox click lands on Approvals (via NotificationRedirect).
+    await notifyInbox(control, tx, approvers, day, message)
   }
   return []
 }
@@ -510,7 +505,8 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
           : `${who} rejected your timesheet for ${task.identifier}${
               task.rejectReason != null && task.rejectReason !== '' ? `: ${task.rejectReason}` : ''
             }`
-        await notifyInbox(control, tx, [owner], task.issue, message)
+        // Attach to the TimesheetTask so the Inbox click lands on My Timesheet (via NotificationRedirect).
+        await notifyInbox(control, tx, [owner], task, message)
       }
       continue
     }

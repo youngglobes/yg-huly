@@ -126,7 +126,8 @@ export default plugin(ygTimesheetId, {
     HrOverview: '' as AnyComponent,
     HrExportDialog: '' as AnyComponent,
     ApproveTaskPopup: '' as AnyComponent,
-    RejectTaskPopup: '' as AnyComponent
+    RejectTaskPopup: '' as AnyComponent,
+    NotificationRedirect: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
