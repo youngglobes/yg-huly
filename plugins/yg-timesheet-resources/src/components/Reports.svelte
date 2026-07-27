@@ -21,6 +21,7 @@
   import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
   import { UserBoxList } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
+  import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import { DropdownLabels, getPanelURI, Label, type DropdownTextItem } from '@hcengineering/ui'
@@ -31,7 +32,8 @@
     type TimesheetDay,
     type TimesheetTask
   } from '@hcengineering/yg-timesheet'
-  import { filterRows, toCSV, type ReportFilter, type ReportRow } from '../utils/reports'
+  import { filterRows, type ReportFilter, type ReportRow } from '../utils/reports'
+  import { exportReportXlsx } from '../utils/report-xlsx'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
   const me = getCurrentEmployee()
@@ -346,16 +348,18 @@
     } catch {}
   }
 
-  // Export ALL filtered rows (not just the current page), with the full column set incl. title.
-  // Prepend a UTF-8 BOM so Excel opens it with the right encoding (accented names render).
-  function exportCsv (): void {
-    const blob = new Blob(['\ufeff' + toCSV(rows)], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'pm-timesheet-report.csv'
-    a.click()
-    URL.revokeObjectURL(url)
+  // Export ALL filtered rows (not just the current page) as .xlsx, with the full column set incl.
+  // title. Real typed cells (see utils/report-xlsx) so dates sort and hour columns sum in Excel.
+  let exporting = false
+  async function exportXlsx (): Promise<void> {
+    exporting = true
+    try {
+      await exportReportXlsx(rows)
+    } catch (err: any) {
+      await setPlatformStatus(unknownError(err))
+    } finally {
+      exporting = false
+    }
   }
 </script>
 
@@ -371,7 +375,7 @@
         <b>{formatHours(totalApproved)}</b> approved
       </span>
       <span class="rp-spacer" />
-      <button class="yg-btn yg-btn--primary" disabled={rows.length === 0} on:click={exportCsv}>
+      <button class="yg-btn yg-btn--primary" disabled={exporting || rows.length === 0} on:click={exportXlsx}>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
           <path
             d="M8 2v8m0 0 3-3m-3 3L5 7"
@@ -382,7 +386,7 @@
           />
           <path d="M2.5 11.5v1a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
         </svg>
-        <Label label={ygTimesheet.string.ExportCsv} />
+        <Label label={ygTimesheet.string.Export} />
       </button>
     </div>
 

@@ -36,7 +36,7 @@
   import ygTimesheet, { type HrTimeEntry } from '@hcengineering/yg-timesheet'
   import HrExportDialog from './HrExportDialog.svelte'
   import { buildOverviewGrid } from '../utils/hr-report'
-  import { overviewToCSV, overviewFilename } from '../utils/hr-csv'
+  import { exportOverviewXlsx } from '../utils/hr-xlsx'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { hrSelectedEmployee } from '../utils/hrStore'
   import { weekPeriod, type Period } from '../utils/period'
@@ -125,15 +125,8 @@
         date: { $gte: period.start, $lt: period.end }
       })
       const grid = buildOverviewGrid(rows, employees, period, DAY_TARGET)
-      const csv = overviewToCSV(grid, period)
-      // Excel needs the BOM to read UTF-8 correctly (same as the PM report export).
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = overviewFilename(period)
-      a.click()
-      URL.revokeObjectURL(url)
+      // .xlsx with real time-typed cells (see utils/hr-xlsx); write-excel-file triggers the download.
+      await exportOverviewXlsx(grid, period)
     } catch (err: any) {
       // Surface the failure rather than letting the promise reject unhandled — and download
       // nothing, so the user never receives a half-built file they might forward on.
