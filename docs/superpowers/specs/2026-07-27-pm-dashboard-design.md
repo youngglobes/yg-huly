@@ -28,8 +28,15 @@ migration.
   Ref<Project>[]` from the ProjectApprovers mixins (+ admin = all). Every widget is scoped to that set.
 - **Placement:** a new workbench special `dashboard` in the Timesheet app (`models/yg-timesheet`),
   positioned **first** (`position: 'top'`, before `my`), `visibleIf: ygTimesheet.function.CanApprove`.
-  **My Timesheet stays the default landing** for everyone (the `locationResolver` still defaults the
-  app root to `my`).
+- **Default landing (role-based):** the Timesheet app opens to the **Dashboard for approvers/admins**
+  and to **My Timesheet for everyone else**. The existing `locationResolver` (`resolveLocation`) already
+  fires when the app root has no special (`loc.path[3] == null`); it becomes **role-aware** — it awaits
+  the same approver/admin check used by `CanApprove` (getCurrentEmployee + role + ProjectApprovers
+  mixins) and resolves the default to `dashboard` for approvers/admins, else `my`. This makes the
+  Dashboard the PM/TL landing both when they open the Timesheet app and after login (whenever the
+  workbench restores/opens the Timesheet app root). NB: which *app* the whole portal opens post-login is
+  workbench-level (Huly restores the last-visited app); this change controls the Timesheet app's own
+  default special, which is the actionable part.
 
 ## Data sources (all client-side live queries, `createQuery`)
 
