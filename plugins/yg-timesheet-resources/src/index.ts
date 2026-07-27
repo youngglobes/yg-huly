@@ -17,6 +17,7 @@ import HrExportDialog from './components/HrExportDialog.svelte'
 import ApproveTaskPopup from './components/ApproveTaskPopup.svelte'
 import RejectTaskPopup from './components/RejectTaskPopup.svelte'
 import NotificationRedirect from './components/NotificationRedirect.svelte'
+import Dashboard from './components/Dashboard.svelte'
 
 async function CanApprove (_spaces: Space[]): Promise<boolean> {
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -34,17 +35,18 @@ async function CanApprove (_spaces: Space[]): Promise<boolean> {
   return canApproveView(isAdmin, pairs, me)
 }
 
-// App root has no special selected (loc.path[3] == null): default it to the 'my' special
-// (My Timesheet) so a first visit doesn't land on the blank Application shell. Workbench only
-// restores the last-visited special from localStorage, so a fresh browser/profile has nothing
-// to restore from — see Workbench.svelte:502-523.
+// App root has no special selected (loc.path[3] == null): default it based on role so a first
+// visit doesn't land on the blank Application shell. Workbench only restores the last-visited
+// special from localStorage, so a fresh browser/profile has nothing to restore from - see
+// Workbench.svelte:502-523.
 export async function resolveLocation (loc: Location): Promise<ResolvedLocation | undefined> {
   if (loc.path[2] !== ygTimesheetId || loc.path[3] != null) {
     return undefined
   }
-
-  const special = { ...loc, path: [loc.path[0], loc.path[1], ygTimesheetId, 'my'] }
-  return { loc: special, defaultLocation: special }
+  // Approvers/admins land on the dashboard; everyone else on My Timesheet.
+  const special = (await CanApprove([])) ? 'dashboard' : 'my'
+  const resolved = { ...loc, path: [loc.path[0], loc.path[1], ygTimesheetId, special] }
+  return { loc: resolved, defaultLocation: resolved }
 }
 
 export default async (): Promise<Resources> => ({
@@ -59,7 +61,8 @@ export default async (): Promise<Resources> => ({
     HrExportDialog,
     ApproveTaskPopup,
     RejectTaskPopup,
-    NotificationRedirect
+    NotificationRedirect,
+    Dashboard
   },
   function: { CanApprove },
   resolver: { Location: resolveLocation }

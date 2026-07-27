@@ -155,6 +155,14 @@ export function createModel (builder: Builder): void {
         spaces: [],
         specials: [
           {
+            id: 'dashboard',
+            label: ygTimesheet.string.Dashboard,
+            icon: tracker.icon.Home,
+            component: ygTimesheet.component.Dashboard,
+            visibleIf: ygTimesheet.function.CanApprove,
+            position: 'top'
+          },
+          {
             id: 'my',
             label: ygTimesheet.string.MyTimesheet,
             icon: ygTimesheet.icon.Timesheet,

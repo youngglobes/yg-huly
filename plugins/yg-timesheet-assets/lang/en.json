@@ -78,6 +78,21 @@
     "AllProjects": "All projects",
     "AllMembers": "All members",
     "SelectedCount": "{count} selected",
-    "ApprovalNotification": "Timesheet approval"
+    "ApprovalNotification": "Timesheet approval",
+    "Dashboard": "Dashboard",
+    "MyProjects": "My projects",
+    "InProgress": "In progress",
+    "PendingApproval": "Pending your approval",
+    "HoursThisWeek": "Hours this week",
+    "Overdue": "Overdue",
+    "ProjectsYouHandle": "Projects you handle",
+    "InProgressTasks": "In progress tasks",
+    "DueThisWeek": "Overdue / due this week",
+    "IssuesByStatus": "Issues by status",
+    "HoursByProject": "Hours by project",
+    "NothingWaiting": "Nothing waiting on you.",
+    "NoOverdue": "Nothing overdue.",
+    "Assignee": "Assignee",
+    "Unassigned": "Unassigned"
   }
 }

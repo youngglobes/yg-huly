@@ -78,6 +78,21 @@
     "AllProjects": "Все проекты",
     "AllMembers": "Все сотрудники",
     "SelectedCount": "Выбрано: {count}",
-    "ApprovalNotification": "Утверждение табеля"
+    "ApprovalNotification": "Утверждение табеля",
+    "Dashboard": "Дашборд",
+    "MyProjects": "Мои проекты",
+    "InProgress": "В работе",
+    "PendingApproval": "Ожидает вашего утверждения",
+    "HoursThisWeek": "Часы за эту неделю",
+    "Overdue": "Просрочено",
+    "ProjectsYouHandle": "Проекты, за которые вы отвечаете",
+    "InProgressTasks": "Задачи в работе",
+    "DueThisWeek": "Просрочено / срок на этой неделе",
+    "IssuesByStatus": "Задачи по статусу",
+    "HoursByProject": "Часы по проектам",
+    "NothingWaiting": "Нет задач, ожидающих вас.",
+    "NoOverdue": "Нет просроченных задач.",
+    "Assignee": "Исполнитель",
+    "Unassigned": "Не назначен"
   }
 }

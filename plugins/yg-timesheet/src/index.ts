@@ -127,7 +127,8 @@ export default plugin(ygTimesheetId, {
     HrExportDialog: '' as AnyComponent,
     ApproveTaskPopup: '' as AnyComponent,
     RejectTaskPopup: '' as AnyComponent,
-    NotificationRedirect: '' as AnyComponent
+    NotificationRedirect: '' as AnyComponent,
+    Dashboard: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -210,7 +211,22 @@ export default plugin(ygTimesheetId, {
     AllProjects: '' as IntlString,
     AllMembers: '' as IntlString,
     SelectedCount: '' as IntlString,
-    ApprovalNotification: '' as IntlString
+    ApprovalNotification: '' as IntlString,
+    Dashboard: '' as IntlString,
+    MyProjects: '' as IntlString,
+    InProgress: '' as IntlString,
+    PendingApproval: '' as IntlString,
+    HoursThisWeek: '' as IntlString,
+    Overdue: '' as IntlString,
+    ProjectsYouHandle: '' as IntlString,
+    InProgressTasks: '' as IntlString,
+    DueThisWeek: '' as IntlString,
+    IssuesByStatus: '' as IntlString,
+    HoursByProject: '' as IntlString,
+    NothingWaiting: '' as IntlString,
+    NoOverdue: '' as IntlString,
+    Assignee: '' as IntlString,
+    Unassigned: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
