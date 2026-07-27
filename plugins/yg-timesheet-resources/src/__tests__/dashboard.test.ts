@@ -1,6 +1,6 @@
 import {
   greetingFor, isOpen, inProgressIssues, overdueIssues, dueSoonIssues,
-  statusBuckets, hoursByProject, projectStats, portfolioHours, computeKpis, todayStart,
+  statusBuckets, hoursByProject, projectStats, portfolioHours, teamWorkload, priorityWatch, computeKpis, todayStart,
   type DashIssue, type DashTime, type DashProject
 } from '../utils/dashboard'
 
@@ -89,6 +89,38 @@ describe('portfolioHours', () => {
       { project: 'p2', name: 'B', open: 0, inProgress: 0, done: 0, hours: 0, members: 0, estimated: 4.5, spent: 2 }
     ]
     expect(portfolioHours(stats)).toEqual({ estimated: 12.5, spent: 9 })
+  })
+})
+
+describe('teamWorkload', () => {
+  const issues = [
+    iss({ id: 'a', assignee: 'e1', cat: 'active' }),
+    iss({ id: 'b', assignee: 'e1', cat: 'todo' }),
+    iss({ id: 'c', assignee: 'e2', cat: 'won' }), // done -> not counted as open
+    iss({ id: 'd', assignee: null, cat: 'active' }) // unassigned -> ignored
+  ]
+  const times: DashTime[] = [
+    { issue: 'a', project: 'p1', employee: 'e1', date: D(2026, 6, 14), hours: 3 },
+    { issue: 'c', project: 'p1', employee: 'e2', date: D(2026, 6, 14), hours: 1.5 },
+    { issue: 'a', project: 'p1', employee: '', date: D(2026, 6, 14), hours: 9 } // empty employee ignored
+  ]
+  it('rolls up hours + open assigned per member, busiest first', () => {
+    expect(teamWorkload(issues, times)).toEqual([
+      { employee: 'e1', hours: 3, open: 2 },
+      { employee: 'e2', hours: 1.5, open: 0 }
+    ])
+  })
+})
+
+describe('priorityWatch', () => {
+  const issues = [
+    iss({ id: 'u', priority: 1, cat: 'active', dueDate: D(2026, 6, 20) }),   // Urgent, open
+    iss({ id: 'h', priority: 2, cat: 'todo', dueDate: D(2026, 6, 15) }),     // High, open, sooner due
+    iss({ id: 'm', priority: 3, cat: 'active' }),                            // Medium -> excluded
+    iss({ id: 'ud', priority: 1, cat: 'won' })                              // Urgent but done -> excluded
+  ]
+  it('keeps open Urgent/High only, urgent-first then soonest due', () => {
+    expect(priorityWatch(issues).map((i) => i.id)).toEqual(['u', 'h'])
   })
 })
 

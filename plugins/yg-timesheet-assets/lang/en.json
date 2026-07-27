@@ -94,6 +94,8 @@
     "Assignee": "Assignee",
     "Unassigned": "Unassigned",
     "Inbox": "Inbox",
-    "InboxEmpty": "No unread notifications."
+    "InboxEmpty": "No unread notifications.",
+    "TeamWorkload": "Team this week",
+    "PriorityWatch": "Priority watch"
   }
 }

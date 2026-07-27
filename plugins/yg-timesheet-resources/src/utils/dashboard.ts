@@ -87,6 +87,30 @@ export function portfolioHours (stats: ProjectStat[]): { estimated: number; spen
   }
 }
 
+export interface TeamMember { employee: string; hours: number; open: number }
+
+// Team workload this week: for everyone who logged time (this week) OR owns an open issue on the
+// PM's projects, their hours logged this week + count of open issues assigned. Sorted busiest first,
+// so a PM can spot who is overloaded vs idle.
+export function teamWorkload (issues: DashIssue[], times: DashTime[]): TeamMember[] {
+  const hours = new Map<string, number>()
+  for (const t of times) if (t.employee !== '') hours.set(t.employee, (hours.get(t.employee) ?? 0) + t.hours)
+  const open = new Map<string, number>()
+  for (const i of issues) if (i.assignee != null && isOpen(i.cat)) open.set(i.assignee, (open.get(i.assignee) ?? 0) + 1)
+  const emps = new Set<string>([...hours.keys(), ...open.keys()])
+  return [...emps]
+    .map((e) => ({ employee: e, hours: round2(hours.get(e) ?? 0), open: open.get(e) ?? 0 }))
+    .sort((a, b) => b.hours - a.hours || b.open - a.open)
+}
+
+// Priority watch: open issues at Urgent (1) or High (2) priority, most-urgent first then soonest
+// due. IssuePriority enum: 0 NoPriority, 1 Urgent, 2 High, 3 Medium, 4 Low.
+export function priorityWatch (issues: DashIssue[]): DashIssue[] {
+  return issues
+    .filter((i) => isOpen(i.cat) && (i.priority === 1 || i.priority === 2))
+    .sort((a, b) => a.priority - b.priority || (a.dueDate ?? Infinity) - (b.dueDate ?? Infinity))
+}
+
 export function computeKpis (issues: DashIssue[], times: DashTime[], now: number): Kpis {
   return {
     inProgress: inProgressIssues(issues).length,

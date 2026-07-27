@@ -29,7 +29,7 @@
   import { weekRange } from '../utils/week'
   import {
     computeKpis, projectStats, portfolioHours, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
-    type Cat, type DashIssue, type DashTime, type DashProject
+    teamWorkload, priorityWatch, type Cat, type DashIssue, type DashTime, type DashProject
   } from '../utils/dashboard'
   import GreetingCard from './dashboard/GreetingCard.svelte'
   import KpiCards from './dashboard/KpiCards.svelte'
@@ -38,6 +38,8 @@
   import ApprovalsQueue from './dashboard/ApprovalsQueue.svelte'
   import OverdueList from './dashboard/OverdueList.svelte'
   import InboxWidget from './dashboard/InboxWidget.svelte'
+  import PriorityWatch from './dashboard/PriorityWatch.svelte'
+  import TeamWorkload from './dashboard/TeamWorkload.svelte'
   import Donut from './dashboard/Donut.svelte'
   import HoursBar from './dashboard/HoursBar.svelte'
 
@@ -167,6 +169,8 @@
   $: overdue = overdueIssues(issues, now)
   $: dueSoon = dueSoonIssues(issues, now, 7)
   $: inProg = inProgressIssues(issues)
+  $: team = teamWorkload(issues, times)
+  $: priority = priorityWatch(issues)
   $: hoursByIssue = (() => {
     const m = new Map<string, number>()
     for (const t of times) m.set(t.issue, Math.round(((m.get(t.issue) ?? 0) + t.hours) * 100) / 100)
@@ -188,10 +192,14 @@
         <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
       </div>
       <div class="dash-two">
+        <PriorityWatch issues={priority} {employeeNames} />
         <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
-        <Donut {buckets} />
       </div>
       <div class="dash-one">
+        <TeamWorkload {team} {employeeNames} />
+      </div>
+      <div class="dash-two">
+        <Donut {buckets} />
         <HoursBar bars={hoursBars} />
       </div>
     </div>
