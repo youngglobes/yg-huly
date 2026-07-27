@@ -1,31 +1,61 @@
 <script lang="ts">
+  // "Projects you handle" as a compact, sortable portfolio table (not cards): one dense row per
+  // project, sorted most-active first (in-progress desc, then hours), scrollable so it stays
+  // scannable whether a PM has 3 projects or 30. In our org a PM can hold many projects at once,
+  // so the card grid was replaced with this table (user decision 2026-07-27).
   import { Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import { formatHours } from '../../utils/week'
   import { type ProjectStat } from '../../utils/dashboard'
   export let stats: ProjectStat[]
+  // Most-active first: in-progress desc, then hours desc, then name.
+  $: rows = [...stats].sort((a, b) => b.inProgress - a.inProgress || b.hours - a.hours || a.name.localeCompare(b.name))
 </script>
+
 <div class="pc">
   <div class="pc__title"><Label label={ygTimesheet.string.ProjectsYouHandle} /></div>
-  <div class="pc__grid">
-    {#each stats as s (s.project)}
-      <div class="pcard">
-        <div class="pcard__name">{s.name}</div>
-        <div class="pcard__row"><span>{s.inProgress} in progress</span><span>{s.open} open</span><span>{s.done} done</span></div>
-        <div class="pcard__meta">{formatHours(s.hours)} this week · {s.members} {s.members === 1 ? 'member' : 'members'}</div>
-      </div>
-    {:else}
-      <div class="yg-empty">No projects assigned to you.</div>
-    {/each}
+  <div class="pc__wrap">
+    <table class="yg-table">
+      <thead>
+        <tr>
+          <th class="left"><Label label={ygTimesheet.string.Project} /></th>
+          <th class="yg-num"><Label label={ygTimesheet.string.InProgress} /></th>
+          <th class="yg-num">Open</th>
+          <th class="yg-num">Done</th>
+          <th class="yg-num"><Label label={ygTimesheet.string.Hours} /></th>
+          <th class="yg-num">Team</th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each rows as s (s.project)}
+          <tr>
+            <td class="left pc__name">{s.name}</td>
+            <td class="yg-num">{s.inProgress}</td>
+            <td class="yg-num">{s.open}</td>
+            <td class="yg-num">{s.done}</td>
+            <td class="yg-num">{formatHours(s.hours)}</td>
+            <td class="yg-num">{s.members}</td>
+          </tr>
+        {:else}
+          <tr><td colspan={6} class="yg-empty">No projects assigned to you.</td></tr>
+        {/each}
+      </tbody>
+    </table>
   </div>
 </div>
+
 <style lang="scss">
   @use '../yg-table' as *;
-  .pc { margin-top: 16px; }
+  .pc {
+    margin-top: 16px;
+    background: var(--yg-panel);
+    border: 1px solid var(--yg-border);
+    border-radius: var(--yg-radius);
+    box-shadow: var(--yg-shadow);
+    padding: 14px 16px;
+  }
   .pc__title { font-size: 13px; font-weight: 680; color: var(--yg-text); margin-bottom: 10px; }
-  .pc__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-  .pcard { background: var(--yg-panel); border: 1px solid var(--yg-border); border-radius: var(--yg-radius); box-shadow: var(--yg-shadow); padding: 14px 16px; }
-  .pcard__name { font-weight: 640; color: var(--yg-text); }
-  .pcard__row { display: flex; gap: 12px; margin-top: 8px; font-size: 12px; color: var(--yg-text-dim); }
-  .pcard__meta { margin-top: 6px; font-size: 12px; color: var(--yg-text-faint); }
+  // Cap the height so a many-project portfolio scrolls instead of pushing the rest of the page down.
+  .pc__wrap { max-height: 320px; overflow: auto; }
+  .pc__name { font-weight: 600; color: var(--yg-text); }
 </style>
