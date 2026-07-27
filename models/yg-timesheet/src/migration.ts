@@ -1,7 +1,7 @@
 //
 // YoungGlobes: yg-timesheet migrations — provision the private HR space.
 //
-import { generateId, TxOperations, type Ref, type Timestamp } from '@hcengineering/core'
+import { DOMAIN_SPACE, generateId, TxOperations, type Ref, type Timestamp } from '@hcengineering/core'
 import {
   tryUpgrade,
   type MigrateOperation,
@@ -60,12 +60,19 @@ async function createApprovalsSpace (tx: TxOperations): Promise<void> {
 }
 
 // Flip an EXISTING private Approvals space to public (beta) so approvers/admins can read approved
-// hours in Reports + export on refresh. Idempotent: only updates when currently private.
-async function openApprovalsSpace (tx: TxOperations): Promise<void> {
-  const space = await tx.findOne(core.class.Space, { _id: ygTimesheet.space.Approvals })
-  if (space !== undefined && space.private) {
-    await tx.updateDoc(core.class.Space, space.space, space._id, { private: false })
-  }
+// hours in Reports + export on refresh.
+//
+// Runs in the MIGRATE phase via a RAW domain update, NOT an upgrade-phase updateDoc. The earlier
+// upgrade-phase version (a `TxOperations.updateDoc` on the Space) was rejected by the pipeline's
+// NormalizeTxMiddleware with platform:status:BadRequest and silently aborted, so the space stayed
+// private on the beta workspace (diagnosed 2026-07-27: approved hours + approver came back blank on
+// refresh and in the CSV export because a private space serves its docs to members only). A raw
+// domain update bypasses the tx pipeline entirely, exactly like the manual SQL flip used to unblock
+// the beta workspace. Idempotent: the query only matches a still-private space, so re-running is a
+// no-op. Fresh workspaces are created public by createApprovalsSpace, so this only ever repairs a
+// workspace whose Approvals space predates that.
+async function openApprovalsSpaceRaw (client: MigrationClient): Promise<void> {
+  await client.update(DOMAIN_SPACE, { _id: ygTimesheet.space.Approvals, private: true }, { private: false })
 }
 
 // Hide Huly's built-in HR app so there is one HR menu (ours). Best-effort: an existing app doc can
@@ -172,6 +179,9 @@ async function migrateApprovalRows (client: MigrationUpgradeClient): Promise<voi
 export const ygTimesheetOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await migrateDaysToTasks(client)
+    // Raw flip of an existing private Approvals space -> public (see openApprovalsSpaceRaw for why
+    // this is here and not an upgrade-phase updateDoc). Cheap + idempotent, safe every run.
+    await openApprovalsSpaceRaw(client)
   },
   async upgrade (state: Map<string, Set<string>>, client: () => Promise<MigrationUpgradeClient>, mode): Promise<void> {
     await tryUpgrade(mode, state, client, ygTimesheetId, [
@@ -196,15 +206,6 @@ export const ygTimesheetOperation: MigrateOperation = {
         // migrateApprovalRows above for why this can't run in the `migrate` phase.
         state: 'approval-rows-0001',
         func: migrateApprovalRows
-      },
-      {
-        // Beta: make the Approvals space readable so the approver audience (admins + PMs/TLs) can
-        // read approved hours in Reports + export on refresh. Flips any existing private space.
-        state: 'approvals-space-public-0001',
-        func: async (client) => {
-          const ops = new TxOperations(client, core.account.System)
-          await openApprovalsSpace(ops)
-        }
       },
       {
         // Remove Huly's built-in Calendar + Love (Office) right-sidebar widgets for a clean portal.
