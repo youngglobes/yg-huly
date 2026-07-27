@@ -1,11 +1,13 @@
 import {
   greetingFor, isOpen, inProgressIssues, overdueIssues, dueSoonIssues,
-  statusBuckets, hoursByProject, projectStats, computeKpis, todayStart, type DashIssue, type DashTime, type DashProject
+  statusBuckets, hoursByProject, projectStats, portfolioHours, computeKpis, todayStart,
+  type DashIssue, type DashTime, type DashProject
 } from '../utils/dashboard'
 
 const D = (y: number, m: number, d: number, h = 9): number => new Date(y, m, d, h).getTime()
 const iss = (o: Partial<DashIssue>): DashIssue => ({
-  id: 'i1', identifier: 'A-1', title: 't', project: 'p1', cat: 'active', assignee: 'e1', priority: 3, dueDate: null, ...o
+  id: 'i1', identifier: 'A-1', title: 't', project: 'p1', cat: 'active', assignee: 'e1', priority: 3, dueDate: null,
+  estimation: 0, reportedTime: 0, ...o
 })
 
 describe('greetingFor', () => {
@@ -64,15 +66,29 @@ describe('hoursByProject', () => {
 
 describe('projectStats', () => {
   const projects: DashProject[] = [{ id: 'p1', name: 'Alpha' }]
-  const issues = [iss({ project: 'p1', cat: 'active' }), iss({ id: 'i2', project: 'p1', cat: 'won' }), iss({ id: 'i3', project: 'p1', cat: 'todo' })]
+  const issues = [
+    iss({ project: 'p1', cat: 'active', estimation: 4, reportedTime: 2 }),
+    iss({ id: 'i2', project: 'p1', cat: 'won', estimation: 3, reportedTime: 5 }),
+    iss({ id: 'i3', project: 'p1', cat: 'todo', estimation: 1, reportedTime: 0 })
+  ]
   const times: DashTime[] = [
     { issue: 'i1', project: 'p1', employee: 'e1', date: D(2026, 6, 14), hours: 2 },
     { issue: 'i3', project: 'p1', employee: 'e2', date: D(2026, 6, 14), hours: 1 }
   ]
-  it('rolls up counts, hours and distinct members', () => {
+  it('rolls up counts, hours, members, estimated and spent', () => {
     expect(projectStats(issues, times, projects)).toEqual([
-      { project: 'p1', name: 'Alpha', open: 2, inProgress: 1, done: 1, hours: 3, members: 2 }
+      { project: 'p1', name: 'Alpha', open: 2, inProgress: 1, done: 1, hours: 3, members: 2, estimated: 8, spent: 7 }
     ])
+  })
+})
+
+describe('portfolioHours', () => {
+  it('sums estimated and spent across projects', () => {
+    const stats = [
+      { project: 'p1', name: 'A', open: 0, inProgress: 0, done: 0, hours: 0, members: 0, estimated: 8, spent: 7 },
+      { project: 'p2', name: 'B', open: 0, inProgress: 0, done: 0, hours: 0, members: 0, estimated: 4.5, spent: 2 }
+    ]
+    expect(portfolioHours(stats)).toEqual({ estimated: 12.5, spent: 9 })
   })
 })
 

@@ -6,10 +6,16 @@ export type Cat = 'unstarted' | 'todo' | 'active' | 'won' | 'lost'
 export interface DashIssue {
   id: string; identifier: string; title: string; project: string
   cat: Cat; assignee: string | null; priority: number; dueDate: number | null
+  // estimation = planned hours on the issue; reportedTime = all-time logged hours (aggregated by
+  // tracker on the Issue itself), so the budget view needs no separate time-report query.
+  estimation: number; reportedTime: number
 }
 export interface DashTime { issue: string; project: string; employee: string; date: number; hours: number }
 export interface DashProject { id: string; name: string }
-export interface ProjectStat { project: string; name: string; open: number; inProgress: number; done: number; hours: number; members: number }
+export interface ProjectStat {
+  project: string; name: string; open: number; inProgress: number; done: number
+  hours: number; members: number; estimated: number; spent: number
+}
 export interface Kpis { inProgress: number; hoursThisWeek: number; overdue: number }
 
 export function greetingFor (hour: number): string {
@@ -65,9 +71,20 @@ export function projectStats (issues: DashIssue[], times: DashTime[], projects: 
       inProgress: pi.filter((i) => i.cat === 'active').length,
       done: pi.filter((i) => i.cat === 'won').length,
       hours: round2(pt.reduce((s, t) => s + t.hours, 0)),
-      members: new Set(pt.map((t) => t.employee)).size
+      members: new Set(pt.map((t) => t.employee)).size,
+      estimated: round2(pi.reduce((s, i) => s + i.estimation, 0)),
+      spent: round2(pi.reduce((s, i) => s + i.reportedTime, 0))
     }
   })
+}
+
+// Portfolio totals across the PM's projects: planned (estimated) vs actual (spent), for the summary
+// line above the project table.
+export function portfolioHours (stats: ProjectStat[]): { estimated: number; spent: number } {
+  return {
+    estimated: round2(stats.reduce((s, p) => s + p.estimated, 0)),
+    spent: round2(stats.reduce((s, p) => s + p.spent, 0))
+  }
 }
 
 export function computeKpis (issues: DashIssue[], times: DashTime[], now: number): Kpis {

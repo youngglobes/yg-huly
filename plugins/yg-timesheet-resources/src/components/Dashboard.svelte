@@ -28,7 +28,7 @@
   import { canApproveView } from '../utils/task-approval'
   import { weekRange } from '../utils/week'
   import {
-    computeKpis, projectStats, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
+    computeKpis, projectStats, portfolioHours, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
     type Cat, type DashIssue, type DashTime, type DashProject
   } from '../utils/dashboard'
   import GreetingCard from './dashboard/GreetingCard.svelte'
@@ -37,6 +37,7 @@
   import InProgressTable from './dashboard/InProgressTable.svelte'
   import ApprovalsQueue from './dashboard/ApprovalsQueue.svelte'
   import OverdueList from './dashboard/OverdueList.svelte'
+  import InboxWidget from './dashboard/InboxWidget.svelte'
   import Donut from './dashboard/Donut.svelte'
   import HoursBar from './dashboard/HoursBar.svelte'
 
@@ -103,7 +104,9 @@
     cat: statusCat.get(i.status) ?? 'unstarted',
     assignee: (i.assignee as string) ?? null,
     priority: i.priority,
-    dueDate: i.dueDate ?? null
+    dueDate: i.dueDate ?? null,
+    estimation: i.estimation ?? 0,
+    reportedTime: i.reportedTime ?? 0
   }))
 
   // --- Time this week in my projects --------------------------------------
@@ -158,6 +161,7 @@
   $: now = Date.now()
   $: kpis = computeKpis(issues, times, now)
   $: stats = projectStats(issues, times, myProjects)
+  $: portfolio = portfolioHours(stats)
   $: buckets = statusBuckets(issues)
   $: hoursBars = hoursByProject(times, myProjects)
   $: overdue = overdueIssues(issues, now)
@@ -177,14 +181,17 @@
     <div class="yg-scroll">
       <GreetingCard name={employeeNames.get(me) ?? ''} />
       <KpiCards {kpis} {pendingCount} />
-      <ProjectCards {stats} />
+      <ProjectCards {stats} {portfolio} />
       <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
       <div class="dash-two">
+        <InboxWidget />
         <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
-        <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
       </div>
       <div class="dash-two">
+        <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
         <Donut {buckets} />
+      </div>
+      <div class="dash-one">
         <HoursBar bars={hoursBars} />
       </div>
     </div>
@@ -194,5 +201,6 @@
 <style lang="scss">
   @use './yg-table' as *;
   .dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .dash-one { margin-top: 16px; }
   @media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } }
 </style>

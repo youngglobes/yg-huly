@@ -225,7 +225,9 @@ export default plugin(ygTimesheetId, {
     NothingWaiting: '' as IntlString,
     NoOverdue: '' as IntlString,
     Assignee: '' as IntlString,
-    Unassigned: '' as IntlString
+    Unassigned: '' as IntlString,
+    Inbox: '' as IntlString,
+    InboxEmpty: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>

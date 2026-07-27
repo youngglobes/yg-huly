@@ -92,6 +92,8 @@
     "NothingWaiting": "Nothing waiting on you.",
     "NoOverdue": "Nothing overdue.",
     "Assignee": "Assignee",
-    "Unassigned": "Unassigned"
+    "Unassigned": "Unassigned",
+    "Inbox": "Inbox",
+    "InboxEmpty": "No unread notifications."
   }
 }
