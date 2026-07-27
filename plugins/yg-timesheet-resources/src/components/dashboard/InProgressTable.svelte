@@ -3,10 +3,12 @@
   import tracker from '@hcengineering/tracker'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import { priorityLabel } from '../../utils/reports'
+  import { formatHours } from '../../utils/week'
   import { type DashIssue, type DashProject } from '../../utils/dashboard'
   export let issues: DashIssue[]
   export let projects: DashProject[]
   export let employeeNames: Map<string, string>
+  export let hoursByIssue: Map<string, number>
   let projSel: string | undefined
   $: items = projects.map((p): DropdownTextItem => ({ id: p.id, label: p.name }))
   $: rows = issues.filter((i) => projSel == null || i.project === projSel)
@@ -19,18 +21,25 @@
     <DropdownLabels {items} bind:selected={projSel} label={ygTimesheet.string.Project} autoSelect={false} allowDeselect kind="regular" />
   </div>
   <table class="yg-table">
-    <thead><tr><th class="left">ID</th><th class="left">Title</th><th class="left"><Label label={ygTimesheet.string.Assignee} /></th><th><Label label={ygTimesheet.string.Priority} /></th><th><Label label={ygTimesheet.string.DueDate} /></th></tr></thead>
+    <thead><tr><th class="left">ID</th><th class="left">Title</th><th class="left"><Label label={ygTimesheet.string.Assignee} /></th><th><Label label={ygTimesheet.string.Priority} /></th><th><Label label={ygTimesheet.string.DueDate} /></th><th class="yg-num"><Label label={ygTimesheet.string.Hours} /></th></tr></thead>
     <tbody>
       {#each rows as r (r.id)}
         <tr>
           <td class="left"><a class="yg-idbadge" href="#{getPanelURI(tracker.component.EditIssue, r.id, tracker.class.Issue, 'content')}">{r.identifier}</a></td>
           <td class="left">{r.title}</td>
-          <td class="left">{r.assignee != null ? (employeeNames.get(r.assignee) ?? r.assignee) : ''}</td>
+          <td class="left">
+            {#if r.assignee != null}
+              {employeeNames.get(r.assignee) ?? r.assignee}
+            {:else}
+              <Label label={ygTimesheet.string.Unassigned} />
+            {/if}
+          </td>
           <td>{priorityLabel(r.priority)}</td>
           <td>{r.dueDate != null ? dfmt.format(r.dueDate) : '·'}</td>
+          <td class="yg-num">{formatHours(hoursByIssue.get(r.id) ?? 0)}</td>
         </tr>
       {:else}
-        <tr><td colspan={5} class="yg-empty">No in-progress tasks.</td></tr>
+        <tr><td colspan={6} class="yg-empty">No in-progress tasks.</td></tr>
       {/each}
     </tbody>
   </table>

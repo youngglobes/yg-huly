@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getCurrentLocation, navigate, Label } from '@hcengineering/ui'
   import ygTimesheet, { ygTimesheetId } from '@hcengineering/yg-timesheet'
+  import { formatHours } from '../../utils/week'
   import { type Kpis } from '../../utils/dashboard'
   export let kpis: Kpis
   export let pendingCount: number
@@ -9,7 +10,7 @@
 <div class="kpis">
   <div class="kpi"><span class="kpi__k"><Label label={ygTimesheet.string.InProgress} /></span><span class="kpi__v kpi__v--info">{kpis.inProgress}</span></div>
   <button class="kpi kpi--btn" on:click={goApprovals}><span class="kpi__k"><Label label={ygTimesheet.string.PendingApproval} /></span><span class="kpi__v kpi__v--amber">{pendingCount}</span></button>
-  <div class="kpi"><span class="kpi__k"><Label label={ygTimesheet.string.HoursThisWeek} /></span><span class="kpi__v">{kpis.hoursThisWeek}</span></div>
+  <div class="kpi"><span class="kpi__k"><Label label={ygTimesheet.string.HoursThisWeek} /></span><span class="kpi__v">{formatHours(kpis.hoursThisWeek)}</span></div>
   <div class="kpi"><span class="kpi__k"><Label label={ygTimesheet.string.Overdue} /></span><span class="kpi__v kpi__v--red">{kpis.overdue}</span></div>
 </div>
 <style lang="scss">

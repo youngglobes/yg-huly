@@ -15,6 +15,13 @@
     <a class="orow" class:orow--late={late} href={href(i.id)}>
       <span class="orow__id">{i.identifier}</span>
       <span class="orow__t">{i.title}</span>
+      <span class="orow__a">
+        {#if i.assignee != null}
+          {employeeNames.get(i.assignee) ?? i.assignee}
+        {:else}
+          <Label label={ygTimesheet.string.Unassigned} />
+        {/if}
+      </span>
       <span class="orow__due">{i.dueDate != null ? dfmt.format(i.dueDate) : ''}</span>
     </a>
   {:else}
@@ -28,6 +35,7 @@
   .orow { display: flex; align-items: center; gap: 10px; padding: 8px 6px; border-top: 1px solid var(--yg-border); text-decoration: none; color: var(--yg-text); }
   .orow__id { font-family: ui-monospace, monospace; font-size: 12px; color: var(--yg-text-dim); min-width: 64px; }
   .orow__t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .orow__a { font-size: 12px; color: var(--yg-text-dim); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .orow__due { font-size: 12px; color: var(--yg-text-dim); }
   .orow--late .orow__due { color: var(--yg-red); font-weight: 600; }
 </style>

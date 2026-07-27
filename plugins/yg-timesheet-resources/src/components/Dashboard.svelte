@@ -163,6 +163,11 @@
   $: overdue = overdueIssues(issues, now)
   $: dueSoon = dueSoonIssues(issues, now, 7)
   $: inProg = inProgressIssues(issues)
+  $: hoursByIssue = (() => {
+    const m = new Map<string, number>()
+    for (const t of times) m.set(t.issue, Math.round(((m.get(t.issue) ?? 0) + t.hours) * 100) / 100)
+    return m
+  })()
 </script>
 
 {#if !canView}
@@ -173,7 +178,7 @@
       <GreetingCard name={employeeNames.get(me) ?? ''} />
       <KpiCards {kpis} {pendingCount} />
       <ProjectCards {stats} />
-      <InProgressTable issues={inProg} projects={myProjects} {employeeNames} />
+      <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
       <div class="dash-two">
         <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
         <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />

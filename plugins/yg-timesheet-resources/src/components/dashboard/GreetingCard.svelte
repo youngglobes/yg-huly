@@ -9,9 +9,10 @@
   const dfmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const tfmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
   $: greeting = greetingFor(nowD.getHours())
+  $: first = name.split(/\s+/)[0] ?? ''
 </script>
 <div class="greet yg-section">
-  <div class="greet__hi">{greeting}{name ? `, ${name}` : ''}</div>
+  <div class="greet__hi">{greeting}{first ? `, ${first}` : ''}</div>
   <div class="greet__meta">{dfmt.format(nowD)} · {tfmt.format(nowD)}</div>
 </div>
 <style lang="scss">

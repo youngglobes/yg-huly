@@ -213,7 +213,6 @@ export default plugin(ygTimesheetId, {
     SelectedCount: '' as IntlString,
     ApprovalNotification: '' as IntlString,
     Dashboard: '' as IntlString,
-    MyProjects: '' as IntlString,
     InProgress: '' as IntlString,
     PendingApproval: '' as IntlString,
     HoursThisWeek: '' as IntlString,
