@@ -64,6 +64,17 @@
   let projectSels: string[] = []
   let statusSel: string | undefined
 
+  // Date range is chosen by a preset; "custom" reveals the From/To pickers. Labels are inline
+  // (like pageSizeItems) — internal, English-primary.
+  let preset: string = 'thisWeek'
+  const presetItems: DropdownTextItem[] = [
+    { id: 'thisWeek', label: 'This week' },
+    { id: 'lastWeek', label: 'Last week' },
+    { id: 'thisMonth', label: 'This month' },
+    { id: 'lastMonth', label: 'Last month' },
+    { id: 'custom', label: 'Custom' }
+  ]
+
   function parseDay (s: string): number {
     const [y, m, d] = s.split('-').map((v) => Number(v))
     return new Date(y, m - 1, d).getTime()
@@ -74,8 +85,36 @@
     return new Date(y, m - 1, d + 1).getTime()
   }
 
-  $: from = parseDay(fromStr)
-  $: to = nextDayStart(toStr)
+  // Resolve the 4 non-custom presets to a [from, to) window (to is exclusive). This/last week reuse
+  // weekRange (Mon-Sun); this month = the 1st through today inclusive; last month = the whole
+  // previous calendar month.
+  function rangeForPreset (p: string): { from: number, to: number } {
+    const now = new Date()
+    const y = now.getFullYear()
+    const mo = now.getMonth()
+    const d = now.getDate()
+    if (p === 'lastWeek') {
+      const lw = new Date()
+      lw.setDate(lw.getDate() - 7)
+      const w = weekRange(lw.getTime())
+      return { from: w.start, to: w.end }
+    }
+    if (p === 'thisMonth') return { from: new Date(y, mo, 1).getTime(), to: new Date(y, mo, d + 1).getTime() }
+    if (p === 'lastMonth') return { from: new Date(y, mo - 1, 1).getTime(), to: new Date(y, mo, 1).getTime() }
+    const w = weekRange(now.getTime()) // thisWeek (default)
+    return { from: w.start, to: w.end }
+  }
+
+  // For a non-custom preset, mirror its window into fromStr/toStr — that feeds the read-out and
+  // pre-seeds the From/To pickers when the user switches to "custom". Reads only `preset`, so its
+  // own fromStr/toStr writes never loop it.
+  $: if (preset !== 'custom') {
+    const r = rangeForPreset(preset)
+    fromStr = localDayKey(r.from)
+    toStr = localDayKey(r.to - 1)
+  }
+  $: from = preset === 'custom' ? parseDay(fromStr) : rangeForPreset(preset).from
+  $: to = preset === 'custom' ? nextDayStart(toStr) : rangeForPreset(preset).to
 
   // --- Queries -------------------------------------------------------------
   // Time entries for the window. Space-security auto-scopes to accessible projects.
@@ -249,7 +288,7 @@
   $: pageSize = Number(pageSizeSel)
   let page = 1
   // Reset to page 1 whenever the filtered set or page size changes.
-  $: filterSig = `${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}`
+  $: filterSig = `${preset}|${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}`
   $: {
     filterSig
     page = 1
@@ -293,8 +332,7 @@
 
   // Clears every filter back to its default (current week, All projects, All members, All statuses).
   function resetFilters (): void {
-    fromStr = localDayKey(initialWeek.start)
-    toStr = localDayKey(initialWeek.end - 1)
+    preset = 'thisWeek' // the reactive above re-syncs fromStr/toStr to this week
     projectSels = []
     members = []
     statusSel = undefined
@@ -350,13 +388,25 @@
 
     <!-- Filter toolbar -->
     <div class="rp-toolbar">
-      <span class="rp-ctrl rp-ctrl--range">
-        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.From} /></span>
-        <input class="rp-date" type="date" bind:value={fromStr} on:click={openDatePicker} />
-        <span class="rp-ctrl__sep">&rarr;</span>
-        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.To} /></span>
-        <input class="rp-date" type="date" bind:value={toStr} on:click={openDatePicker} />
+      <span class="rp-ctrl">
+        <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Period} /></span>
+        <DropdownLabels items={presetItems} bind:selected={preset} label={ygTimesheet.string.Period} autoSelect={false} kind="regular">
+          <span slot="content" class="overflow-label">
+            {presetItems.find((i) => i.id === preset)?.label ?? ''}
+          </span>
+        </DropdownLabels>
       </span>
+      {#if preset === 'custom'}
+        <span class="rp-ctrl rp-ctrl--range">
+          <span class="rp-ctrl__k"><Label label={ygTimesheet.string.From} /></span>
+          <input class="rp-date" type="date" bind:value={fromStr} on:click={openDatePicker} />
+          <span class="rp-ctrl__sep">&rarr;</span>
+          <span class="rp-ctrl__k"><Label label={ygTimesheet.string.To} /></span>
+          <input class="rp-date" type="date" bind:value={toStr} on:click={openDatePicker} />
+        </span>
+      {:else}
+        <span class="rp-ctrl rp-range-label">{dateFmt.format(from)} &rarr; {dateFmt.format(to - 1)}</span>
+      {/if}
       <span class="rp-ctrl">
         <span class="rp-ctrl__k"><Label label={ygTimesheet.string.Project} /></span>
         <DropdownLabels items={projectItems} bind:selected={projectSels} label={ygTimesheet.string.Project} autoSelect={false} multiselect kind="regular">
@@ -525,6 +575,8 @@
   }
   .rp-ctrl__k { color: var(--yg-text-faint); font-size: 12px; white-space: nowrap; }
   .rp-ctrl__sep { color: var(--yg-text-faint); }
+  // Read-only resolved range shown for non-custom presets (in place of the From/To pickers).
+  .rp-range-label { color: var(--yg-text); font-weight: 600; font-size: 13px; white-space: nowrap; }
   .rp-date {
     padding: 0.1875rem 0.375rem; border: 1px solid var(--yg-border); border-radius: 0.25rem;
     background: var(--yg-panel-soft); color: var(--yg-text); font: inherit; font-size: 0.8125rem;

@@ -159,6 +159,7 @@ export default plugin(ygTimesheetId, {
     Reports: '' as IntlString,
     From: '' as IntlString,
     To: '' as IntlString,
+    Period: '' as IntlString,
     Project: '' as IntlString,
     Member: '' as IntlString,
     Status: '' as IntlString,
