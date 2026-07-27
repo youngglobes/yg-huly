@@ -59,14 +59,19 @@
   // --- My projects (pm/teamLead == me, or admin => all) --------------------
   const projectQuery = createQuery()
   let allProjects: Project[] = []
-  let canView = false
+  // isApprover is derived from the query; isAdmin is synchronous. Gating on isAdmin alone (not
+  // waiting on isApprover) gives admins a fast path so they never sit behind "Restricted to
+  // approvers." while the query is still in flight - mirrors Reports.svelte's isHRAdmin/isApprover
+  // split exactly.
+  let isApprover = false
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     allProjects = res
     const pairs = res
       .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
       .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: a.pm, teamLead: a.teamLead } })
-    canView = canApproveView(isAdmin, pairs, me)
+    isApprover = canApproveView(false, pairs, me)
   })
+  $: canView = isAdmin || isApprover
   $: myProjectDocs = isAdmin
     ? allProjects
     : allProjects.filter((p) => {
