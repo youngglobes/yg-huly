@@ -121,38 +121,64 @@
     statusNames = m
   })
 
-  // Per-task approval overlay (private ygTimesheet.space.Approvals — non-members get []). Indexed
-  // by employee+issue+day so the row builder can look up approved hours/approver per logged time
-  // entry WITHOUT crossing employees: two different employees can log the same issue on the same
-  // calendar day, and without the employee in the key one's approval would bleed onto the other's
-  // row (payroll misattribution). Nested $lookup resolves the employee via task → day → timesheet
-  // (mirrors Approvals.svelte). Reuses `employeeNames` (above) for the approver's display name —
-  // no second name lookup.
+  // Per-task approval overlay — indexed by employee+issue+day so the row builder looks up approved
+  // hours/approver per logged time entry WITHOUT crossing employees: two people can log the same
+  // issue on the same calendar day, and without the employee in the key one's approval would bleed
+  // onto the other's row (payroll misattribution). Reuses `employeeNames` (above) for the approver's
+  // display name.
+  //
+  // Resolved with FLAT queries + a client-side join, NOT a deep nested $lookup. An earlier version
+  // used a 3-level $lookup (approval → task → day → timesheet) to reach the employee; that resolved
+  // only from the client cache in-session and came back UNRESOLVED on a fresh server query, so every
+  // approval was dropped and the columns showed blank on refresh + in the CSV export (2026-07-27).
+  // Four flat live queries (each in a world- or approver-readable space) feed one reactive join.
   const approvalQuery = createQuery()
-  let approvedByKey: Map<string, WithLookup<TimesheetApproval>> = new Map()
-  approvalQuery.query(
-    ygTimesheet.class.TimesheetApproval,
-    {},
-    (res: Array<WithLookup<TimesheetApproval>>) => {
-      const m = new Map<string, WithLookup<TimesheetApproval>>()
-      for (const a of res) {
-        const task = a.$lookup?.task as WithLookup<TimesheetTask> | undefined
-        const day = task?.$lookup?.attachedTo as WithLookup<TimesheetDay> | undefined
-        const ts = day?.$lookup?.attachedTo as Timesheet | undefined
-        const emp = ts?.employee
-        // Fail SAFE: an unresolved employee yields no key, so the row's approval columns come out
-        // blank (never wrongly attributed to the wrong employee).
-        if (task === undefined || emp == null) continue
-        m.set(`${emp}|${task.issue}|${localDayKey(task.date)}`, a)
-      }
-      approvedByKey = m
-    },
-    {
-      lookup: {
-        task: [ygTimesheet.class.TimesheetTask, { attachedTo: [ygTimesheet.class.TimesheetDay, { attachedTo: ygTimesheet.class.Timesheet }] }]
-      }
+  let approvalByTask = new Map<string, TimesheetApproval>() // TimesheetTask._id -> approval
+  approvalQuery.query(ygTimesheet.class.TimesheetApproval, {}, (res: TimesheetApproval[]) => {
+    const m = new Map<string, TimesheetApproval>()
+    for (const a of res) m.set(a.task as string, a)
+    approvalByTask = m
+  })
+
+  const taskInfoQuery = createQuery()
+  let taskInfo = new Map<string, { day: string, issue: string, date: number }>() // TimesheetTask._id
+  taskInfoQuery.query(ygTimesheet.class.TimesheetTask, { status: 'Approved' }, (res: TimesheetTask[]) => {
+    const m = new Map<string, { day: string, issue: string, date: number }>()
+    for (const t of res) m.set(t._id, { day: t.attachedTo as string, issue: t.issue as string, date: t.date })
+    taskInfo = m
+  })
+
+  const dayQuery = createQuery()
+  let dayTimesheet = new Map<string, string>() // TimesheetDay._id -> Timesheet._id
+  dayQuery.query(ygTimesheet.class.TimesheetDay, {}, (res: TimesheetDay[]) => {
+    const m = new Map<string, string>()
+    for (const d of res) m.set(d._id, d.attachedTo as string)
+    dayTimesheet = m
+  })
+
+  const tsQuery = createQuery()
+  let tsEmployee = new Map<string, string>() // Timesheet._id -> employee
+  tsQuery.query(ygTimesheet.class.Timesheet, {}, (res: Timesheet[]) => {
+    const m = new Map<string, string>()
+    for (const t of res) m.set(t._id, t.employee as string)
+    tsEmployee = m
+  })
+
+  // Join the four maps: approval → task → day → timesheet → employee, keyed exactly like the row
+  // lookup below. Fail SAFE: an unresolved chain yields no key, so the columns come out blank rather
+  // than mis-attributed.
+  $: approvedByKey = ((): Map<string, TimesheetApproval> => {
+    const m = new Map<string, TimesheetApproval>()
+    for (const [taskId, a] of approvalByTask) {
+      const info = taskInfo.get(taskId)
+      if (info === undefined) continue
+      const tsId = dayTimesheet.get(info.day)
+      const emp = tsId != null ? tsEmployee.get(tsId) : undefined
+      if (emp == null) continue
+      m.set(`${emp}|${info.issue}|${localDayKey(info.date)}`, a)
     }
-  )
+    return m
+  })()
 
   // --- Build ReportRow[] ---------------------------------------------------
   $: allRows = reports.map((r): ReportRow => {
