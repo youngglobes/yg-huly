@@ -94,6 +94,24 @@ export interface HrTimeEntry extends Doc {
   note: string
 }
 
+/** Office vs work-from-home, set at punch-in and immutable thereafter. */
+export type AttendanceMode = 'office' | 'wfh'
+
+/**
+ * One attendance session - a punch-in, later closed by a punch-out. Client-written,
+ * immutable in the UI (v1): the only writes are create (punch in) and set punchOut/
+ * punchOutNote (punch out). Duration is derived (punchOut - punchIn), never stored.
+ */
+export interface AttendanceSession extends Doc {
+  employee: Ref<Employee>
+  date: Timestamp // local midnight (ms) of the punch-in day - for day grouping/history
+  punchIn: Timestamp // full ms timestamp of punch-in
+  punchInNote?: string // optional note captured at punch-in
+  mode: AttendanceMode // set at punch-in; immutable
+  punchOut?: Timestamp // full ms timestamp of punch-out; absent while the session is open
+  punchOutNote?: string // optional note captured at punch-out
+}
+
 export const ygTimesheetId = 'yg-timesheet' as Plugin
 
 export default plugin(ygTimesheetId, {
@@ -102,7 +120,8 @@ export default plugin(ygTimesheetId, {
     TimesheetDay: '' as Ref<Class<TimesheetDay>>,
     TimesheetTask: '' as Ref<Class<TimesheetTask>>,
     TimesheetApproval: '' as Ref<Class<TimesheetApproval>>,
-    HrTimeEntry: '' as Ref<Class<HrTimeEntry>>
+    HrTimeEntry: '' as Ref<Class<HrTimeEntry>>,
+    AttendanceSession: '' as Ref<Class<AttendanceSession>>
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>
@@ -114,7 +133,8 @@ export default plugin(ygTimesheetId, {
   },
   app: {
     Timesheet: '' as Ref<Doc>,
-    HumanResource: '' as Ref<Doc>
+    HumanResource: '' as Ref<Doc>,
+    Attendance: '' as Ref<Doc>
   },
   component: {
     Timesheet: '' as AnyComponent,
@@ -128,7 +148,8 @@ export default plugin(ygTimesheetId, {
     ApproveTaskPopup: '' as AnyComponent,
     RejectTaskPopup: '' as AnyComponent,
     NotificationRedirect: '' as AnyComponent,
-    Dashboard: '' as AnyComponent
+    Dashboard: '' as AnyComponent,
+    MyAttendance: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -229,12 +250,27 @@ export default plugin(ygTimesheetId, {
     Inbox: '' as IntlString,
     InboxEmpty: '' as IntlString,
     TeamWorkload: '' as IntlString,
-    PriorityWatch: '' as IntlString
+    PriorityWatch: '' as IntlString,
+    Attendance: '' as IntlString,
+    MyAttendance: '' as IntlString,
+    PunchIn: '' as IntlString,
+    PunchOut: '' as IntlString,
+    Office: '' as IntlString,
+    WFH: '' as IntlString,
+    AddNote: '' as IntlString,
+    In: '' as IntlString,
+    Out: '' as IntlString,
+    Duration: '' as IntlString,
+    History: '' as IntlString,
+    TodaysSessions: '' as IntlString,
+    NoSessionsToday: '' as IntlString,
+    NoSessionsOnDate: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
   },
   resolver: {
-    Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>
+    Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,
+    AttendanceLocation: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>
   }
 })
