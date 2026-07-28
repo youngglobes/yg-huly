@@ -25,6 +25,8 @@ import workbench from '@hcengineering/model-workbench'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
   ygTimesheetId,
+  type AttendanceMode,
+  type AttendanceSession,
   type DayStatus,
   type HrTimeEntry,
   type ProjectApprovers,
@@ -122,8 +124,19 @@ export class THrTimeEntry extends TDoc implements HrTimeEntry {
   @Prop(TypeString(), core.string.Object) note!: string
 }
 
+@Model(ygTimesheet.class.AttendanceSession, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TAttendanceSession extends TDoc implements AttendanceSession {
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) employee!: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeDate(), core.string.Object) punchIn!: Timestamp
+  @Prop(TypeString(), core.string.Object) punchInNote?: string
+  @Prop(TypeString(), core.string.Object) mode!: AttendanceMode
+  @Prop(TypeDate(), core.string.Object) punchOut?: Timestamp
+  @Prop(TypeString(), core.string.Object) punchOutNote?: string
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry, TAttendanceSession)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.
@@ -262,6 +275,37 @@ export function createModel (builder: Builder): void {
   )
   // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) —
   // Builder has no updateDoc; only a TxOperations client (migration) can update an existing app doc.
+
+  // New self-service "Attendance" app (Phase 1d). Same native-navigator pattern as the HR app:
+  // navigatorModel.specials, no top-level `component`. One special for v1 (My Attendance, the
+  // default landing); Leave + attendance-report specials get added here in later phases.
+  // No accessLevel — every workspace user punches their own attendance. AttendanceSession docs
+  // live in core.space.Workspace (shared, like Timesheet), so no space is provisioned here.
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.Attendance,
+      icon: ygTimesheet.icon.Timesheet, // reuse existing icon for the beta
+      alias: 'yg-attendance',
+      hidden: false,
+      position: 'top',
+      locationResolver: ygTimesheet.resolver.AttendanceLocation,
+      navigatorModel: {
+        spaces: [],
+        specials: [
+          {
+            id: 'my',
+            label: ygTimesheet.string.MyAttendance,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.MyAttendance,
+            position: 'top'
+          }
+        ]
+      }
+    },
+    ygTimesheet.app.Attendance
+  )
 
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
   // (rendered embedded in the Inbox — see plugins/notification-resources). Our approval notifications
