@@ -110,6 +110,12 @@
     "History": "History",
     "TodaysSessions": "Today's sessions",
     "NoSessionsToday": "No sessions yet today",
-    "NoSessionsOnDate": "No sessions on this day"
+    "NoSessionsOnDate": "No sessions on this day",
+    "OnTheClock": "On the clock",
+    "NotPunchedIn": "Not punched in",
+    "Sessions": "Sessions",
+    "FirstIn": "First in",
+    "LastOut": "Last out",
+    "YourDay": "Your day"
   }
 }

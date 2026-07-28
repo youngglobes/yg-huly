@@ -264,7 +264,13 @@ export default plugin(ygTimesheetId, {
     History: '' as IntlString,
     TodaysSessions: '' as IntlString,
     NoSessionsToday: '' as IntlString,
-    NoSessionsOnDate: '' as IntlString
+    NoSessionsOnDate: '' as IntlString,
+    OnTheClock: '' as IntlString,
+    NotPunchedIn: '' as IntlString,
+    Sessions: '' as IntlString,
+    FirstIn: '' as IntlString,
+    LastOut: '' as IntlString,
+    YourDay: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>

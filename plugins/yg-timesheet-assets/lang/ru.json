@@ -110,6 +110,12 @@
     "History": "История",
     "TodaysSessions": "Сегодняшние сессии",
     "NoSessionsToday": "Сегодня ещё нет сессий",
-    "NoSessionsOnDate": "Нет сессий за этот день"
+    "NoSessionsOnDate": "Нет сессий за этот день",
+    "OnTheClock": "На смене",
+    "NotPunchedIn": "Не на смене",
+    "Sessions": "Сессии",
+    "FirstIn": "Первый приход",
+    "LastOut": "Последний уход",
+    "YourDay": "Ваш день"
   }
 }

@@ -16,8 +16,9 @@
   import { onMount, onDestroy } from 'svelte'
   import { getCurrentEmployee } from '@hcengineering/contact'
   import core from '@hcengineering/core'
+  import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label } from '@hcengineering/ui'
+  import { Label, themeStore } from '@hcengineering/ui'
   import ygTimesheet, { type AttendanceSession, type AttendanceMode } from '@hcengineering/yg-timesheet'
   import { localDayKey } from '../utils/week'
   import {
@@ -25,13 +26,16 @@
     findOpenSession,
     dailyTotal,
     nextMode,
+    dayStats,
+    buildDayTimeline,
     formatDuration
   } from '../utils/attendance'
+  import AttendanceSessionRow from './AttendanceSessionRow.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
 
-  // Live clock: retick every second so the running timer + total are live (GreetingCard idiom).
+  // Live clock: retick every second so the clock, running timer, totals and timeline are live.
   let nowMs = Date.now()
   let timer: ReturnType<typeof setInterval>
   onMount(() => {
@@ -39,8 +43,17 @@
   })
   onDestroy(() => clearInterval(timer))
 
-  const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: '2-digit', month: 'short' })
+  const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+  const hourLabel = (h: number): string => {
+    const ap = h < 12 || h === 24 ? 'a' : 'p'
+    const hr = h % 12 === 0 ? 12 : h % 12
+    return `${hr}${ap}`
+  }
+
+  // Localized note placeholder (also used as the accessible label).
+  let notePlaceholder = ''
+  $: void translate(ygTimesheet.string.AddNote, {}, $themeStore.language).then((p) => (notePlaceholder = p))
 
   // All my sessions, newest punch-in first. Beta volume is small; no range filter needed.
   const query = createQuery()
@@ -54,12 +67,15 @@
     { sort: { punchIn: -1 } }
   )
 
-  // Derived state. `nowMs` feeds the reactive block so timers/totals retick each second.
+  // Derived state. `nowMs` feeds the reactive block so timers/totals/timeline retick each second.
   $: todayMid = localMidnight(nowMs)
   $: todays = sessions.filter((s) => s.date === todayMid)
+  $: todaysAsc = [...todays].sort((a, b) => a.punchIn - b.punchIn)
   $: openSession = findOpenSession(sessions)
   $: punchedIn = openSession !== undefined
   $: todayTotal = dailyTotal(todays, nowMs)
+  $: stats = dayStats(todays, nowMs)
+  $: timeline = buildDayTimeline(todays, todayMid, nowMs)
 
   // The Office/WFH selection for the NEXT punch-in. Seeded from today's most recent session's
   // mode (else office), sticky within the day. Re-seed only when the day rolls over or a punch
@@ -75,32 +91,43 @@
   }
 
   let note = ''
+  // Guards a double-click: `punchedIn` only flips after the live query round-trips the new doc,
+  // so without this a fast second click could open a second session. Disabled while the write runs.
+  let busy = false
 
   async function punchIn (): Promise<void> {
-    if (punchedIn) return
-    const at = Date.now()
-    const trimmed = note.trim()
-    await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
-      employee: me,
-      date: localMidnight(at),
-      punchIn: at,
-      mode,
-      ...(trimmed !== '' ? { punchInNote: trimmed } : {})
-    })
-    note = ''
+    if (punchedIn || busy) return
+    busy = true
+    try {
+      const at = Date.now()
+      const trimmed = note.trim()
+      await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
+        employee: me,
+        date: localMidnight(at),
+        punchIn: at,
+        mode,
+        ...(trimmed !== '' ? { punchInNote: trimmed } : {})
+      })
+      note = ''
+    } finally {
+      busy = false
+    }
   }
 
   async function punchOut (): Promise<void> {
-    if (openSession === undefined) return
-    const at = Date.now()
-    const trimmed = note.trim()
-    await client.updateDoc(
-      ygTimesheet.class.AttendanceSession,
-      core.space.Workspace,
-      openSession._id,
-      { punchOut: at, ...(trimmed !== '' ? { punchOutNote: trimmed } : {}) }
-    )
-    note = ''
+    if (openSession === undefined || busy) return
+    busy = true
+    try {
+      const at = Date.now()
+      const trimmed = note.trim()
+      await client.updateDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, openSession._id, {
+        punchOut: at,
+        ...(trimmed !== '' ? { punchOutNote: trimmed } : {})
+      })
+      note = ''
+    } finally {
+      busy = false
+    }
   }
 
   // Read-only history. `historyKey` is a native <input type="date"> value (yyyy-mm-dd),
@@ -108,179 +135,280 @@
   let historyKey = localDayKey(Date.now())
   $: historyMid = new Date(`${historyKey}T00:00:00`).getTime()
   $: historyIsToday = historyMid === todayMid
-  $: historySessions = sessions
-    .filter((s) => s.date === historyMid)
-    .sort((a, b) => a.punchIn - b.punchIn)
+  $: historySessions = sessions.filter((s) => s.date === historyMid).sort((a, b) => a.punchIn - b.punchIn)
 </script>
 
 <div class="att-wrap">
-  <h1 class="att-title"><Label label={ygTimesheet.string.MyAttendance} /></h1>
+  <header class="att-head">
+    <h1 class="att-title"><Label label={ygTimesheet.string.MyAttendance} /></h1>
+    <span class="att-datechip">{dateFmt.format(nowMs)}</span>
+  </header>
 
-  <!-- Punch card -->
-  <div class="att-card">
-    <div class="att-clock">
-      <span class="att-clock__date">{dateFmt.format(nowMs)}</span>
-      <span class="att-clock__time">{timeFmt.format(nowMs)}</span>
-    </div>
+  <!-- Hero band: the punch action, and today at a glance. -->
+  <section class="att-hero">
+    <div class="att-panel att-punch" class:is-on={punchedIn}>
+      {#if punchedIn && openSession !== undefined}
+        <div class="att-punch__eyebrow">
+          <span class="att-status att-status--on"><span class="att-status__dot" /><Label label={ygTimesheet.string.OnTheClock} /></span>
+          <span class="att-chip att-chip--lg" class:att-chip--wfh={openSession.mode === 'wfh'}>
+            <Label label={openSession.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} />
+          </span>
+        </div>
+        <div class="att-timer">{formatDuration(nowMs - openSession.punchIn)}</div>
+        <div class="att-punch__since">
+          <Label label={ygTimesheet.string.FirstIn} /> · {timeFmt.format(openSession.punchIn)}
+        </div>
+      {:else}
+        <div class="att-punch__eyebrow">
+          <span class="att-status"><span class="att-status__dot" /><Label label={ygTimesheet.string.NotPunchedIn} /></span>
+        </div>
+        <div class="att-bigclock">{timeFmt.format(nowMs)}</div>
+        <div class="att-seg" role="group">
+          <button class="att-seg__opt" class:is-on={mode === 'office'} on:click={() => (mode = 'office')}>
+            <Label label={ygTimesheet.string.Office} />
+          </button>
+          <button class="att-seg__opt" class:is-on={mode === 'wfh'} on:click={() => (mode = 'wfh')}>
+            <Label label={ygTimesheet.string.WFH} />
+          </button>
+        </div>
+      {/if}
 
-    {#if punchedIn && openSession !== undefined}
-      <div class="att-running">
-        <span class="att-running__label"><Label label={ygTimesheet.string.In} /></span>
-        <span class="att-running__at">{timeFmt.format(openSession.punchIn)}</span>
-        <span class="att-running__elapsed">{formatDuration(nowMs - openSession.punchIn)}</span>
-        <span class="yg-pill" class:yg-pill--approved={openSession.mode === 'wfh'}>
-          <Label label={openSession.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} />
-        </span>
-      </div>
-    {:else}
-      <div class="yg-seg att-mode">
-        <button class="yg-seg__opt" class:yg-seg__opt--on={mode === 'office'} on:click={() => (mode = 'office')}>
-          <Label label={ygTimesheet.string.Office} />
+      <textarea class="att-note" rows="2" bind:value={note} placeholder={notePlaceholder} aria-label={notePlaceholder} />
+
+      {#if punchedIn}
+        <button class="att-cta att-cta--out" on:click={punchOut} disabled={busy}>
+          <Label label={ygTimesheet.string.PunchOut} />
         </button>
-        <button class="yg-seg__opt" class:yg-seg__opt--on={mode === 'wfh'} on:click={() => (mode = 'wfh')}>
-          <Label label={ygTimesheet.string.WFH} />
+      {:else}
+        <button class="att-cta att-cta--in" on:click={punchIn} disabled={busy}>
+          <Label label={ygTimesheet.string.PunchIn} />
         </button>
-      </div>
-    {/if}
-
-    <textarea class="att-note" rows="2" bind:value={note} placeholder="" aria-label="attendance note" />
-
-    {#if punchedIn}
-      <button class="yg-btn yg-btn--danger att-action" on:click={punchOut}>
-        <Label label={ygTimesheet.string.PunchOut} />
-      </button>
-    {:else}
-      <button class="yg-btn yg-btn--primary att-action" on:click={punchIn}>
-        <Label label={ygTimesheet.string.PunchIn} />
-      </button>
-    {/if}
-  </div>
-
-  <!-- Today's sessions -->
-  <div class="att-section">
-    <div class="att-section__head">
-      <span class="att-section__title"><Label label={ygTimesheet.string.TodaysSessions} /></span>
-      <span class="att-section__total">{formatDuration(todayTotal)}</span>
+      {/if}
     </div>
-    {#if todays.length === 0}
-      <div class="att-empty"><Label label={ygTimesheet.string.NoSessionsToday} /></div>
-    {:else}
-      <div class="att-rows">
-        {#each [...todays].sort((a, b) => a.punchIn - b.punchIn) as s (s._id)}
-          <div class="att-row">
-            <span class="att-row__in">{timeFmt.format(s.punchIn)}{#if s.punchInNote}<span class="att-row__note"> · {s.punchInNote}</span>{/if}</span>
-            <span class="att-row__out">
-              {#if s.punchOut}{timeFmt.format(s.punchOut)}{#if s.punchOutNote}<span class="att-row__note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}
-            </span>
-            <span class="yg-pill" class:yg-pill--approved={s.mode === 'wfh'}>
-              <Label label={s.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} />
-            </span>
-            <span class="att-row__dur">{formatDuration((s.punchOut ?? nowMs) - s.punchIn)}</span>
-          </div>
-        {/each}
-      </div>
-    {/if}
-  </div>
 
-  <!-- History (read-only) -->
-  <div class="att-section">
-    <div class="att-section__head">
-      <span class="att-section__title"><Label label={ygTimesheet.string.History} /></span>
-      <input class="yg-input att-date" type="date" bind:value={historyKey} />
-    </div>
-    {#if historyIsToday}
-      <div class="att-empty"><Label label={ygTimesheet.string.TodaysSessions} /> ↑</div>
-    {:else if historySessions.length === 0}
-      <div class="att-empty"><Label label={ygTimesheet.string.NoSessionsOnDate} /></div>
-    {:else}
-      <div class="att-rows">
-        {#each historySessions as s (s._id)}
-          <div class="att-row">
-            <span class="att-row__in">{timeFmt.format(s.punchIn)}{#if s.punchInNote}<span class="att-row__note"> · {s.punchInNote}</span>{/if}</span>
-            <span class="att-row__out">{#if s.punchOut}{timeFmt.format(s.punchOut)}{#if s.punchOutNote}<span class="att-row__note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}</span>
-            <span class="yg-pill" class:yg-pill--approved={s.mode === 'wfh'}>
-              <Label label={s.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} />
-            </span>
-            <span class="att-row__dur">{s.punchOut ? formatDuration(s.punchOut - s.punchIn) : '-'}</span>
-          </div>
-        {/each}
+    <div class="att-panel att-glance">
+      <span class="att-eyebrow"><Label label={ygTimesheet.string.Today} /></span>
+      <div class="att-glance__total">{formatDuration(todayTotal)}</div>
+      <div class="att-glance__grid">
+        <div class="att-stat">
+          <span class="att-stat__k"><Label label={ygTimesheet.string.Sessions} /></span>
+          <span class="att-stat__v">{stats.count}</span>
+        </div>
+        <div class="att-stat">
+          <span class="att-stat__k"><Label label={ygTimesheet.string.FirstIn} /></span>
+          <span class="att-stat__v">{stats.firstIn !== undefined ? timeFmt.format(stats.firstIn) : '--'}</span>
+        </div>
+        <div class="att-stat">
+          <span class="att-stat__k"><Label label={ygTimesheet.string.LastOut} /></span>
+          <span class="att-stat__v">{stats.lastOut !== undefined ? timeFmt.format(stats.lastOut) : '--'}</span>
+        </div>
       </div>
-    {/if}
-  </div>
+    </div>
+  </section>
+
+  <!-- Signature: the day laid out on a timeline. -->
+  <section class="att-panel att-day">
+    <span class="att-eyebrow"><Label label={ygTimesheet.string.YourDay} /></span>
+    <div class="att-track">
+      {#each timeline.ticks as t (t.hour)}
+        <span class="att-track__grid" style="left:{t.pct}%" />
+        {#if t.hour % 2 === 0}<span class="att-track__lbl" style="left:{t.pct}%">{hourLabel(t.hour)}</span>{/if}
+      {/each}
+      {#each timeline.blocks as b, i (i)}
+        <span class="att-block" class:is-wfh={b.mode === 'wfh'} class:is-open={b.open} style="left:{b.leftPct}%; width:{b.widthPct}%" />
+      {/each}
+      {#if timeline.nowPct !== undefined}<span class="att-track__now" style="left:{timeline.nowPct}%" />{/if}
+      {#if todays.length === 0}
+        <span class="att-track__empty"><Label label={ygTimesheet.string.NoSessionsToday} /></span>
+      {/if}
+    </div>
+  </section>
+
+  <!-- Today's sessions + read-only history. -->
+  <section class="att-cols">
+    <div class="att-panel att-list">
+      <div class="att-list__head">
+        <span class="att-eyebrow"><Label label={ygTimesheet.string.TodaysSessions} /></span>
+        <span class="att-list__total">{formatDuration(todayTotal)}</span>
+      </div>
+      {#if todays.length === 0}
+        <div class="att-empty"><Label label={ygTimesheet.string.NoSessionsToday} /></div>
+      {:else}
+        <div class="att-rows">
+          {#each todaysAsc as s (s._id)}
+            <AttendanceSessionRow session={s} now={nowMs} />
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    <div class="att-panel att-list">
+      <div class="att-list__head">
+        <span class="att-eyebrow"><Label label={ygTimesheet.string.History} /></span>
+        <input class="att-date" type="date" bind:value={historyKey} />
+      </div>
+      {#if historyIsToday}
+        <div class="att-empty"><Label label={ygTimesheet.string.TodaysSessions} /> &#8593;</div>
+      {:else if historySessions.length === 0}
+        <div class="att-empty"><Label label={ygTimesheet.string.NoSessionsOnDate} /></div>
+      {:else}
+        <div class="att-rows">
+          {#each historySessions as s (s._id)}
+            <AttendanceSessionRow session={s} now={nowMs} />
+          {/each}
+        </div>
+      {/if}
+    </div>
+  </section>
 </div>
 
 <style lang="scss">
   @use './yg-table' as *;
 
-  .att-wrap { padding: 1rem 1.25rem; max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
-  .att-title { font-size: 1.375rem; font-weight: 680; letter-spacing: -0.01em; margin: 6px 0 4px; color: var(--yg-text); }
+  // Attendance accent (indigo = WFH / live), derived from the yg avatar-3 hue so it belongs to the
+  // system but stays distinct from the approval green. Defined here and inherited by child rows.
+  .att-wrap {
+    --att-wfh: #5566c4;
+    --att-wfh-bg: rgba(85, 102, 196, 0.12);
+    --att-wfh-line: rgba(85, 102, 196, 0.28);
 
-  .att-card {
-    background: var(--yg-panel);
-    border: 1px solid var(--yg-border);
-    border-radius: var(--yg-radius);
-    box-shadow: var(--yg-shadow);
-    padding: 18px 20px;
+    padding: 20px 24px 40px;
+    max-width: 1080px;
+    margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 18px;
   }
-  .att-clock { display: flex; align-items: baseline; gap: 12px; }
-  .att-clock__date { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--yg-text-faint); font-weight: 600; }
-  .att-clock__time { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--yg-text); }
-
-  .att-running { display: flex; align-items: center; gap: 12px; }
-  .att-running__label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--yg-text-faint); font-weight: 600; }
-  .att-running__at { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--yg-text-dim); }
-  .att-running__elapsed { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--yg-ink); }
-
-  .att-mode { align-self: flex-start; }
-
-  .att-note {
-    width: 100%;
-    resize: vertical;
-    border: 1px solid var(--yg-border);
-    border-radius: 9px;
-    background: var(--yg-panel-soft);
-    color: var(--yg-text);
-    padding: 8px 10px;
-    font: inherit;
+  :global(.theme-dark) .att-wrap {
+    --att-wfh: #7d8bec;
+    --att-wfh-bg: rgba(125, 139, 236, 0.16);
+    --att-wfh-line: rgba(125, 139, 236, 0.32);
   }
-  .att-note:focus { outline: none; border-color: var(--yg-border-strong); }
 
-  .att-action { align-self: flex-start; min-width: 140px; justify-content: center; }
+  .att-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+  .att-title { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; margin: 0; color: var(--yg-text); }
+  .att-datechip {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    color: var(--yg-text-dim);
+    background: var(--yg-panel); border: 1px solid var(--yg-border);
+    padding: 6px 12px; border-radius: 999px; box-shadow: var(--yg-shadow);
+    white-space: nowrap;
+  }
 
-  .att-section {
+  .att-panel {
     background: var(--yg-panel);
     border: 1px solid var(--yg-border);
     border-radius: var(--yg-radius);
     box-shadow: var(--yg-shadow);
-    overflow: hidden;
   }
-  .att-section__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--yg-border);
+  .att-eyebrow {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    font-weight: 700; color: var(--yg-text-faint);
   }
-  .att-section__title { font-size: 13px; font-weight: 660; color: var(--yg-text); }
-  .att-section__total { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--yg-ink); }
-  .att-date { max-width: 170px; }
 
-  .att-empty { padding: 16px; color: var(--yg-text-faint); font-size: 13px; }
+  // Hero band ---------------------------------------------------------------
+  .att-hero { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: stretch; }
 
+  .att-punch { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .att-punch.is-on { border-color: var(--att-wfh-line); }
+
+  .att-punch__eyebrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .att-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; color: var(--yg-text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+  .att-status__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--yg-text-faint); }
+  .att-status--on { color: var(--att-wfh); }
+  .att-status--on .att-status__dot { background: var(--att-wfh); box-shadow: 0 0 0 0 var(--att-wfh-line); animation: att-pulse 1.8s ease-out infinite; }
+
+  .att-bigclock, .att-timer {
+    font-size: 56px; line-height: 1; font-weight: 720; letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums; color: var(--yg-text);
+  }
+  .att-timer { color: var(--att-wfh); }
+  .att-punch__since { font-size: 13px; color: var(--yg-text-dim); font-variant-numeric: tabular-nums; margin-top: -6px; }
+
+  // Segmented Office / WFH toggle.
+  .att-seg { display: inline-flex; padding: 3px; gap: 3px; background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 10px; align-self: flex-start; }
+  .att-seg__opt {
+    appearance: none; border: 0; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+    padding: 7px 18px; border-radius: 7px; background: transparent; color: var(--yg-text-dim);
+  }
+  .att-seg__opt:hover { color: var(--yg-text); }
+  .att-seg__opt.is-on { background: var(--yg-panel); color: var(--yg-text); box-shadow: var(--yg-shadow); }
+
+  .att-note {
+    width: 100%; resize: vertical; min-height: 44px;
+    border: 1px solid var(--yg-border); border-radius: 10px;
+    background: var(--yg-panel-soft); color: var(--yg-text);
+    padding: 10px 12px; font: inherit; font-size: 14px;
+  }
+  .att-note::placeholder { color: var(--yg-text-faint); }
+  .att-note:focus { outline: none; border-color: var(--yg-border-strong); }
+
+  .att-cta {
+    appearance: none; width: 100%; height: 46px; border-radius: 11px; cursor: pointer;
+    font: inherit; font-size: 15px; font-weight: 680; letter-spacing: 0.01em;
+    border: 1px solid transparent; margin-top: auto;
+  }
+  .att-cta:disabled { opacity: 0.6; cursor: default; }
+  .att-cta--in { background: var(--yg-ink); color: var(--yg-ink-fg); }
+  .att-cta--in:hover:not(:disabled) { filter: brightness(1.15); }
+  .att-cta--out { background: var(--att-wfh); color: #fff; }
+  .att-cta--out:hover:not(:disabled) { filter: brightness(1.08); }
+
+  // Today at a glance -------------------------------------------------------
+  .att-glance { padding: 22px 24px; display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .att-glance__total { font-size: 40px; font-weight: 720; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--yg-text); margin: 0; }
+  .att-glance__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .att-stat { display: flex; flex-direction: column; gap: 4px; padding: 12px; background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 10px; }
+  .att-stat__k { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 650; color: var(--yg-text-faint); }
+  .att-stat__v { font-size: 17px; font-weight: 680; font-variant-numeric: tabular-nums; color: var(--yg-text); }
+
+  // Day timeline ------------------------------------------------------------
+  .att-day { padding: 18px 24px 26px; display: flex; flex-direction: column; gap: 18px; }
+  .att-track { position: relative; height: 46px; margin-top: 4px; border-radius: 10px; background: var(--yg-panel-soft); border: 1px solid var(--yg-border); }
+  .att-track__grid { position: absolute; top: 6px; bottom: 16px; width: 1px; background: var(--yg-border); transform: translateX(-0.5px); }
+  .att-track__lbl { position: absolute; bottom: 1px; transform: translateX(-50%); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--yg-text-faint); }
+  .att-block {
+    position: absolute; top: 8px; height: 20px; min-width: 4px; border-radius: 5px;
+    background: var(--yg-grey); border: 1px solid transparent;
+  }
+  .att-block.is-wfh { background: var(--att-wfh); }
+  .att-block.is-open { background: var(--att-wfh); box-shadow: 0 0 0 0 var(--att-wfh-line); animation: att-pulse 1.8s ease-out infinite; }
+  .att-track__now { position: absolute; top: 2px; bottom: 14px; width: 2px; background: var(--yg-ink); transform: translateX(-1px); border-radius: 2px; }
+  .att-track__empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: var(--yg-text-faint); padding-bottom: 12px; }
+
+  // Two-column lists --------------------------------------------------------
+  .att-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  .att-list { overflow: hidden; }
+  .att-list__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--yg-border); }
+  .att-list__total { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--yg-text); }
+  .att-date {
+    appearance: none; font: inherit; font-size: 13px; color: var(--yg-text);
+    background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 8px;
+    padding: 5px 9px; max-width: 170px;
+  }
+  .att-empty { padding: 22px 18px; color: var(--yg-text-faint); font-size: 13px; }
   .att-rows { display: flex; flex-direction: column; }
-  .att-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr auto auto;
-    align-items: center;
-    gap: 14px;
-    padding: 11px 16px;
+
+  // Chip (also used at the hero, larger) ------------------------------------
+  .att-chip {
+    font-size: 11px; font-weight: 650; letter-spacing: 0.02em;
+    padding: 3px 9px; border-radius: 999px;
+    color: var(--yg-text-dim); background: var(--yg-grey-bg); border: 1px solid var(--yg-border);
   }
-  .att-row + .att-row { border-top: 1px solid var(--yg-border); }
-  .att-row__in, .att-row__out { font-variant-numeric: tabular-nums; color: var(--yg-text); }
-  .att-row__note { color: var(--yg-text-faint); font-weight: 400; }
-  .att-row__dur { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--yg-text-dim); min-width: 64px; text-align: right; }
+  .att-chip--lg { font-size: 12px; padding: 4px 12px; }
+  .att-chip--wfh { color: var(--att-wfh); background: var(--att-wfh-bg); border-color: var(--att-wfh-line); }
+
+  @keyframes att-pulse {
+    0% { box-shadow: 0 0 0 0 var(--att-wfh-line); }
+    100% { box-shadow: 0 0 0 7px transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .att-status--on .att-status__dot, .att-block.is-open { animation: none; }
+  }
+
+  // Responsive: collapse to a single column on narrow viewports.
+  @media (max-width: 900px) {
+    .att-hero, .att-cols { grid-template-columns: 1fr; }
+    .att-bigclock, .att-timer { font-size: 46px; }
+  }
 </style>
