@@ -18,6 +18,7 @@ import ApproveTaskPopup from './components/ApproveTaskPopup.svelte'
 import RejectTaskPopup from './components/RejectTaskPopup.svelte'
 import NotificationRedirect from './components/NotificationRedirect.svelte'
 import Dashboard from './components/Dashboard.svelte'
+import MyAttendance from './components/MyAttendance.svelte'
 
 async function CanApprove (_spaces: Space[]): Promise<boolean> {
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -49,6 +50,16 @@ export async function resolveLocation (loc: Location): Promise<ResolvedLocation 
   return { loc: resolved, defaultLocation: resolved }
 }
 
+// The Attendance app root (loc.path[3] == null) has one special - default it to My Attendance so a
+// first visit does not land on the blank Application shell (same reason as resolveLocation above).
+export async function resolveAttendanceLocation (loc: Location): Promise<ResolvedLocation | undefined> {
+  if (loc.path[2] !== 'yg-attendance' || loc.path[3] != null) {
+    return undefined
+  }
+  const resolved = { ...loc, path: [loc.path[0], loc.path[1], 'yg-attendance', 'my'] }
+  return { loc: resolved, defaultLocation: resolved }
+}
+
 export default async (): Promise<Resources> => ({
   component: {
     Timesheet,
@@ -62,8 +73,9 @@ export default async (): Promise<Resources> => ({
     ApproveTaskPopup,
     RejectTaskPopup,
     NotificationRedirect,
-    Dashboard
+    Dashboard,
+    MyAttendance
   },
   function: { CanApprove },
-  resolver: { Location: resolveLocation }
+  resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }
 })
