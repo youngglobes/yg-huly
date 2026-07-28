@@ -49,7 +49,7 @@
 </script>
 
 <div class="inbox">
-  <div class="inbox__title"><Label label={ygTimesheet.string.Inbox} /></div>
+  <div class="inbox__title"><Label label={ygTimesheet.string.Inbox} />{#if notes.length > 0}<span class="inbox__n">{notes.length}</span>{/if}</div>
   {#each notes as n (n._id)}
     <button class="irow" on:click={() => open(n)}>
       <span class="irow__dot" />
@@ -73,6 +73,7 @@
     padding: 14px 16px;
   }
   .inbox__title { font-size: 13px; font-weight: 680; color: var(--yg-text); margin-bottom: 8px; }
+  .inbox__n { font-size: 11px; font-weight: 700; color: var(--yg-av3); background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 999px; padding: 1px 7px; margin-left: 6px; }
   .irow {
     width: 100%;
     display: flex;

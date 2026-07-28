@@ -28,11 +28,10 @@
   import { canApproveView } from '../utils/task-approval'
   import { weekRange } from '../utils/week'
   import {
-    computeKpis, projectStats, portfolioHours, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
+    projectStats, portfolioHours, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
     teamWorkload, priorityWatch, type Cat, type DashIssue, type DashTime, type DashProject
   } from '../utils/dashboard'
   import GreetingCard from './dashboard/GreetingCard.svelte'
-  import KpiCards from './dashboard/KpiCards.svelte'
   import ProjectCards from './dashboard/ProjectCards.svelte'
   import InProgressTable from './dashboard/InProgressTable.svelte'
   import ApprovalsQueue from './dashboard/ApprovalsQueue.svelte'
@@ -152,7 +151,6 @@
       submittedOn: t.submittedOn ?? 0,
       employee: tsEmp.get(dayTs.get(t.attachedTo as string) ?? '') ?? ''
     }))
-  $: pendingCount = pendingRows.length
 
   // --- Employee names ------------------------------------------------------
   const empQuery = createQuery()
@@ -161,7 +159,6 @@
 
   // --- Derived (pure lib) --------------------------------------------------
   $: now = Date.now()
-  $: kpis = computeKpis(issues, times, now)
   $: stats = projectStats(issues, times, myProjects)
   $: portfolio = portfolioHours(stats)
   $: buckets = statusBuckets(issues)
@@ -184,23 +181,26 @@
   <div class="dash yg-page">
     <div class="yg-scroll">
       <GreetingCard name={employeeNames.get(me) ?? ''} />
-      <KpiCards {kpis} {pendingCount} />
-      <ProjectCards {stats} {portfolio} />
-      <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
-      <div class="dash-two">
+
+      <!-- Attention band: the "act now" items, at the top. -->
+      <div class="dash-attention">
         <InboxWidget />
         <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
-      </div>
-      <div class="dash-two">
         <PriorityWatch issues={priority} {employeeNames} />
         <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
       </div>
-      <div class="dash-one">
-        <TeamWorkload {team} {employeeNames} />
-      </div>
+
+      <!-- Overview charts. -->
       <div class="dash-two">
         <Donut {buckets} />
         <HoursBar bars={hoursBars} />
+      </div>
+
+      <!-- Detail tables. -->
+      <ProjectCards {stats} {portfolio} />
+      <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
+      <div class="dash-one">
+        <TeamWorkload {team} {employeeNames} />
       </div>
     </div>
   </div>
@@ -210,5 +210,7 @@
   @use './yg-table' as *;
   .dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
   .dash-one { margin-top: 16px; }
+  // Attention band: as many columns as fit (4 wide -> 2 -> 1), each at least 240px.
+  .dash-attention { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
   @media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } }
 </style>
