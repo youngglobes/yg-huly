@@ -116,6 +116,7 @@
     "Sessions": "Sessions",
     "FirstIn": "First in",
     "LastOut": "Last out",
-    "YourDay": "Your day"
+    "YourDay": "Your day",
+    "Type": "Type"
   }
 }

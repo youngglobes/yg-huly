@@ -159,7 +159,9 @@ export function createModel (builder: Builder): void {
     core.space.Model,
     {
       label: ygTimesheet.string.Timesheet,
-      icon: ygTimesheet.icon.Timesheet,
+      // Reports-style glyph so the Timesheet app (Dashboard/Approvals/Reports) is visually distinct
+      // from the Attendance app, which keeps the clock icon. (2026-07-28, user request)
+      icon: tracker.icon.TimeReport,
       alias: ygTimesheetId,
       hidden: false,
       position: 'top',

@@ -11,6 +11,7 @@ import {
 import core from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
+import tracker from '@hcengineering/tracker'
 import type { Employee } from '@hcengineering/contact'
 import type { Project } from '@hcengineering/tracker'
 import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
@@ -86,6 +87,23 @@ async function hideStockHrApp (tx: TxOperations): Promise<void> {
     }
   } catch (err) {
     console.error('yg-timesheet: could not hide stock HR app (non-fatal)', err)
+  }
+}
+
+// Point the Timesheet app at a reports-style glyph so it is visually distinct from the Attendance
+// app (which keeps the clock icon). Best-effort like hideStockHrApp: updating a model-space
+// Application doc via TxOperations is not guaranteed on every backend, so never fail the provision.
+// (Fresh workspaces already get the new icon from createModel; this only repairs existing ones.)
+async function setTimesheetAppIcon (tx: TxOperations): Promise<void> {
+  try {
+    const app = await tx.findOne(workbench.class.Application, { _id: ygTimesheet.app.Timesheet })
+    if (app !== undefined && app.icon !== tracker.icon.TimeReport) {
+      await tx.updateDoc(workbench.class.Application, core.space.Model, ygTimesheet.app.Timesheet, {
+        icon: tracker.icon.TimeReport
+      })
+    }
+  } catch (err) {
+    console.error('yg-timesheet: could not set Timesheet app icon (non-fatal)', err)
   }
 }
 
@@ -213,6 +231,14 @@ export const ygTimesheetOperation: MigrateOperation = {
         func: async (client) => {
           const ops = new TxOperations(client, core.account.System)
           await hideStockWidgets(ops)
+        }
+      },
+      {
+        // Give the Timesheet app its reports-style icon on already-provisioned workspaces.
+        state: 'timesheet-app-icon-0001',
+        func: async (client) => {
+          const ops = new TxOperations(client, core.account.System)
+          await setTimesheetAppIcon(ops)
         }
       }
     ])

@@ -270,7 +270,8 @@ export default plugin(ygTimesheetId, {
     Sessions: '' as IntlString,
     FirstIn: '' as IntlString,
     LastOut: '' as IntlString,
-    YourDay: '' as IntlString
+    YourDay: '' as IntlString,
+    Type: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
