@@ -96,6 +96,20 @@
     "Inbox": "Inbox",
     "InboxEmpty": "No unread notifications.",
     "TeamWorkload": "Team this week",
-    "PriorityWatch": "Priority watch"
+    "PriorityWatch": "Priority watch",
+    "Attendance": "Attendance",
+    "MyAttendance": "My Attendance",
+    "PunchIn": "Punch In",
+    "PunchOut": "Punch Out",
+    "Office": "Office",
+    "WFH": "WFH",
+    "AddNote": "Add a note (optional)",
+    "In": "In",
+    "Out": "Out",
+    "Duration": "Duration",
+    "History": "History",
+    "TodaysSessions": "Today's sessions",
+    "NoSessionsToday": "No sessions yet today",
+    "NoSessionsOnDate": "No sessions on this day"
   }
 }
