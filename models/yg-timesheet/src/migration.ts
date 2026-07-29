@@ -107,6 +107,21 @@ async function setTimesheetAppIcon (tx: TxOperations): Promise<void> {
   }
 }
 
+// Point the HR app at the people/HR glyph (was the reused clock icon) so it is visually distinct
+// from the Timesheet + Attendance apps. Same best-effort model-space updateDoc as setTimesheetAppIcon.
+async function setHrAppIcon (tx: TxOperations): Promise<void> {
+  try {
+    const app = await tx.findOne(workbench.class.Application, { _id: ygTimesheet.app.HumanResource })
+    if (app !== undefined && app.icon !== hr.icon.HR) {
+      await tx.updateDoc(workbench.class.Application, core.space.Model, ygTimesheet.app.HumanResource, {
+        icon: hr.icon.HR
+      })
+    }
+  } catch (err) {
+    console.error('yg-timesheet: could not set HR app icon (non-fatal)', err)
+  }
+}
+
 // Remove Huly's built-in right-sidebar widgets from the Calendar and Love (virtual office) plugins.
 // User decision 2026-07-25: the YG portal is timesheet-focused, so those default widgets are just
 // clutter. Matched by the doc _id prefix so no calendar/love dependency is needed. Best-effort like
@@ -239,6 +254,14 @@ export const ygTimesheetOperation: MigrateOperation = {
         func: async (client) => {
           const ops = new TxOperations(client, core.account.System)
           await setTimesheetAppIcon(ops)
+        }
+      },
+      {
+        // Give the HR app its people glyph on already-provisioned workspaces.
+        state: 'hr-app-icon-0001',
+        func: async (client) => {
+          const ops = new TxOperations(client, core.account.System)
+          await setHrAppIcon(ops)
         }
       }
     ])

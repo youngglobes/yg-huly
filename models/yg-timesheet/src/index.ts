@@ -239,7 +239,7 @@ export function createModel (builder: Builder): void {
     core.space.Model,
     {
       label: ygTimesheet.string.HumanResource,
-      icon: ygTimesheet.icon.Timesheet, // reuse existing icon for the beta
+      icon: hr.icon.HR, // people glyph - distinct from the Timesheet/Attendance clock (2026-07-29 user request)
       alias: 'yg-hr',
       hidden: false,
       position: 'top',

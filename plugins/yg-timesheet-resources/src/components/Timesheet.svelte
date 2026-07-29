@@ -30,7 +30,12 @@
     type ProjectApproverLike
   } from '../utils/day'
   import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
+  import { ensureHrMembership } from '../utils/hrMembership'
   import SubmitErrorNotification from './SubmitErrorNotification.svelte'
+
+  // Owner bootstrap (fallback to Dashboard's call): self-add an Owner to HrData so the server
+  // un-hides the HR app for them and they can reach the roster editor. No-op for non-owners.
+  void ensureHrMembership()
 
   const me = getCurrentEmployee()
   const client = getClient()

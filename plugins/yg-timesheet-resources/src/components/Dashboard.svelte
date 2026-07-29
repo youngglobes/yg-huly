@@ -26,6 +26,7 @@
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet } from '@hcengineering/yg-timesheet'
   import { canApproveView } from '../utils/task-approval'
+  import { ensureHrMembership } from '../utils/hrMembership'
   import { weekRange } from '../utils/week'
   import {
     projectStats, portfolioHours, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
@@ -41,6 +42,12 @@
   import TeamWorkload from './dashboard/TeamWorkload.svelte'
   import Donut from './dashboard/Donut.svelte'
   import HoursBar from './dashboard/HoursBar.svelte'
+
+  // Owner bootstrap: the HR app is hidden from non-roster accounts and the roster editor lives INSIDE
+  // that hidden app, so a fresh Owner could never reach it (chicken-and-egg - first member had to be
+  // seeded by DB). Owners are admins and land here on the always-visible Timesheet app, so self-add
+  // them to HrData now; the OnHrMembershipChange trigger then un-hides HR for them. No-op for non-owners.
+  void ensureHrMembership()
 
   const me = getCurrentEmployee()
   const client = getClient()
