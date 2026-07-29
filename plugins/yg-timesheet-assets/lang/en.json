@@ -124,6 +124,24 @@
     "DaysPresent": "Days present",
     "OfficeHours": "Office hrs",
     "WfhHours": "WFH hrs",
-    "InNow": "In now"
+    "InNow": "In now",
+    "ReminderSettings": "Punch reminders",
+    "PunchReminders": "Punch reminders",
+    "EnableReminders": "Turn on punch reminders",
+    "DisableReminders": "Turn off punch reminders",
+    "RemindersOn": "Reminders are on",
+    "RemindersOff": "Reminders are off",
+    "ReminderPunchInTitle": "You're not punched in",
+    "ReminderPunchInBody": "You've been active without punching in. Punch in to track this time.",
+    "ReminderPunchOutTitle": "Still on the clock",
+    "ReminderPunchOutBody": "You're still punched in. Punch out if you've stopped working.",
+    "Snooze": "Snooze",
+    "WorkWindow": "Work hours",
+    "WorkDays": "Work days",
+    "PunchInDelay": "Remind after (min active)",
+    "RepeatEvery": "Repeat every (min)",
+    "PunchOutIdle": "Punch-out after idle (min)",
+    "Minutes": "min",
+    "Enabled": "Enabled"
   }
 }

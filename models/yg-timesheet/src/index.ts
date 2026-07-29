@@ -10,6 +10,7 @@ import {
   Mixin,
   Model,
   Prop,
+  TypeBoolean,
   TypeDate,
   TypeNumber,
   TypeRef,
@@ -27,6 +28,7 @@ import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, {
   ygTimesheetId,
   type AttendanceMode,
+  type AttendanceReminderSettings,
   type AttendanceSession,
   type DayStatus,
   type HrTimeEntry,
@@ -141,8 +143,19 @@ export class TAttendanceSession extends TDoc implements AttendanceSession {
   @Prop(TypeString(), core.string.Object) punchOutNote?: string
 }
 
+@Model(ygTimesheet.class.AttendanceReminderSettings, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TAttendanceReminderSettings extends TDoc implements AttendanceReminderSettings {
+  @Prop(TypeBoolean(), core.string.Object) enabled!: boolean
+  @Prop(TypeNumber(), core.string.Object) windowStartMin!: number
+  @Prop(TypeNumber(), core.string.Object) windowEndMin!: number
+  @Prop(ArrOf(TypeNumber()), core.string.Object) days!: number[]
+  @Prop(TypeNumber(), core.string.Object) punchInDelayMin!: number
+  @Prop(TypeNumber(), core.string.Object) repeatMin!: number
+  @Prop(TypeNumber(), core.string.Object) punchOutIdleMin!: number
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry, TAttendanceSession)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.

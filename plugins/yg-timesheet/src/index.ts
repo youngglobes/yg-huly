@@ -112,6 +112,17 @@ export interface AttendanceSession extends Doc {
   punchOutNote?: string // optional note captured at punch-out
 }
 
+/** Org-wide punch-reminder settings. Singleton (zero or one doc); code falls back to defaults when absent. */
+export interface AttendanceReminderSettings extends Doc {
+  enabled: boolean
+  windowStartMin: number
+  windowEndMin: number
+  days: number[]
+  punchInDelayMin: number
+  repeatMin: number
+  punchOutIdleMin: number
+}
+
 export const ygTimesheetId = 'yg-timesheet' as Plugin
 
 export default plugin(ygTimesheetId, {
@@ -121,7 +132,8 @@ export default plugin(ygTimesheetId, {
     TimesheetTask: '' as Ref<Class<TimesheetTask>>,
     TimesheetApproval: '' as Ref<Class<TimesheetApproval>>,
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>,
-    AttendanceSession: '' as Ref<Class<AttendanceSession>>
+    AttendanceSession: '' as Ref<Class<AttendanceSession>>,
+    AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>
@@ -150,7 +162,9 @@ export default plugin(ygTimesheetId, {
     NotificationRedirect: '' as AnyComponent,
     Dashboard: '' as AnyComponent,
     MyAttendance: '' as AnyComponent,
-    HrAttendance: '' as AnyComponent
+    HrAttendance: '' as AnyComponent,
+    AttendanceReminder: '' as AnyComponent,
+    AttendanceReminderSettings: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -279,7 +293,25 @@ export default plugin(ygTimesheetId, {
     DaysPresent: '' as IntlString,
     OfficeHours: '' as IntlString,
     WfhHours: '' as IntlString,
-    InNow: '' as IntlString
+    InNow: '' as IntlString,
+    ReminderSettings: '' as IntlString,
+    PunchReminders: '' as IntlString,
+    EnableReminders: '' as IntlString,
+    DisableReminders: '' as IntlString,
+    RemindersOn: '' as IntlString,
+    RemindersOff: '' as IntlString,
+    ReminderPunchInTitle: '' as IntlString,
+    ReminderPunchInBody: '' as IntlString,
+    ReminderPunchOutTitle: '' as IntlString,
+    ReminderPunchOutBody: '' as IntlString,
+    Snooze: '' as IntlString,
+    WorkWindow: '' as IntlString,
+    WorkDays: '' as IntlString,
+    PunchInDelay: '' as IntlString,
+    RepeatEvery: '' as IntlString,
+    PunchOutIdle: '' as IntlString,
+    Minutes: '' as IntlString,
+    Enabled: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
