@@ -1,10 +1,10 @@
 import { type Resources } from '@hcengineering/platform'
-import { AccountRole, getCurrentAccount, hasAccountRole, type Space } from '@hcengineering/core'
+import { AccountRole, getCurrentAccount, hasAccountRole, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
 import { getClient } from '@hcengineering/presentation'
 import { getCurrentEmployee } from '@hcengineering/contact'
 import tracker from '@hcengineering/tracker'
 import type { Location, ResolvedLocation } from '@hcengineering/ui'
-import ygTimesheet, { ygTimesheetId, type ProjectApprovers } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { ygTimesheetId, type ProjectApprovers, type TimesheetDay } from '@hcengineering/yg-timesheet'
 import { canApproveView } from './utils/task-approval'
 import Timesheet from './components/Timesheet.svelte'
 import ProjectApproversList from './components/ProjectApproversList.svelte'
@@ -35,6 +35,20 @@ async function CanApprove (_spaces: Space[]): Promise<boolean> {
       return { pm: a.pm, teamLead: a.teamLead }
     })
   return canApproveView(isAdmin, pairs, me)
+}
+
+// view.mixin.ObjectTitle provider for TimesheetDay: the Inbox card's subtitle line. The bold title
+// above it is the @UX class label ("Timesheet"); this returns the sheet's date. Called by getDocTitle
+// with the doc already loaded, so no extra query is needed.
+async function timesheetDayTitle (_client: Client, _id: Ref<Doc>, doc?: Doc): Promise<string> {
+  const day = doc as TimesheetDay | undefined
+  if (day?.date == null) return ''
+  return new Date(day.date).toLocaleDateString(undefined, {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  })
 }
 
 // App root has no special selected (loc.path[3] == null): default it based on role so a first
@@ -78,6 +92,6 @@ export default async (): Promise<Resources> => ({
     MyAttendance,
     HrAttendance
   },
-  function: { CanApprove },
+  function: { CanApprove, TimesheetDayTitle: timesheetDayTitle },
   resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }
 })

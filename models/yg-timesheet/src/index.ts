@@ -331,6 +331,11 @@ export function createModel (builder: Builder): void {
   builder.mixin(ygTimesheet.class.TimesheetDay, core.class.Class, view.mixin.ObjectPanel, {
     component: ygTimesheet.component.NotificationRedirect
   })
+  // Inbox card subtitle: the sheet date. The bold title above it is the @UX class label ("Timesheet").
+  // Together they replace the old "undefined / undefined" (and the doubled class-label) header.
+  builder.mixin(ygTimesheet.class.TimesheetDay, core.class.Class, view.mixin.ObjectTitle, {
+    titleProvider: ygTimesheet.function.TimesheetDayTitle
+  })
   builder.mixin(ygTimesheet.class.TimesheetTask, core.class.Class, view.mixin.ObjectPanel, {
     component: ygTimesheet.component.NotificationRedirect
   })

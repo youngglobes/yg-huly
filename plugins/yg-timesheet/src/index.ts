@@ -2,7 +2,7 @@
 // YoungGlobes: timesheet plugin ids.
 //
 import type { Employee } from '@hcengineering/contact'
-import { type AttachedDoc, type Class, type Doc, type Mixin, type Ref, type Space, type Timestamp } from '@hcengineering/core'
+import { type AttachedDoc, type Class, type Client, type Doc, type Mixin, type Ref, type Space, type Timestamp } from '@hcengineering/core'
 import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
@@ -282,7 +282,10 @@ export default plugin(ygTimesheetId, {
     InNow: '' as IntlString
   },
   function: {
-    CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
+    CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
+    // view.mixin.ObjectTitle provider for TimesheetDay - supplies the Inbox card's subtitle (the
+    // sheet date), under the @UX class-label title ("Timesheet"). Signature per getDocTitle.
+    TimesheetDayTitle: '' as Resource<(client: Client, id: Ref<Doc>, doc?: Doc) => Promise<string>>
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,
