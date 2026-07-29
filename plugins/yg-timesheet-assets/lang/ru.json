@@ -117,6 +117,13 @@
     "FirstIn": "Первый приход",
     "LastOut": "Последний уход",
     "YourDay": "Ваш день",
-    "Type": "Тип"
+    "Type": "Тип",
+    "HrAttendance": "Посещаемость",
+    "AllEmployees": "Все сотрудники",
+    "Individual": "Сотрудник",
+    "DaysPresent": "Дней присутствия",
+    "OfficeHours": "Часы в офисе",
+    "WfhHours": "Часы удалённо",
+    "InNow": "На смене"
   }
 }

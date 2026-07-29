@@ -117,6 +117,13 @@
     "FirstIn": "First in",
     "LastOut": "Last out",
     "YourDay": "Your day",
-    "Type": "Type"
+    "Type": "Type",
+    "HrAttendance": "Attendance",
+    "AllEmployees": "All employees",
+    "Individual": "Individual",
+    "DaysPresent": "Days present",
+    "OfficeHours": "Office hrs",
+    "WfhHours": "WFH hrs",
+    "InNow": "In now"
   }
 }
