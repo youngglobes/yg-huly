@@ -30,6 +30,7 @@
     buildDayTimeline,
     formatDuration
   } from '../utils/attendance'
+  import { createPunchIn, closePunchOut } from '../utils/attendance-write'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
 
   const me = getCurrentEmployee()
@@ -97,15 +98,7 @@
     if (punchedIn || busy) return
     busy = true
     try {
-      const at = Date.now()
-      const trimmed = note.trim()
-      await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
-        employee: me,
-        date: localMidnight(at),
-        punchIn: at,
-        mode,
-        ...(trimmed !== '' ? { punchInNote: trimmed } : {})
-      })
+      await createPunchIn(client, me, mode, note)
       note = ''
     } finally {
       busy = false
@@ -116,12 +109,7 @@
     if (openSession === undefined || busy) return
     busy = true
     try {
-      const at = Date.now()
-      const trimmed = note.trim()
-      await client.updateDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, openSession._id, {
-        punchOut: at,
-        ...(trimmed !== '' ? { punchOutNote: trimmed } : {})
-      })
+      await closePunchOut(client, openSession._id, note)
       note = ''
     } finally {
       busy = false
