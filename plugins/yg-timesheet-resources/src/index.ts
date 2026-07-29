@@ -19,6 +19,7 @@ import RejectTaskPopup from './components/RejectTaskPopup.svelte'
 import NotificationRedirect from './components/NotificationRedirect.svelte'
 import Dashboard from './components/Dashboard.svelte'
 import MyAttendance from './components/MyAttendance.svelte'
+import HrAttendance from './components/HrAttendance.svelte'
 
 async function CanApprove (_spaces: Space[]): Promise<boolean> {
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -74,7 +75,8 @@ export default async (): Promise<Resources> => ({
     RejectTaskPopup,
     NotificationRedirect,
     Dashboard,
-    MyAttendance
+    MyAttendance,
+    HrAttendance
   },
   function: { CanApprove },
   resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }
