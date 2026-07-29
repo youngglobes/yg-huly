@@ -89,6 +89,37 @@
     }
   }
 
+  // Punch reminders are strictly opt-in and per-browser: turning them on asks for the Notification
+  // and Idle Detection permissions and registers the service worker that makes the notification
+  // buttons actionable. The flag lives in localStorage; the global AttendanceReminder controller
+  // reads the same key, hence the reload once it flips on.
+  const REMINDER_OPT_IN_KEY = 'yg-punch-reminders-optin'
+  let remindersOn = typeof localStorage !== 'undefined' && localStorage.getItem(REMINDER_OPT_IN_KEY) === 'on'
+  async function enableReminders (): Promise<void> {
+    let ok = false
+    try {
+      const perm = typeof Notification !== 'undefined' ? await Notification.requestPermission() : 'denied'
+      let idleOk = true
+      const IdleDetectorCtor = (window as any).IdleDetector
+      if (IdleDetectorCtor?.requestPermission !== undefined) {
+        idleOk = (await IdleDetectorCtor.requestPermission()) === 'granted'
+      }
+      if ('serviceWorker' in navigator) {
+        await navigator.serviceWorker.register('/attendance-reminder-sw.js', { scope: '/' })
+      }
+      ok = perm === 'granted' && idleOk
+    } catch (e) {
+      ok = false
+    }
+    localStorage.setItem(REMINDER_OPT_IN_KEY, ok ? 'on' : 'off')
+    remindersOn = ok
+    if (ok) location.reload() // let the global controller pick up the opt-in
+  }
+  function disableReminders (): void {
+    localStorage.setItem(REMINDER_OPT_IN_KEY, 'off')
+    remindersOn = false
+  }
+
   let note = ''
   // Guards a double-click: `punchedIn` only flips after the live query round-trips the new doc,
   // so without this a fast second click could open a second session. Disabled while the write runs.
@@ -171,6 +202,16 @@
         {:else}
           <button class="att-cta att-cta--in" on:click={punchIn} disabled={busy}>
             <Label label={ygTimesheet.string.PunchIn} />
+          </button>
+        {/if}
+
+        {#if remindersOn}
+          <button class="att-reminder-toggle" on:click={disableReminders}>
+            <Label label={ygTimesheet.string.DisableReminders} />
+          </button>
+        {:else}
+          <button class="att-reminder-toggle" on:click={() => void enableReminders()}>
+            <Label label={ygTimesheet.string.EnableReminders} />
           </button>
         {/if}
       </div>
@@ -333,6 +374,10 @@
     border: 1px solid transparent; margin-top: auto;
   }
   .att-cta:disabled { opacity: 0.6; cursor: default; }
+  .att-reminder-toggle {
+    align-self: flex-start; background: none; border: 0; color: var(--yg-text-dim);
+    font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0;
+  }
   .att-cta--in { background: var(--yg-ink); color: var(--yg-ink-fg); }
   .att-cta--in:hover:not(:disabled) { filter: brightness(1.15); }
   .att-cta--out { background: var(--att-wfh); color: #fff; }
