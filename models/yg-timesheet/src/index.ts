@@ -20,6 +20,7 @@ import {
 import contact from '@hcengineering/contact'
 import hr from '@hcengineering/hr'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
+import presentation from '@hcengineering/model-presentation'
 import tracker, { TProject } from '@hcengineering/model-tracker'
 import setting from '@hcengineering/setting'
 import view from '@hcengineering/model-view'
@@ -359,5 +360,13 @@ export function createModel (builder: Builder): void {
   })
   builder.mixin(ygTimesheet.class.TimesheetTask, core.class.Class, view.mixin.ObjectPanel, {
     component: ygTimesheet.component.NotificationRedirect
+  })
+
+  // Mount the punch-reminder controller on every workbench page (native global slot; renders only a
+  // fixed-position banner + fires notifications, so the hidden extension host is fine). presence/love
+  // use this exact pattern.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WorkbenchExtensions,
+    component: ygTimesheet.component.AttendanceReminder
   })
 }
