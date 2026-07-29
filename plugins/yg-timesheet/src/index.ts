@@ -149,7 +149,8 @@ export default plugin(ygTimesheetId, {
     RejectTaskPopup: '' as AnyComponent,
     NotificationRedirect: '' as AnyComponent,
     Dashboard: '' as AnyComponent,
-    MyAttendance: '' as AnyComponent
+    MyAttendance: '' as AnyComponent,
+    HrAttendance: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -271,7 +272,14 @@ export default plugin(ygTimesheetId, {
     FirstIn: '' as IntlString,
     LastOut: '' as IntlString,
     YourDay: '' as IntlString,
-    Type: '' as IntlString
+    Type: '' as IntlString,
+    HrAttendance: '' as IntlString,
+    AllEmployees: '' as IntlString,
+    Individual: '' as IntlString,
+    DaysPresent: '' as IntlString,
+    OfficeHours: '' as IntlString,
+    WfhHours: '' as IntlString,
+    InNow: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>
