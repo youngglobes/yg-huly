@@ -226,6 +226,14 @@ export function createModel (builder: Builder): void {
             component: ygTimesheet.component.ProjectApproversEditor,
             accessLevel: AccountRole.Maintainer,
             position: 'bottom'
+          },
+          {
+            id: 'reminders',
+            label: ygTimesheet.string.ReminderSettings,
+            icon: setting.icon.Setting,
+            component: ygTimesheet.component.AttendanceReminderSettings,
+            accessLevel: AccountRole.Maintainer,
+            position: 'bottom'
           }
         ]
       }
