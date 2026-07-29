@@ -381,10 +381,20 @@ In the `string` map add (after `Type`):
     Enabled: '' as IntlString
 ```
 
-- [ ] **Step 3: Regenerate plugin types**
+- [ ] **Step 3: Regenerate plugin types AND rebuild the plugin lib**
 
 Run: `cd plugins/yg-timesheet && node ../../common/scripts/install-run-rushx.js _phase:validate`
 Expected: `Validate time: ...`, no TS errors.
+
+Then rebuild, from the repo root: `node common/scripts/install-run-rush.js build`
+
+**This second command is mandatory, not optional.** `_phase:validate` (`compile validate`) emits
+only the type declarations in `types/`. The runtime id *values* live in `lib/index.js`, emitted by
+`_phase:build`. Consumers resolve this package through its `main` field (`lib/index.js`), so if the
+lib is stale: the model's `@Model`/`createDoc` decorators register against `undefined` ids (the new
+class and the ComponentPointExtension never reach `model.json`) and the front bundle embeds stale
+ids. Everything typechecks and every build exits 0 - it fails silently at runtime. Rebuild the
+dependents too (resources, model, models/all), which the root `rush build` handles.
 
 - [ ] **Step 4: Add the model class**
 
@@ -1011,6 +1021,20 @@ git commit -m "yg-timesheet: mount punch-reminder controller via WorkbenchExtens
 
 Run the beta build script (rebuilds `yg-local/{front,workspace,transactor,tool}:beta`, `--max-old-space-size=6144` baked in). If the scratchpad script is gone, recreate it: `rush build` -> `dev/prod` `rushx package` -> bundle+`docker build` each of `pods/front`, `pods/workspace`, `pods/server`, `dev/tool` tagged `yg-local/*:beta`.
 Expected: `docker images | grep yg-local` shows fresh timestamps; the front `dist` contains `attendance-reminder-sw.js` (verify: `docker run --rm yg-local/front:beta sh -c 'ls /app/dist/attendance-reminder-sw.js'`).
+
+**Also verify the generated model actually picked up the new ids** (catches the stale-plugin-lib
+trap in Task 3 Step 3, which otherwise deploys a healthy-looking stack with the whole feature
+inert):
+
+```bash
+grep -o "yg-timesheet:class:AttendanceReminderSettings" pods/server/bundle/model.json
+grep -o "yg-timesheet:component:AttendanceReminder\"" pods/server/bundle/model.json
+grep -o "presentation:class:ComponentPointExtension" pods/server/bundle/model.json
+```
+
+All three must print a match. (Strings used only by front components, e.g. `Snooze`, correctly do
+NOT appear in `model.json` - check `yg-timesheet:string:ReminderSettings`, which the settings
+special's label references.)
 
 - [ ] **Step 2: Deploy + upgrade + nginx restart**
 
