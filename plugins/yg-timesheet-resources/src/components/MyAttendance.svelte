@@ -206,11 +206,19 @@
         {/if}
 
         {#if remindersOn}
-          <button class="att-reminder-toggle" on:click={disableReminders}>
+          <button class="att-reminder-toggle att-reminder-toggle--on" on:click={disableReminders}>
+            <svg class="att-reminder-toggle__ico" viewBox="0 0 24 24" width="14" height="14" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2" /><path d="M5 3 2 6" /><path d="M22 6l-3-3" /><path d="M6 19l-2 2" /><path d="M18 19l2 2" />
+            </svg>
             <Label label={ygTimesheet.string.DisableReminders} />
           </button>
         {:else}
           <button class="att-reminder-toggle" on:click={() => void enableReminders()}>
+            <svg class="att-reminder-toggle__ico" viewBox="0 0 24 24" width="14" height="14" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2" /><path d="M5 3 2 6" /><path d="M22 6l-3-3" /><path d="M6 19l-2 2" /><path d="M18 19l2 2" />
+            </svg>
             <Label label={ygTimesheet.string.EnableReminders} />
           </button>
         {/if}
@@ -375,9 +383,14 @@
   }
   .att-cta:disabled { opacity: 0.6; cursor: default; }
   .att-reminder-toggle {
-    align-self: flex-start; background: none; border: 0; color: var(--yg-text-dim);
-    font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; padding: 0;
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
+    background: var(--yg-panel-soft); border: 1px solid var(--yg-border); color: var(--yg-text-dim);
+    font: inherit; font-size: 12px; font-weight: 600; border-radius: 999px; padding: 5px 11px;
+    cursor: pointer; text-decoration: none;
   }
+  .att-reminder-toggle:hover { color: var(--yg-text); border-color: var(--yg-border-strong); }
+  .att-reminder-toggle__ico { flex: 0 0 auto; }
+  .att-reminder-toggle--on { color: var(--att-wfh); border-color: var(--att-wfh); }
   .att-cta--in { background: var(--yg-ink); color: var(--yg-ink-fg); }
   .att-cta--in:hover:not(:disabled) { filter: brightness(1.15); }
   .att-cta--out { background: var(--att-wfh); color: #fff; }

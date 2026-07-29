@@ -35,14 +35,23 @@
   }
 
   let saving = false
+  let status: 'idle' | 'saved' | 'error' = 'idle'
+  let statusTimer: ReturnType<typeof setTimeout> | undefined
   async function save (): Promise<void> {
     saving = true
+    status = 'idle'
+    if (statusTimer !== undefined) clearTimeout(statusTimer)
     try {
       if (doc !== undefined) {
         await client.updateDoc(ygTimesheet.class.AttendanceReminderSettings, core.space.Workspace, doc._id, { ...form })
       } else {
         await client.createDoc(ygTimesheet.class.AttendanceReminderSettings, core.space.Workspace, { ...form })
       }
+      status = 'saved'
+      statusTimer = setTimeout(() => (status = 'idle'), 3000)
+    } catch (e) {
+      status = 'error'
+      console.error('[yg] reminder settings save failed', e)
     } finally {
       saving = false
     }
@@ -70,6 +79,9 @@
       <input class="yg-input rs-num" type="number" min="1" bind:value={form.punchOutIdleMin} /></label>
     <div class="rs-actions">
       <button class="yg-btn yg-btn--primary" disabled={saving} on:click={save}><Label label={ui.string.Save} /></button>
+      {#if saving}<span class="rs-status">Saving...</span>{/if}
+      {#if status === 'saved'}<span class="rs-status rs-status--ok">Saved</span>{/if}
+      {#if status === 'error'}<span class="rs-status rs-status--err">Couldn't save. Try again.</span>{/if}
     </div>
   </div>
 </div>
@@ -83,5 +95,8 @@
   .rs-days { display: inline-flex; gap: 4px; }
   .rs-day { appearance: none; border: 1px solid var(--yg-border); background: var(--yg-panel-soft); color: var(--yg-text-dim); border-radius: 7px; padding: 5px 9px; font: inherit; font-size: 12px; cursor: pointer; }
   .rs-day.on { background: var(--yg-ink); color: var(--yg-ink-fg); border-color: transparent; }
-  .rs-actions { margin-top: 6px; }
+  .rs-actions { margin-top: 6px; display: flex; align-items: center; gap: 12px; }
+  .rs-status { font-size: 12px; font-weight: 600; color: var(--yg-text-dim); }
+  .rs-status--ok { color: var(--yg-green); }
+  .rs-status--err { color: var(--yg-red); }
 </style>

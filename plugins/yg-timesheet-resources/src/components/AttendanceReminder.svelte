@@ -14,7 +14,7 @@
   import core from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label, themeStore } from '@hcengineering/ui'
+  import { Label, themeStore, getCurrentLocation, navigate } from '@hcengineering/ui'
   import ygTimesheet, { type AttendanceSession, type AttendanceReminderSettings } from '@hcengineering/yg-timesheet'
   import { evaluateReminder, DEFAULT_REMINDER_CONFIG, type ReminderConfig, type ReminderKind } from '../utils/reminder'
   import { createPunchIn, closePunchOut } from '../utils/attendance-write'
@@ -108,12 +108,25 @@
     } as NotificationOptions)
   }
 
+  // After acting on a reminder we land the user on My Attendance rather than leaving them on
+  // whatever page the notification interrupted - the punch they just made is the thing to see.
+  function goToMyAttendance (): void {
+    const loc = getCurrentLocation()
+    loc.path[2] = 'yg-attendance'
+    loc.path[3] = 'my'
+    loc.path.length = 4
+    loc.fragment = undefined
+    loc.query = undefined
+    navigate(loc)
+  }
+
   async function doPunch (): Promise<void> {
     const todayMid = localMidnight(Date.now())
     const todays = mySessions.filter((s) => s.date === todayMid)
     if (punchedIn && openSession !== undefined) await closePunchOut(client, openSession._id)
     else if (!punchedIn) await createPunchIn(client, me, nextMode(todays))
     bannerKind = 'none'
+    goToMyAttendance()
   }
   function snooze (): void {
     snoozedUntil = Date.now() + config.repeatMin * 60_000
