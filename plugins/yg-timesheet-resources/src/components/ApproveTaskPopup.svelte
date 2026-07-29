@@ -28,6 +28,10 @@
   // Not currently passed by Approvals.svelte's showPopup call (its wiring is unchanged) — kept
   // optional so the sub-line can include the employee whenever a future caller provides it.
   export let employee: string | undefined = undefined
+  // Context for setting approved hours (2026-07-29): the issue's estimation (hours) and the
+  // employee's spent-time notes for this task. Both optional so older callers still work.
+  export let estimation: number | undefined = undefined
+  export let notes: string[] = []
 
   const dispatch = createEventDispatcher()
   let hours: number = submittedHours
@@ -49,6 +53,20 @@
       <span class="lbl">Submitted</span>
       <span class="val">{formatHours(submittedHours)}</span>
     </div>
+    {#if estimation !== undefined}
+      <div class="field">
+        <span class="lbl">Estimated</span>
+        <span class="val">{formatHours(estimation)}</span>
+      </div>
+    {/if}
+    {#if notes.length > 0}
+      <div class="notes">
+        <span class="notes__lbl">Spent-time notes</span>
+        <ul class="notes__list">
+          {#each notes as n}<li>{n}</li>{/each}
+        </ul>
+      </div>
+    {/if}
     <div class="field">
       <span class="lbl">Approve hours</span>
       <span class="hours-input">
@@ -92,6 +110,14 @@
   .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .field .lbl { font-size: 13px; color: var(--yg-text-dim); }
   .field .val { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .notes { display: flex; flex-direction: column; gap: 5px; }
+  .notes__lbl { font-size: 13px; color: var(--yg-text-dim); }
+  .notes__list {
+    margin: 0; padding: 8px 10px 8px 24px; list-style: disc;
+    background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 8px;
+    max-height: 120px; overflow-y: auto;
+  }
+  .notes__list li { font-size: 13px; color: var(--yg-text); margin: 2px 0; }
   .hours-input {
     display: inline-flex;
     align-items: center;

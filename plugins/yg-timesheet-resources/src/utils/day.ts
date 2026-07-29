@@ -298,3 +298,21 @@ export async function rejectTask (
     await client.remove(existing)
   }
 }
+
+/**
+ * The issue identifiers among a day's reports whose issue has no estimation (0 or unset). Used to
+ * block a submit until every task's issue is estimated (user decision 2026-07-29). De-duped by
+ * issue, first-seen order. Pure - the caller supplies the estimation map from the issue lookup.
+ */
+export function issuesMissingEstimation (
+  reports: Array<{ issue: string, identifier: string }>,
+  estimationByIssue: Map<string, number>
+): string[] {
+  const firstIdentifier = new Map<string, string>()
+  for (const r of reports) if (!firstIdentifier.has(r.issue)) firstIdentifier.set(r.issue, r.identifier)
+  const missing: string[] = []
+  for (const [issue, identifier] of firstIdentifier) {
+    if (!((estimationByIssue.get(issue) ?? 0) > 0)) missing.push(identifier)
+  }
+  return missing
+}

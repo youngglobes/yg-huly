@@ -25,6 +25,7 @@
     submitDay,
     recallDay,
     loadProjectApprovers,
+    issuesMissingEstimation,
     NO_APPROVER,
     type DayReportLike,
     type ProjectApproverLike
@@ -58,6 +59,8 @@
   // Raw day reports (shaped for the workflow logic) + the approvers for their projects.
   let reportsByKey: Map<string, DayReportLike[]> = new Map()
   let approversByProject: Map<string, ProjectApproverLike> = new Map()
+  // issue id -> estimation (hours), from the Issue lookup - a submit is blocked if any task's issue is 0/unset.
+  let estimationByIssue: Map<string, number> = new Map()
 
   $: query.query(
     tracker.class.TimeSpendReport,
@@ -66,8 +69,10 @@
       const reports: ReportLike[] = []
       const rbk = new Map<string, DayReportLike[]>()
       const projSet = new Set<string>()
+      const ebi = new Map<string, number>()
       for (const r of res) {
         const issue = r.$lookup?.attachedTo as Issue | undefined
+        if (issue !== undefined) ebi.set(issue._id, issue.estimation ?? 0)
         reports.push({
           employee: r.employee as Ref<any> | null,
           date: r.date,
@@ -97,6 +102,7 @@
       days = g.days
       weekTotal = g.weekTotal
       reportsByKey = rbk
+      estimationByIssue = ebi
       void loadProjectApprovers(client, [...projSet]).then((m) => {
         approversByProject = m
       })
@@ -190,6 +196,18 @@
 
   async function onSubmit (day: DayGroup): Promise<void> {
     const reports = reportsByKey.get(day.key) ?? []
+    // Block the whole submit until every task's issue has an estimation (user decision 2026-07-29).
+    const noEstimate = issuesMissingEstimation(reports, estimationByIssue)
+    if (noEstimate.length > 0) {
+      addNotification(
+        `Can't submit ${weekdayLongFmt.format(day.date)}`,
+        `Set an estimation on ${noEstimate.join(', ')} first. Every task needs an estimate before it can be submitted for approval.`,
+        SubmitErrorNotification,
+        undefined,
+        NotificationSeverity.Error
+      )
+      return
+    }
     const res = await submitDay(client, { employee: me, date: day.date, reports, approversByProject })
     if (typeof res === 'object' && 'kind' in res && res.kind === NO_APPROVER) {
       // No inline error element (#2): surface the block as a toast instead of breaking the day card.

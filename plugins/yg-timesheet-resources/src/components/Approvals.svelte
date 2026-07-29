@@ -16,7 +16,7 @@
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import tracker, { type Project } from '@hcengineering/tracker'
+  import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import { Label, getPanelURI, showPopup } from '@hcengineering/ui'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
@@ -134,10 +134,29 @@
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
-  function onApprove (task: TimesheetTask): void {
+  async function onApprove (task: TimesheetTask): Promise<void> {
+    // Give the approver context for setting approved hours (user request 2026-07-29): the issue's
+    // estimation, and the employee's spent-time notes for THIS task's issue on THIS day.
+    const DAY = 86_400_000
+    const issue = await client.findOne(tracker.class.Issue, { _id: task.issue })
+    const employee = employeeOf(task)
+    const spent: TimeSpendReport[] = employee !== undefined
+      ? await client.findAll(tracker.class.TimeSpendReport, {
+        employee,
+        attachedTo: task.issue,
+        date: { $gte: task.date, $lt: task.date + DAY }
+      })
+      : []
+    const notes = spent.map((s) => (s.description ?? '').trim()).filter((d) => d !== '')
     showPopup(
       ApproveTaskPopup,
-      { identifier: task.identifier, title: task.title, submittedHours: task.submittedHours },
+      {
+        identifier: task.identifier,
+        title: task.title,
+        submittedHours: task.submittedHours,
+        estimation: issue?.estimation,
+        notes
+      },
       undefined,
       (res?: { approvedHours: number }) => {
         if (res !== undefined) void approveTask(client, task._id, res.approvedHours)
@@ -197,7 +216,7 @@
               </a>
               <span class="approw__hrs">{formatHours(task.submittedHours)}</span>
               <span class="ap-actions">
-                <button class="yg-btn yg-btn--primary" on:click={() => onApprove(task)}>
+                <button class="yg-btn yg-btn--primary" on:click={() => { void onApprove(task) }}>
                   <Label label={ygTimesheet.string.Approve} />
                 </button>
                 <button class="yg-btn yg-btn--danger" on:click={() => onReject(task)}>

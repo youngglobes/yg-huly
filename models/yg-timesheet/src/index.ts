@@ -13,7 +13,8 @@ import {
   TypeDate,
   TypeNumber,
   TypeRef,
-  TypeString
+  TypeString,
+  UX
 } from '@hcengineering/model'
 import contact from '@hcengineering/contact'
 import hr from '@hcengineering/hr'
@@ -56,6 +57,9 @@ export class TTimesheet extends TDoc implements Timesheet {
 }
 
 @Model(ygTimesheet.class.TimesheetDay, core.class.AttachedDoc, DOMAIN_YG_TIMESHEET)
+// A class label so the Inbox notification card + class filter render a name instead of "undefined"
+// (the card falls back to getClass().label when a doc has no ObjectTitle/ObjectIdentifier - 2026-07-29).
+@UX(ygTimesheet.string.Timesheet)
 export class TTimesheetDay extends TAttachedDoc implements TimesheetDay {
   @Prop(TypeRef(ygTimesheet.class.Timesheet), core.string.Object)
   declare attachedTo: Ref<Timesheet>
@@ -77,6 +81,8 @@ export class TTimesheetDay extends TAttachedDoc implements TimesheetDay {
 }
 
 @Model(ygTimesheet.class.TimesheetTask, core.class.AttachedDoc, DOMAIN_YG_TIMESHEET)
+// Class label for the approve/reject Inbox card (same reason as TimesheetDay above).
+@UX(ygTimesheet.string.Timesheet)
 export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
   @Prop(TypeRef(ygTimesheet.class.TimesheetDay), core.string.Object)
   declare attachedTo: Ref<TimesheetDay>
