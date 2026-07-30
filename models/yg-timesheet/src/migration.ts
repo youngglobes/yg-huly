@@ -13,7 +13,7 @@ import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
 import tracker from '@hcengineering/tracker'
 import type { Employee } from '@hcengineering/contact'
-import type { Project } from '@hcengineering/tracker'
+import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
 
@@ -209,6 +209,41 @@ async function migrateApprovalRows (client: MigrationUpgradeClient): Promise<voi
   }
 }
 
+// Backfill the HrTimeEntry projection from EXISTING TimeSpendReports. The server trigger
+// (OnTimeSpendReportChange -> upsertMirror) only mirrors reports changed AFTER it was deployed, so
+// on an existing workspace all historical time is missing from HR until this one-shot backfill runs.
+// Mirrors upsertMirror's field mapping exactly. Idempotent: skips any report that already has a
+// mirror (keyed by `source`), so it is safe to re-run. Runs in the `upgrade` phase, ordered AFTER
+// 'hr-space-0001' so ygTimesheet.space.HrData exists before we create entries in it.
+async function backfillHrTimeEntries (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const reports = await ops.findAll(tracker.class.TimeSpendReport, {})
+  if (reports.length === 0) return
+  // Pre-load lookups once (avoids ~4 queries per report over thousands of rows).
+  const haveSource = new Set((await ops.findAll(ygTimesheet.class.HrTimeEntry, {})).map((e) => e.source))
+  const issueById = new Map((await ops.findAll(tracker.class.Issue, {})).map((i) => [i._id, i]))
+  const projectById = new Map((await ops.findAll(tracker.class.Project, {})).map((p) => [p._id, p]))
+  for (const report of reports) {
+    const employee = report.employee
+    if (employee == null) continue // matches upsertMirror: no employee -> no mirror
+    if (haveSource.has(report._id)) continue // idempotent
+    const issue: Issue | undefined = issueById.get(report.attachedTo as Ref<Issue>)
+    const project = issue !== undefined ? projectById.get(issue.space) : undefined
+    await ops.createDoc(ygTimesheet.class.HrTimeEntry, ygTimesheet.space.HrData, {
+      source: report._id,
+      employee,
+      date: report.date ?? 0,
+      hours: report.value,
+      project: (issue?.space ?? '') as Ref<Project>,
+      projectName: project?.name ?? '',
+      issue: (issue?._id ?? report.attachedTo) as Ref<Issue>,
+      identifier: issue?.identifier ?? '-',
+      title: issue?.title ?? '(unknown issue)',
+      note: report.description ?? ''
+    })
+  }
+}
+
 export const ygTimesheetOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await migrateDaysToTasks(client)
@@ -225,6 +260,12 @@ export const ygTimesheetOperation: MigrateOperation = {
           await createHrSpace(ops)
           await hideStockHrApp(ops)
         }
+      },
+      {
+        // One-shot backfill of the HrTimeEntry projection from existing TimeSpendReports so HR shows
+        // historical time (the trigger only mirrors going forward). After 'hr-space-0001' so HrData exists.
+        state: 'hr-timeentry-backfill-0002',
+        func: backfillHrTimeEntries
       },
       {
         state: 'approvals-space-0001',
