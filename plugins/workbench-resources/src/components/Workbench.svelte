@@ -1123,7 +1123,11 @@
       {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
         <Separator name={'main'} index={0} color={'transparent'} separatorSize={0} short />
       {/if}
-      <WidgetsBar />
+      {#if false}
+        <!-- YG: right sidebar (widget bar) removed to reclaim content width across all pages
+             (2026-07-29 user request). Wrapped rather than deleted so it is trivially revertible. -->
+        <WidgetsBar />
+      {/if}
     </div>
     </div>
   </div>

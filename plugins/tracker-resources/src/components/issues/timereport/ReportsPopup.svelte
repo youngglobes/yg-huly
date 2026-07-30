@@ -15,12 +15,13 @@
 <script lang="ts">
   import contact from '@hcengineering/contact'
   import { FindOptions } from '@hcengineering/core'
-  import presentation, { Card } from '@hcengineering/presentation'
+  import presentation, { Card, createQuery } from '@hcengineering/presentation'
   import { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-  import { Button, IconAdd, Scroller, showPopup, tableSP } from '@hcengineering/ui'
+  import { Button, IconAdd, Scroller, floorFractionDigits, showPopup, tableSP } from '@hcengineering/ui'
   import { TableBrowser } from '@hcengineering/view-resources'
   import tracker from '../../../plugin'
   import IssuePresenter from '../IssuePresenter.svelte'
+  import TimePresenter from './TimePresenter.svelte'
   import TimeSpendReportPopup from './TimeSpendReportPopup.svelte'
   import { onMount } from 'svelte'
   export let issue: Issue
@@ -36,6 +37,22 @@
   })
 
   $: defaultTimeReportDay = currentProject?.defaultTimeReportDay
+
+  // Total spent time across every record shown in the table (YG addition 2026-07-29). Mirrors the
+  // TableBrowser's own query so the sum matches exactly what is listed above.
+  const reportsQuery = createQuery()
+  let reports: TimeSpendReport[] = []
+  $: reportsQuery.query(
+    tracker.class.TimeSpendReport,
+    { attachedTo: { $in: [issue._id, ...(issue.childInfo?.map((it) => it.childId) ?? [])] } },
+    (res) => {
+      reports = res
+    }
+  )
+  $: totalSpent = floorFractionDigits(
+    reports.reduce((sum, r) => sum + floorFractionDigits(r.value, 3), 0),
+    3
+  )
 
   export function canClose (): boolean {
     return true
@@ -89,6 +106,10 @@
         {options}
       />
     </Scroller>
+    <div class="reports-total">
+      <span class="reports-total__lbl">Total</span>
+      <span class="reports-total__val"><TimePresenter value={totalSpent} /></span>
+    </div>
   </div>
   <svelte:fragment slot="buttons">
     <Button id="ReportsPopupAddButton" icon={IconAdd} size={'large'} on:click={addReport} />
@@ -98,6 +119,26 @@
 <style lang="scss">
   .card-marker {
     display: none;
+  }
+  .reports-total {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem 0.25rem;
+    border-top: 1px solid var(--theme-divider-color);
+    margin-top: 0.25rem;
+  }
+  .reports-total__lbl {
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--theme-dark-color);
+  }
+  .reports-total__val {
+    font-weight: 700;
+    color: var(--theme-caption-color);
   }
   .reports-table {
     // Was a fixed h-50, which kept a long list scrolling inside a short box.

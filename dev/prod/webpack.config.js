@@ -190,7 +190,8 @@ module.exports = [
   {
     mode: dev ? 'development' : mode,
     entry: {
-      serviceWorker: '@hcengineering/notification/src/serviceWorker.ts'
+      serviceWorker: '@hcengineering/notification/src/serviceWorker.ts',
+      'attendance-reminder-sw': '@hcengineering/yg-timesheet-resources/src/attendance-reminder-sw.ts'
     },
     module: {
       rules: [

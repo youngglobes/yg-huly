@@ -31,6 +31,7 @@ import { desktopPreferencesId, createModel as desktopPreferencesModel } from '@h
 import { driveId, createModel as driveModel } from '@hcengineering/model-drive'
 import gmail, { gmailId, createModel as gmailModel } from '@hcengineering/model-gmail'
 import { guestId, createModel as guestModel } from '@hcengineering/model-guest'
+import { ygTimesheetId, createModel as ygTimesheetModel } from '@hcengineering/model-yg-timesheet'
 import hr, { hrId, createModel as hrModel } from '@hcengineering/model-hr'
 import inventory, { inventoryId, createModel as inventoryModel } from '@hcengineering/model-inventory'
 import lead, { leadId, createModel as leadModel } from '@hcengineering/model-lead'
@@ -58,6 +59,7 @@ import { serverDriveId, createModel as serverDriveModel } from '@hcengineering/m
 import { serverGmailId, createModel as serverGmailModel } from '@hcengineering/model-server-gmail'
 import { serverGuestId, createModel as serverGuestModel } from '@hcengineering/model-server-guest'
 import { serverHrId, createModel as serverHrModel } from '@hcengineering/model-server-hr'
+import { serverYgTimesheetId, createModel as serverYgTimesheetModel } from '@hcengineering/model-server-yg-timesheet'
 import { serverInventoryId, createModel as serverInventoryModel } from '@hcengineering/model-server-inventory'
 import { serverLeadId, createModel as serverLeadModel } from '@hcengineering/model-server-lead'
 import { serverNotificationId, createModel as serverNotificationModel } from '@hcengineering/model-server-notification'
@@ -553,6 +555,7 @@ export default function buildModel (): Builder {
     [serverTemplatesModel, serverTemplatesId],
     [serverTelegramModel, serverTelegramId],
     [serverHrModel, serverHrId],
+    [serverYgTimesheetModel, serverYgTimesheetId],
     [serverNotificationModel, serverNotificationId],
     [serverRequestModel, serverRequestId],
     [serverViewModel, serverViewId],
@@ -567,7 +570,8 @@ export default function buildModel (): Builder {
     [serverTrainingModel, serverTrainingId],
     [serverDocumentsModel, serverDocumentsId],
     [serverAiBotModel, serverAiBotId],
-    [serverProcessModel, serverProcessId]
+    [serverProcessModel, serverProcessId],
+    [ygTimesheetModel, ygTimesheetId]
   ]
 
   for (const [b, id, config] of builders) {

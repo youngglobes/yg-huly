@@ -8,6 +8,9 @@ on:
   workflow_dispatch: {}
   push:
     branches:
+      # Only yg_develop builds/pushes the production image tags. Feature/beta branches
+      # (e.g. yg_beta) are developed + tested LOCALLY and never trigger CI, so they can
+      # never overwrite the :v0.7.426-yg tags the server consumes.
       - yg_develop
 
 permissions:
@@ -16,6 +19,8 @@ permissions:
 
 jobs:
   build-front:
+    # Defense-in-depth: only yg_develop may write the production image tags.
+    if: github.ref == 'refs/heads/yg_develop'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -74,6 +79,7 @@ jobs:
   deploy-front:
     # Auto-pull the freshly pushed image on the server (same tag, new content).
     # Requires repo secrets: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY.
+    if: success() && github.ref == 'refs/heads/yg_develop'
     needs: build-front
     runs-on: ubuntu-latest
     steps:
@@ -105,3 +111,56 @@ jobs:
               sleep 5
             done
             echo "UNHEALTHY after front deploy"; exit 1'
+
+  build-backend:
+    # Defense-in-depth: only yg_develop may write the production image tags.
+    if: github.ref == 'refs/heads/yg_develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      REG: ghcr.io/${{ github.repository_owner }}
+      TAG: v0.7.426-yg
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost "$AGENT_TOOLSDIRECTORY" 2>/dev/null || true
+          docker image prune -af || true
+          df -h
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Rush install
+        run: node common/scripts/install-run-rush.js install
+
+      - name: Build backend dependency graphs
+        run: node common/scripts/install-run-rush.js build --to @hcengineering/pod-workspace --to @hcengineering/pod-server --to @hcengineering/tool
+
+      - name: Compute versions
+        run: |
+          echo "MODEL_VERSION=$(node common/scripts/show_version.js)" >> "$GITHUB_ENV"
+          echo "VERSION=$(node common/scripts/show_tag.js)" >> "$GITHUB_ENV"
+
+      - name: Bundle pods
+        run: |
+          cd pods/workspace && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
+          cd pods/server    && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
+          cd dev/tool       && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push images
+        run: |
+          docker build -t "$REG/workspace:$TAG"  pods/workspace && docker push "$REG/workspace:$TAG"
+          docker build -t "$REG/transactor:$TAG" pods/server    && docker push "$REG/transactor:$TAG"
+          docker build -t "$REG/tool:$TAG"       dev/tool       && docker push "$REG/tool:$TAG"
+          echo "Pushed workspace/transactor/tool :$TAG"

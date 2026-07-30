@@ -43,7 +43,14 @@
   $: icon = getIcon()
 </script>
 
-<div class="notifyPopup" in:fade out:fade>
+<div
+  class="notifyPopup"
+  class:sev-success={severity === NotificationSeverity.Success}
+  class:sev-error={severity === NotificationSeverity.Error}
+  class:sev-info={severity === NotificationSeverity.Info}
+  class:sev-warning={severity === NotificationSeverity.Warning}
+  in:fade out:fade
+>
   <div class="flex-between">
     <div class="flex-row-center">
       {#if icon}
@@ -77,19 +84,43 @@
 
 <style lang="scss">
   .notifyPopup {
+    --toast-accent: var(--theme-popup-divider);
+    position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    margin: 0.75rem;
-    padding: 0.5rem;
-    min-width: 25rem;
-    max-width: 35rem;
-    min-height: 7rem;
+    margin: 0.5rem 0.75rem;
+    padding: 0.875rem 1rem 0.875rem 1.125rem;
+    min-width: 20rem;
+    max-width: 26rem;
     color: var(--theme-caption-color);
     background-color: var(--theme-popup-color);
     border: 1px solid var(--theme-popup-divider);
-    border-radius: 0.5rem;
+    border-radius: 0.75rem;
     box-shadow: var(--theme-popup-shadow);
+
+    // Left accent bar carries the severity color across the whole card, not just the icon.
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--toast-accent);
+    }
+    &.sev-success {
+      --toast-accent: var(--theme-won-color);
+    }
+    &.sev-error {
+      --toast-accent: var(--theme-lost-color);
+    }
+    &.sev-info {
+      --toast-accent: var(--primary-color-skyblue);
+    }
+    &.sev-warning {
+      --toast-accent: var(--theme-warning-color);
+    }
 
     .icon-success {
       color: var(--theme-won-color);
@@ -106,7 +137,15 @@
 
     .content {
       flex-grow: 1;
-      margin: 1rem 0 1.25rem;
+      margin: 0.5rem 0 0;
+      color: var(--theme-content-color);
+      font-size: 0.8125rem;
+      line-height: 1.45;
+    }
+
+    :global(.buttons-group),
+    .flex-between.gap-2 {
+      margin-top: 0.875rem;
     }
   }
 </style>

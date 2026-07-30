@@ -1,0 +1,503 @@
+// Copyright © 2026 YoungGlobes
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Shared table shell + status tokens for HR/timesheet grids (yg-timesheet-resources).
+//
+// Lifted verbatim from HrOverview.svelte's `.hrTable` family (table/th/td/td.bold/row-hover/
+// amber/green/ok/warn/totals/empty) and from HrTimesheet.svelte's `.hrt-pill`/`.hrt-num` rules,
+// renamed to the neutral `yg-` namespace. Reused (via `@use './yg-table' as *;`) by HrOverview,
+// HrTimesheet, and later Reports/Approvals/My-Timesheet (Tasks 4-6) so all HR/timesheet grids
+// share one source of truth for their table chrome and status vocabulary.
+//
+// Every rule below is wrapped in `:global(...)`. Reason: Svelte scopes a component's <style>
+// block by suffixing selectors AND matching template elements with a per-component hash class.
+// A component that `@use`s this partial but doesn't reference every class in ITS OWN markup
+// (e.g. HrOverview never uses `.yg-pill`, HrTimesheet never uses `.yg-row`/`.ok`/`.warn`) would
+// otherwise get "Unused CSS selector" warnings for the classes it doesn't touch, and in some
+// cases Svelte simply won't apply a "shared" class it can't prove is used. `:global(...)`
+// opts these selectors out of that per-component usage analysis so every consumer gets exactly
+// the same, always-applied ruleset regardless of which subset of classes it happens to use.
+// It also means a component that legitimately needs a DIFFERENT look for the same class (see
+// HrTimesheet's local `.yg-table th`/`.yg-table td` overrides) can rely on Svelte's automatic
+// scope-hash suffix on its own (non-global) local rules to reliably out-specificity these
+// global base rules, with no dependency on cascade order.
+
+// YG portal design tokens (Task 1), shared `--yg-*` custom properties for the redesigned
+// Timesheet/Approvals/Reports views. Values are lifted verbatim from the committed mockups
+// (docs/superpowers/specs/mockups/{my-timesheet,approvals,reports}.html): light hexes from
+// their `:root`, dark hexes from their `@media (prefers-color-scheme: dark)` block.
+//
+// Huly signals theme with a `.theme-light`/`.theme-dark` CLASS on an ancestor (packages/theme),
+// not a media query or a `:root[data-theme]` attribute, so the tokens are scoped there rather
+// than to `:root`. That is what makes `--yg-ink` (and everything else) flip between the two
+// themes: `--yg-ink` is the near-black brand ink in light mode but flips to a near-white in
+// dark mode, with `--yg-ink-fg` flipping the opposite way, so a `.yg-btn--primary` (ink
+// background, ink-fg text) stays legible in both.
+:global(.theme-light) {
+  --yg-ink:#17181f; --yg-ink-fg:#fff; --yg-bg:#f4f5f8; --yg-panel:#fff; --yg-panel-soft:#fafbfd;
+  --yg-border:#e7e8ef; --yg-border-strong:#dcdde6; --yg-text:#191a23; --yg-text-dim:#63657a; --yg-text-faint:#9a9caf;
+  --yg-green:#1f9d55; --yg-green-bg:#e8f6ee; --yg-green-line:#bfe6cd;
+  --yg-amber:#b7770a; --yg-amber-bg:#fbf1dc; --yg-amber-line:#eed9ab;
+  --yg-red:#d1434e; --yg-red-bg:#fbe9eb; --yg-red-line:#f2c4c8;
+  --yg-grey:#7c7e92; --yg-grey-bg:#eef0f4;
+  --yg-radius:12px; --yg-shadow:0 1px 2px rgba(20,22,40,.04),0 1px 3px rgba(20,22,40,.06);
+  --yg-av1:#2f9b8e; --yg-av2:#c65f8e; --yg-av3:#5566c4; --yg-av4:#c67f2f;
+}
+:global(.theme-dark) {
+  --yg-ink:#f2f3f8; --yg-ink-fg:#16171c; --yg-bg:#131419; --yg-panel:#1c1d25; --yg-panel-soft:#191a21;
+  --yg-border:#2a2c37; --yg-border-strong:#363845; --yg-text:#e8e9f1; --yg-text-dim:#a2a4b6; --yg-text-faint:#6f7183;
+  --yg-green:#4cc981; --yg-green-bg:#16281e; --yg-green-line:#244b34;
+  --yg-amber:#e0a441; --yg-amber-bg:#2a2213; --yg-amber-line:#4d3d1c;
+  --yg-red:#ec6b74; --yg-red-bg:#2c1619; --yg-red-line:#522a2f;
+  --yg-grey:#9092a6; --yg-grey-bg:#24262f;
+  --yg-radius:12px; --yg-shadow:0 1px 2px rgba(0,0,0,.3),0 1px 3px rgba(0,0,0,.35);
+  --yg-av1:#37b3a4; --yg-av2:#d873a1; --yg-av3:#7d8bec; --yg-av4:#d99a4a;
+}
+
+// Shared action button, from the mockups' `.btn` rule family. Base sizing/type and the
+// primary/ghost variants are from my-timesheet.html's `.btn`/`.btn.primary`/`.btn.ghost`; the
+// `inline-flex`/`gap` addition and the danger variant come from approvals.html's `.btn`
+// (icon + label buttons) and `.btn.reject` (used for the Approvals "Reject" action).
+:global(.yg-btn) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+:global(.yg-btn--primary) {
+  background: var(--yg-ink);
+  color: var(--yg-ink-fg);
+}
+:global(.yg-btn--primary:hover) {
+  filter: brightness(1.15);
+}
+:global(.yg-btn--ghost) {
+  background: var(--yg-panel);
+  color: var(--yg-text-dim);
+  border-color: var(--yg-border-strong);
+}
+:global(.yg-btn--danger) {
+  background: var(--yg-panel);
+  color: var(--yg-red);
+  border-color: var(--yg-red-line);
+}
+:global(.yg-btn--danger:hover) {
+  background: var(--yg-red-bg);
+}
+
+// Mono id chip (e.g. "TSK-1"), from my-timesheet.html's `.task__id` (identical rule in
+// approvals.html as `.approw__id`).
+:global(.yg-idbadge) {
+  font-family: ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--yg-text-dim);
+  background: var(--yg-panel-soft);
+  border: 1px solid var(--yg-border);
+  border-radius: 6px;
+  padding: 2px 7px;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+// Avatar chip, from reports.html's `.avatar`/`.avatar.sm`/`.a1..a4` (the fullest variant
+// across the mockups: 4-color palette plus the compact `sm` size used by Reports' "who" column).
+:global(.yg-avatar) {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  flex: none;
+  letter-spacing: -0.02em;
+}
+:global(.yg-avatar--sm) {
+  width: 20px;
+  height: 20px;
+  font-size: 9px;
+}
+:global(.yg-av1) {
+  background: var(--yg-av1);
+}
+:global(.yg-av2) {
+  background: var(--yg-av2);
+}
+:global(.yg-av3) {
+  background: var(--yg-av3);
+}
+:global(.yg-av4) {
+  background: var(--yg-av4);
+}
+
+// Task-level status tag (dot + label), from my-timesheet.html's `.tag` family. Distinct from
+// the day-level `.yg-pill--*` below: no background/border chip, just a colored dot (`.tick`)
+// plus colored text, used inside a task row.
+:global(.yg-tag) {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 92px;
+}
+:global(.yg-tag .tick) {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+:global(.yg-tag--approved) {
+  color: var(--yg-green);
+}
+:global(.yg-tag--approved .tick) {
+  background: var(--yg-green);
+}
+:global(.yg-tag--submitted) {
+  color: var(--yg-amber);
+}
+:global(.yg-tag--submitted .tick) {
+  background: var(--yg-amber);
+}
+:global(.yg-tag--rejected) {
+  color: var(--yg-red);
+}
+:global(.yg-tag--rejected .tick) {
+  background: var(--yg-red);
+}
+:global(.yg-tag--draft) {
+  color: var(--yg-grey);
+}
+:global(.yg-tag--draft .tick) {
+  background: var(--yg-grey);
+}
+
+:global(.yg-table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+:global(.yg-table th) {
+  font-size: 0.625rem;
+  color: var(--theme-dark-color);
+  text-transform: uppercase;
+  text-align: center;
+  font-weight: 600;
+  padding: 0.5rem;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  background: var(--theme-bg-color);
+  border-bottom: 1px solid var(--theme-divider-color);
+}
+:global(.yg-table th.left),
+:global(.yg-table td.left) {
+  text-align: left;
+}
+:global(.yg-table td) {
+  padding: 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--theme-divider-color);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+:global(.yg-table td.bold) {
+  font-weight: 600;
+}
+// NB: no `cursor: pointer` here, only HrOverview's rows are actually clickable (`on:click`).
+// Reports/Approvals/Timesheet rows are not, so the shared hover only highlights; clickable
+// consumers add their own local `cursor: pointer` (see HrOverview.svelte).
+:global(.yg-row:hover) {
+  background: var(--theme-list-row-color);
+}
+:global(.yg-amber) {
+  color: var(--theme-warning-color);
+  font-weight: 500;
+}
+:global(.yg-green) {
+  color: var(--theme-won-color);
+}
+:global(.yg-ok) {
+  color: var(--theme-won-color);
+  font-weight: 600;
+}
+:global(.yg-warn) {
+  color: var(--theme-warning-color);
+  font-weight: 600;
+}
+:global(.yg-totals td) {
+  font-weight: 600;
+  border-top: 2px solid var(--theme-divider-color);
+  border-bottom: none;
+}
+:global(.yg-empty) {
+  text-align: center;
+  color: var(--theme-darker-color);
+  padding: 1.5rem;
+}
+
+// Numeric-column helper (right-aligned, tabular figures), from HrTimesheet.svelte's `.hrt-num`.
+// Written as `th.yg-num, td.yg-num` (rather than a bare `.yg-num`) so its specificity matches
+// `.yg-table th`/`.yg-table td` above (class+tag vs class+tag) instead of losing to them.
+// A bare single-class `.yg-num` would tie-lose to the table-level rule's text-align on every
+// consumer, silently re-centering "numeric" columns.
+:global(th.yg-num),
+:global(td.yg-num) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// Per-day approval-status pill, from HrTimesheet.svelte's `.hrt-pill` + `--{status}` modifiers.
+:global(.yg-pill) {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.75rem;
+  background: var(--theme-button-default);
+  color: var(--theme-content-color);
+}
+:global(.yg-pill--submitted) {
+  background: var(--theme-warning-color);
+  color: #fff;
+}
+:global(.yg-pill--approved) {
+  background: var(--theme-won-color);
+  color: #fff;
+}
+:global(.yg-pill--rejected) {
+  background: var(--theme-lost-color);
+  color: #fff;
+}
+// Amber-family but distinct from the solid-amber Submitted pill, outline + amber text on the
+// neutral pill background, so a half-approved day reads as visually different from a freshly
+// submitted one.
+:global(.yg-pill--partiallyapproved) {
+  background: var(--theme-button-default);
+  color: var(--theme-warning-color);
+  border: 1px solid var(--theme-warning-color);
+}
+
+// ---------------------------------------------------------------------------
+// Portal/HR page chrome (2026-07-25). Shared page shell + black-primary weekbar,
+// section panel and dialog, so the HR views (HrOverview / HrTimesheet / HrRoster /
+// HrExportDialog) match the redesigned My Timesheet portal. The weekbar mirrors
+// Timesheet.svelte's local `.weekbar` verbatim (that shipped screen keeps its own
+// identical copy); this is the canonical version for every other view.
+// ---------------------------------------------------------------------------
+
+// Page shell: fills the app pane, sits on the YG background, owns its own scroll.
+:global(.yg-page) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--yg-bg);
+  overflow: hidden;
+}
+:global(.yg-scroll) {
+  flex: 1;
+  overflow: auto;
+  padding: 0 1.25rem 1.25rem;
+}
+
+// Page header + title.
+:global(.yg-head) {
+  flex: none;
+  padding: 1rem 1.25rem 0;
+}
+:global(.yg-title) {
+  font-size: 1.375rem;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  margin: 0 0 18px;
+  color: var(--yg-text);
+}
+
+// Weekbar: prev / today / range / next / spacer / right-slot (total pill or Export).
+:global(.yg-weekbar) {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 4px 18px;
+}
+:global(.yg-weekbar__nav) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--yg-border);
+  background: var(--yg-panel);
+  color: var(--yg-text-dim);
+  cursor: pointer;
+  box-shadow: var(--yg-shadow);
+}
+:global(.yg-weekbar__nav:hover) {
+  color: var(--yg-text);
+}
+:global(.yg-weekbar__today) {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--yg-border);
+  background: var(--yg-panel);
+  color: var(--yg-text-dim);
+  cursor: pointer;
+  box-shadow: var(--yg-shadow);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+:global(.yg-weekbar__today:hover) {
+  color: var(--yg-text);
+}
+:global(.yg-weekbar__range) {
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.01em;
+  color: var(--yg-text);
+}
+:global(.yg-weekbar__spacer) {
+  flex: 1;
+}
+:global(.yg-weekbar__total) {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--yg-panel);
+  border: 1px solid var(--yg-border);
+  box-shadow: var(--yg-shadow);
+}
+:global(.yg-weekbar__total-label) {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--yg-text-faint);
+}
+:global(.yg-weekbar__total-val) {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--yg-text);
+}
+
+// Section panel: a titled card with a one-line description, for config-style pages (HR Roster).
+:global(.yg-section) {
+  background: var(--yg-panel);
+  border: 1px solid var(--yg-border);
+  border-radius: var(--yg-radius);
+  box-shadow: var(--yg-shadow);
+  padding: 20px 22px;
+  max-width: 640px;
+}
+:global(.yg-section__title) {
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  color: var(--yg-text);
+  margin: 0 0 4px;
+}
+:global(.yg-section__desc) {
+  font-size: 13px;
+  color: var(--yg-text-dim);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+// Dialog shell (the Approve/Reject popups' look), for the HR export chooser.
+:global(.yg-dialog) {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px;
+  min-width: 24rem;
+  background: var(--yg-panel);
+  border: 1px solid var(--yg-border);
+  border-radius: var(--yg-radius);
+  box-shadow: var(--yg-shadow);
+  color: var(--yg-text);
+}
+:global(.yg-dialog__title) {
+  font-size: 15px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+}
+:global(.yg-dialog__row) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+:global(.yg-dialog__label) {
+  min-width: 4.5rem;
+  color: var(--yg-text-dim);
+  font-size: 13px;
+}
+:global(.yg-dialog__range) {
+  font-size: 13px;
+  color: var(--yg-text-dim);
+}
+:global(.yg-dialog__actions) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+// Segmented toggle (Weekly / Monthly) used inside the export dialog.
+:global(.yg-seg) {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border-radius: 9px;
+  background: var(--yg-panel-soft);
+  border: 1px solid var(--yg-border);
+}
+:global(.yg-seg__opt) {
+  height: 26px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--yg-text-dim);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+:global(.yg-seg__opt--on) {
+  background: var(--yg-ink);
+  color: var(--yg-ink-fg);
+}
+// Native date/select controls styled to the YG surface (dialog + date pickers).
+:global(.yg-input) {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid var(--yg-border-strong);
+  background: var(--yg-panel);
+  color: var(--yg-text);
+  font: inherit;
+  font-size: 13px;
+}
