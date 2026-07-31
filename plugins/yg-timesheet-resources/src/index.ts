@@ -18,6 +18,7 @@ import ApproveTaskPopup from './components/ApproveTaskPopup.svelte'
 import RejectTaskPopup from './components/RejectTaskPopup.svelte'
 import NotificationRedirect from './components/NotificationRedirect.svelte'
 import Dashboard from './components/Dashboard.svelte'
+import DashboardHome from './components/DashboardHome.svelte'
 import MyAttendance from './components/MyAttendance.svelte'
 import HrAttendance from './components/HrAttendance.svelte'
 import AttendanceReminderSettings from './components/AttendanceReminderSettings.svelte'
@@ -91,6 +92,7 @@ export default async (): Promise<Resources> => ({
     RejectTaskPopup,
     NotificationRedirect,
     Dashboard,
+    DashboardHome,
     MyAttendance,
     HrAttendance,
     AttendanceReminderSettings,
