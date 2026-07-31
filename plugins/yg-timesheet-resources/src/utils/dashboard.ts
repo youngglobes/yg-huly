@@ -139,6 +139,11 @@ export function priorityWatch (issues: DashIssue[]): DashIssue[] {
     .sort((a, b) => a.priority - b.priority || (a.dueDate ?? Infinity) - (b.dueDate ?? Infinity))
 }
 
+// Issues assigned to a specific employee (the "me"-scope for the Employee dashboard).
+export function assignedTo (issues: DashIssue[], employee: string): DashIssue[] {
+  return issues.filter((i) => i.assignee === employee)
+}
+
 export function computeKpis (issues: DashIssue[], times: DashTime[], now: number): Kpis {
   return {
     inProgress: inProgressIssues(issues).length,

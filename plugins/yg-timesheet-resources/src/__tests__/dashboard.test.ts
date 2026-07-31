@@ -1,6 +1,6 @@
 import {
   greetingFor, isOpen, inProgressIssues, overdueIssues, dueSoonIssues,
-  statusBuckets, openStatusNames, openStatusTotals, hoursByProject, projectStats, portfolioHours, teamWorkload, priorityWatch, computeKpis, todayStart,
+  statusBuckets, openStatusNames, openStatusTotals, hoursByProject, projectStats, portfolioHours, teamWorkload, priorityWatch, computeKpis, todayStart, assignedTo,
   type DashIssue, type DashTime, type DashProject
 } from '../utils/dashboard'
 
@@ -148,5 +148,20 @@ describe('computeKpis', () => {
   const times: DashTime[] = [{ issue: 'i1', project: 'p1', employee: 'e1', date: D(2026, 6, 14), hours: 4 }]
   it('counts in-progress, overdue, and sums given hours', () => {
     expect(computeKpis(issues, times, now)).toEqual({ inProgress: 2, hoursThisWeek: 4, overdue: 1 })
+  })
+})
+
+describe('assignedTo', () => {
+  const issues = [
+    iss({ id: 'a', assignee: 'e1' }),
+    iss({ id: 'b', assignee: 'e2' }),
+    iss({ id: 'c', assignee: null }),
+    iss({ id: 'd', assignee: 'e1' })
+  ]
+  it('keeps only the given employee assignments', () => {
+    expect(assignedTo(issues, 'e1').map((i) => i.id)).toEqual(['a', 'd'])
+  })
+  it('empty when none match', () => {
+    expect(assignedTo(issues, 'zzz')).toEqual([])
   })
 })
