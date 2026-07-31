@@ -316,9 +316,7 @@ export default plugin(ygTimesheetId, {
     Enabled: '' as IntlString,
     MyAttendanceToday: '' as IntlString,
     MyTasks: '' as IntlString,
-    MyHoursThisWeek: '' as IntlString,
-    MyPriority: '' as IntlString,
-    MyOverdue: '' as IntlString
+    MyHoursThisWeek: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

@@ -21,13 +21,13 @@
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import { type Ref } from '@hcengineering/core'
-  import { createQuery, getClient } from '@hcengineering/presentation'
+  import { createQuery } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
   import tracker, { type Issue, type IssueStatus, type TimeSpendReport } from '@hcengineering/tracker'
   import ygTimesheet, { type AttendanceSession } from '@hcengineering/yg-timesheet'
   import { dayStats, findOpenSession, localMidnight } from '../utils/attendance'
   import {
-    assignedTo, dueSoonIssues, openStatusNames, overdueIssues, priorityWatch, type Cat, type DashIssue
+    assignedTo, dueSoonIssues, isOpen, openStatusNames, overdueIssues, priorityWatch, type Cat, type DashIssue
   } from '../utils/dashboard'
   import { weekRange } from '../utils/week'
   import GreetingCard from './dashboard/GreetingCard.svelte'
@@ -39,7 +39,6 @@
   import PriorityWatch from './dashboard/PriorityWatch.svelte'
 
   const me = getCurrentEmployee()
-  const client = getClient()
 
   // Category ref -> normalized Cat. Copied from Dashboard.svelte (not exported from utils/dashboard
   // - it maps a platform ref, so it stays a query-adjacent concern, not pure-lib).
@@ -85,6 +84,8 @@
   // Already scoped by the query above; re-derived via the shared helper to keep the "me" filter
   // explicit and in one place (matches the brief - this is the single source of truth for "mine").
   $: myIssues = assignedTo(issues, me)
+  // Spec: "My open tasks by status" - the card shows open work only, not everything assigned.
+  $: myOpenIssues = myIssues.filter((i) => isOpen(i.cat))
 
   // --- My logged time this week ---------------------------------------------
   $: week = weekRange(Date.now())
@@ -126,7 +127,7 @@
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => { employeeNames = new Map(res.map((e) => [e._id as string, formatName(e.name)])) })
 
   // --- Derived (pure lib) --------------------------------------------------
-  $: statusColumns = openStatusNames(myIssues)
+  $: statusColumns = openStatusNames(myOpenIssues)
   $: priority = priorityWatch(myIssues)
   $: overdue = overdueIssues(myIssues, now)
   $: dueSoon = dueSoonIssues(myIssues, now, 7)
@@ -156,7 +157,7 @@
 
     <!-- Full-width detail cards. -->
     <div class="dash-detail">
-      <MyTasksCard issues={myIssues} {statusColumns} />
+      <MyTasksCard issues={myOpenIssues} {statusColumns} />
       <MyHoursCard {hours} {entries} />
     </div>
   </div>
@@ -165,11 +166,10 @@
 <style lang="scss">
   @use './yg-table' as *;
   .dash-detail { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
-  .dash-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
   // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
   // tallest, and align-items: stretch makes each card fill its cell (cards are flex-column with
   // height:100% so their list fills and any "view all" link sits at the bottom). Cards cap their
   // lists at ~6 rows and link to the full view. Collapses to a single column on narrow screens.
   .dash-attention { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 1fr; gap: 16px; margin-top: 16px; align-items: stretch; }
-  @media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } .dash-attention { grid-template-columns: 1fr; grid-auto-rows: auto; } }
+  @media (max-width: 900px) { .dash-attention { grid-template-columns: 1fr; grid-auto-rows: auto; } }
 </style>

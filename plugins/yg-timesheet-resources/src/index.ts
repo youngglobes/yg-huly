@@ -62,8 +62,8 @@ export async function resolveLocation (loc: Location): Promise<ResolvedLocation 
   if (loc.path[2] !== ygTimesheetId || loc.path[3] != null) {
     return undefined
   }
-  // Approvers/admins land on the dashboard; everyone else on My Timesheet.
-  const special = (await CanApprove([])) ? 'dashboard' : 'my'
+  // Everyone lands on My Timesheet; the PM dashboard lives in the separate Dashboard app.
+  const special = 'my'
   const resolved = { ...loc, path: [loc.path[0], loc.path[1], ygTimesheetId, special] }
   return { loc: resolved, defaultLocation: resolved }
 }
