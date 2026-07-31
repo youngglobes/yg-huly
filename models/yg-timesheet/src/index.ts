@@ -190,14 +190,6 @@ export function createModel (builder: Builder): void {
         spaces: [],
         specials: [
           {
-            id: 'dashboard',
-            label: ygTimesheet.string.Dashboard,
-            icon: tracker.icon.Home,
-            component: ygTimesheet.component.Dashboard,
-            visibleIf: ygTimesheet.function.CanApprove,
-            position: 'top'
-          },
-          {
             id: 'my',
             label: ygTimesheet.string.MyTimesheet,
             icon: ygTimesheet.icon.Timesheet,
@@ -343,6 +335,22 @@ export function createModel (builder: Builder): void {
       }
     },
     ygTimesheet.app.Attendance
+  )
+
+  // New top-level "Dashboard" app (replaces the old in-Timesheet dashboard special). Single view
+  // that routes internally by role; no navigatorModel/specials, unlike the other apps above.
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.Dashboard,
+      icon: tracker.icon.Home, // dashboard/home glyph (swap if a better asset exists)
+      alias: 'yg-dashboard',
+      hidden: false,
+      position: 'top',
+      component: ygTimesheet.component.DashboardHome
+    },
+    ygTimesheet.app.Dashboard
   )
 
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
