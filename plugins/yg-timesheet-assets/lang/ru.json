@@ -142,6 +142,11 @@
     "RepeatEvery": "Повторять каждые (мин)",
     "PunchOutIdle": "Напомнить об уходе после простоя (мин)",
     "Minutes": "мин",
-    "Enabled": "Включено"
+    "Enabled": "Включено",
+    "MyAttendanceToday": "My attendance today",
+    "MyTasks": "My tasks",
+    "MyHoursThisWeek": "My hours this week",
+    "MyPriority": "My priority",
+    "MyOverdue": "My overdue / due this week"
   }
 }

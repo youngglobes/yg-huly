@@ -146,7 +146,8 @@ export default plugin(ygTimesheetId, {
   app: {
     Timesheet: '' as Ref<Doc>,
     HumanResource: '' as Ref<Doc>,
-    Attendance: '' as Ref<Doc>
+    Attendance: '' as Ref<Doc>,
+    Dashboard: '' as Ref<Doc>
   },
   component: {
     Timesheet: '' as AnyComponent,
@@ -164,7 +165,8 @@ export default plugin(ygTimesheetId, {
     MyAttendance: '' as AnyComponent,
     HrAttendance: '' as AnyComponent,
     AttendanceReminder: '' as AnyComponent,
-    AttendanceReminderSettings: '' as AnyComponent
+    AttendanceReminderSettings: '' as AnyComponent,
+    DashboardHome: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -311,7 +313,12 @@ export default plugin(ygTimesheetId, {
     RepeatEvery: '' as IntlString,
     PunchOutIdle: '' as IntlString,
     Minutes: '' as IntlString,
-    Enabled: '' as IntlString
+    Enabled: '' as IntlString,
+    MyAttendanceToday: '' as IntlString,
+    MyTasks: '' as IntlString,
+    MyHoursThisWeek: '' as IntlString,
+    MyPriority: '' as IntlString,
+    MyOverdue: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

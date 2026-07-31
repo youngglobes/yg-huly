@@ -142,6 +142,11 @@
     "RepeatEvery": "Repeat every (min)",
     "PunchOutIdle": "Punch-out after idle (min)",
     "Minutes": "min",
-    "Enabled": "Enabled"
+    "Enabled": "Enabled",
+    "MyAttendanceToday": "My attendance today",
+    "MyTasks": "My tasks",
+    "MyHoursThisWeek": "My hours this week",
+    "MyPriority": "My priority",
+    "MyOverdue": "My overdue / due this week"
   }
 }
