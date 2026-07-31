@@ -63,12 +63,14 @@
   }
 
   // project names (e.g. "ABI") are nested inside the "Your projects" group's
-  // content, unlike the "Your projects" header itself — use that to make just
-  // the project name black without touching the section header
+  // content, unlike the "Your projects" header itself — use that to give just
+  // the project name the prominent primary text color without touching the
+  // section header. Theme-adaptive (dark in light mode, light in dark mode).
+  // (2026-07-31: was hardcoded #000000, which was invisible in dark mode.)
   .hulyNavGroup-content .hulyNavGroup-header__label {
     font-size: 0.875rem !important;
     font-weight: 500 !important;
-    color: #000000 !important;
+    color: var(--global-primary-TextColor) !important;
   }
 
   // soften section dividers — Notion separates with space, not hairlines
