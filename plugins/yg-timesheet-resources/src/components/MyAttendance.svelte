@@ -121,31 +121,47 @@
   }
 
   let note = ''
-  // Guards a double-click: `punchedIn` only flips after the live query round-trips the new doc,
-  // so without this a fast second click could open a second session. Disabled while the write runs.
+  // Double-click guard. `punchedIn` only flips after the live query round-trips the new doc, so the
+  // button must stay disabled through that lag - not just while the write runs - or a fast second
+  // click (e.g. switching Office -> WFH) opens a duplicate session. `busy` is held until the live
+  // query reflects the write (see the reactive releases below); createPunchIn also refuses a second
+  // open session server-side as a backstop.
   let busy = false
+  let pending: 'in' | 'out' | null = null
 
   async function punchIn (): Promise<void> {
     if (punchedIn || busy) return
     busy = true
+    pending = 'in'
     try {
       await createPunchIn(client, me, mode, note)
       note = ''
-    } finally {
+      // keep `busy` until openSession appears (released reactively below)
+    } catch (err) {
+      console.error('punch in failed', err)
       busy = false
+      pending = null
     }
   }
 
   async function punchOut (): Promise<void> {
     if (openSession === undefined || busy) return
     busy = true
+    pending = 'out'
     try {
       await closePunchOut(client, openSession._id, note)
       note = ''
-    } finally {
+    } catch (err) {
+      console.error('punch out failed', err)
       busy = false
+      pending = null
     }
   }
+
+  // Release the lock only once the live query is consistent with the write: an open session present
+  // after a punch-in, or gone after a punch-out. This closes the query-lag window entirely.
+  $: if (busy && pending === 'in' && openSession !== undefined) { busy = false; pending = null }
+  $: if (busy && pending === 'out' && openSession === undefined) { busy = false; pending = null }
 
   // The day log: one browsable full-width view. A native <input type="date"> (yyyy-mm-dd) picks the
   // day, defaulting to today; the timeline and the table below both follow it.
@@ -197,11 +213,11 @@
 
         {#if punchedIn}
           <button class="att-cta att-cta--out" on:click={punchOut} disabled={busy}>
-            <Label label={ygTimesheet.string.PunchOut} />
+            {#if busy && pending === 'out'}<span class="att-cta__spin" />Punching out…{:else}<Label label={ygTimesheet.string.PunchOut} />{/if}
           </button>
         {:else}
           <button class="att-cta att-cta--in" on:click={punchIn} disabled={busy}>
-            <Label label={ygTimesheet.string.PunchIn} />
+            {#if busy && pending === 'in'}<span class="att-cta__spin" />Punching in…{:else}<Label label={ygTimesheet.string.PunchIn} />{/if}
           </button>
         {/if}
 
@@ -381,7 +397,9 @@
     font: inherit; font-size: 15px; font-weight: 680; letter-spacing: 0.01em;
     border: 1px solid transparent; margin-top: auto;
   }
-  .att-cta:disabled { opacity: 0.6; cursor: default; }
+  .att-cta:disabled { opacity: 0.7; cursor: default; }
+  .att-cta__spin { display: inline-block; width: 15px; height: 15px; margin-right: 8px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: att-cta-spin 0.7s linear infinite; }
+  @keyframes att-cta-spin { to { transform: rotate(360deg); } }
   .att-reminder-toggle {
     align-self: flex-start; display: inline-flex; align-items: center; gap: 6px;
     background: var(--yg-panel-soft); border: 1px solid var(--yg-border); color: var(--yg-text-dim);
