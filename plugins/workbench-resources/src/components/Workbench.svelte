@@ -520,6 +520,28 @@
           }
         }
       }
+      // yg: nothing restored from localStorage above -> for a specials-only app (Attendance /
+      // Timesheet / Human Resource) default to the FIRST special the current user can actually see,
+      // so opening the app lands on content instead of the blank app shell. Role-aware for free:
+      // accessLevel / visibleIf-hidden specials are skipped, so non-approvers land on My Timesheet
+      // while approvers land on the dashboard; HR/Attendance land on their first tab. Space-based
+      // apps (spaces.length > 0, e.g. Tracker) are left untouched.
+      if ((navigatorModel?.spaces?.length ?? 0) === 0) {
+        for (const sp of navigatorModel?.specials ?? []) {
+          if (sp.accessLevel !== undefined && !hasAccountRole(account, sp.accessLevel)) continue
+          if (sp.visibleIf !== undefined) {
+            const vis = await getResource(sp.visibleIf)
+            if (!(await vis([]))) continue
+          }
+          loc.path[3] = sp.id
+          loc.path.length = 4
+          if (fragment === undefined) {
+            navigate(loc)
+            return
+          }
+          break
+        }
+      }
     }
 
     if (currentSpecial === undefined || currentSpecial !== space) {
@@ -1123,9 +1145,12 @@
       {#if $sidebarStore.variant === SidebarVariant.EXPANDED && !$sidebarStore.float}
         <Separator name={'main'} index={0} color={'transparent'} separatorSize={0} short />
       {/if}
-      {#if false}
-        <!-- YG: right sidebar (widget bar) removed to reclaim content width across all pages
-             (2026-07-29 user request). Wrapped rather than deleted so it is trivially revertible. -->
+      {#if $sidebarStore.variant === SidebarVariant.EXPANDED}
+        <!-- YG: the idle widget rail (MINI) stays hidden to reclaim content width across pages
+             (2026-07-29 remove-sidebar request), but the sidebar DOES render when a widget/thread
+             is actively open (EXPANDED) so comment threads still work. Corrected 2026-07-31: the
+             earlier `{#if false}` removed the panel threads open in (openThreadInSidebar sets
+             EXPANDED), which broke "reply in thread". -->
         <WidgetsBar />
       {/if}
     </div>
