@@ -51,6 +51,35 @@ export function weekRange (dateMs: number): WeekRange {
   return { start: monday.getTime(), end: end.getTime(), days }
 }
 
+export interface PeriodRange { start: number, end: number }
+
+// First-of-month (inclusive) .. first-of-next-month (exclusive) for the month containing dateMs.
+export function monthRange (dateMs: number): PeriodRange {
+  const d = new Date(dateMs)
+  return {
+    start: new Date(d.getFullYear(), d.getMonth(), 1).getTime(),
+    end: new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
+  }
+}
+
+// Resolve a dashboard period preset to a [start, end) ms range.
+//   'thisWeek' (default) | 'lastWeek' | 'thisMonth' | 'custom' (fromStr/toStr = yyyy-mm-dd).
+// An empty/invalid custom range falls back to this week.
+export function periodRange (preset: string, fromStr: string, toStr: string, nowMs: number): PeriodRange {
+  if (preset === 'lastWeek') {
+    const lw = weekRange(nowMs - 7 * 24 * 60 * 60 * 1000)
+    return { start: lw.start, end: lw.end }
+  }
+  if (preset === 'thisMonth') return monthRange(nowMs)
+  if (preset === 'custom') {
+    const s = new Date(fromStr).getTime()
+    const e = new Date(toStr).getTime()
+    if (!isNaN(s) && !isNaN(e) && e >= s) return { start: s, end: e + 24 * 60 * 60 * 1000 } // inclusive end day
+  }
+  const w = weekRange(nowMs)
+  return { start: w.start, end: w.end }
+}
+
 export function groupByDay (reports: ReportLike[], week: WeekRange): { days: DayGroup[], weekTotal: number } {
   const byKey = new Map<DayKey, DayGroup>()
   for (const d of week.days) {

@@ -1,19 +1,13 @@
 <script lang="ts">
   import { Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
-  import { type Cat } from '../../utils/dashboard'
-  export let buckets: Record<Cat, number>
-  const ORDER: Array<{ cat: Cat; label: string; color: string }> = [
-    { cat: 'unstarted', label: 'Backlog', color: 'var(--yg-grey)' },
-    { cat: 'todo', label: 'Todo', color: 'var(--yg-av3)' },
-    { cat: 'active', label: 'In progress', color: 'var(--yg-amber)' },
-    { cat: 'won', label: 'Done', color: 'var(--yg-green)' },
-    { cat: 'lost', label: 'Cancelled', color: 'var(--yg-red)' }
-  ]
-  $: total = ORDER.reduce((s, o) => s + buckets[o.cat], 0)
+  // Segments are OPEN issues grouped by real status name (Done/Cancelled excluded upstream), each
+  // with a color. Replaces the old fixed status-category buckets.
+  export let segments: Array<{ name: string; count: number; color: string }>
+  $: total = segments.reduce((s, o) => s + o.count, 0)
   // Build stroke-dasharray arcs on a circle (r=54, circumference C). Each segment = share*C.
   const R = 54; const C = 2 * Math.PI * R
-  $: segs = (() => { let acc = 0; return ORDER.filter((o) => buckets[o.cat] > 0).map((o) => { const frac = total === 0 ? 0 : buckets[o.cat] / total; const seg = { color: o.color, dash: frac * C, offset: -acc * C }; acc += frac; return seg }) })()
+  $: segs = (() => { let acc = 0; return segments.filter((o) => o.count > 0).map((o) => { const frac = total === 0 ? 0 : o.count / total; const seg = { color: o.color, dash: frac * C, offset: -acc * C }; acc += frac; return seg }) })()
 </script>
 <div class="chart">
   <div class="chart__title"><Label label={ygTimesheet.string.IssuesByStatus} /></div>
@@ -28,7 +22,7 @@
       <text x="70" y="70" text-anchor="middle" dominant-baseline="central" class="chart__total">{total}</text>
     </svg>
     <div class="chart__legend">
-      {#each ORDER as o}<div class="lg"><span class="lg__dot" style="background:{o.color}" />{o.label}<b>{buckets[o.cat]}</b></div>{/each}
+      {#each segments as o}<div class="lg"><span class="lg__dot" style="background:{o.color}" />{o.name}<b>{o.count}</b></div>{:else}<div class="yg-empty">No open issues.</div>{/each}
     </div>
   </div>
 </div>

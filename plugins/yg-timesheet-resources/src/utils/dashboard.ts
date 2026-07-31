@@ -5,7 +5,10 @@ export type Cat = 'unstarted' | 'todo' | 'active' | 'won' | 'lost'
 
 export interface DashIssue {
   id: string; identifier: string; title: string; project: string
-  cat: Cat; assignee: string | null; priority: number; dueDate: number | null
+  // cat = coarse status category (used for open/done/overdue logic). status = the real status NAME
+  // (e.g. "In Progress", "In Testing", "In Review") - many custom statuses share the 'active' cat,
+  // so the per-status breakdown must key off the name, not the category.
+  cat: Cat; status: string; assignee: string | null; priority: number; dueDate: number | null
   // estimation = planned hours on the issue; reportedTime = all-time logged hours (aggregated by
   // tracker on the Issue itself), so the budget view needs no separate time-report query.
   estimation: number; reportedTime: number
@@ -14,6 +17,9 @@ export interface DashTime { issue: string; project: string; employee: string; da
 export interface DashProject { id: string; name: string }
 export interface ProjectStat {
   project: string; name: string; open: number; inProgress: number; done: number
+  // byStatus: count of OPEN issues per real status name (e.g. { 'Todo': 4, 'In Progress': 3 }).
+  // Feeds the per-status columns; the coarse inProgress/done stay for KPIs/back-compat.
+  byStatus: Record<string, number>
   hours: number; members: number; estimated: number; spent: number
 }
 export interface Kpis { inProgress: number; hoursThisWeek: number; overdue: number }
@@ -60,16 +66,38 @@ export function hoursByProject (times: DashTime[], projects: DashProject[]): Arr
   return projects.map((p) => ({ project: p.id, name: p.name, hours: round2(sum.get(p.id) ?? 0) }))
 }
 
+// Distinct OPEN status names across the issues, ordered by workflow (backlog -> todo -> active),
+// then alphabetically within a category. Drives the per-status columns and the status chart.
+const CAT_ORDER: Record<Cat, number> = { unstarted: 0, todo: 1, active: 2, won: 3, lost: 4 }
+export function openStatusNames (issues: DashIssue[]): string[] {
+  const cat = new Map<string, Cat>()
+  for (const i of issues) if (isOpen(i.cat) && !cat.has(i.status)) cat.set(i.status, i.cat)
+  return [...cat.keys()].sort((a, b) => {
+    const d = CAT_ORDER[cat.get(a) as Cat] - CAT_ORDER[cat.get(b) as Cat]
+    return d !== 0 ? d : a.localeCompare(b)
+  })
+}
+
+// Open-issue totals per status name (for the "Issues by status" chart), in openStatusNames order.
+export function openStatusTotals (issues: DashIssue[]): Array<{ name: string; count: number }> {
+  const c = new Map<string, number>()
+  for (const i of issues) if (isOpen(i.cat)) c.set(i.status, (c.get(i.status) ?? 0) + 1)
+  return openStatusNames(issues).map((n) => ({ name: n, count: c.get(n) ?? 0 }))
+}
+
 export function projectStats (issues: DashIssue[], times: DashTime[], projects: DashProject[]): ProjectStat[] {
   return projects.map((p) => {
     const pi = issues.filter((i) => i.project === p.id)
     const pt = times.filter((t) => t.project === p.id)
+    const byStatus: Record<string, number> = {}
+    for (const i of pi) if (isOpen(i.cat)) byStatus[i.status] = (byStatus[i.status] ?? 0) + 1
     return {
       project: p.id,
       name: p.name,
       open: pi.filter((i) => isOpen(i.cat)).length,
       inProgress: pi.filter((i) => i.cat === 'active').length,
       done: pi.filter((i) => i.cat === 'won').length,
+      byStatus,
       hours: round2(pt.reduce((s, t) => s + t.hours, 0)),
       members: new Set(pt.map((t) => t.employee)).size,
       estimated: round2(pi.reduce((s, i) => s + i.estimation, 0)),
