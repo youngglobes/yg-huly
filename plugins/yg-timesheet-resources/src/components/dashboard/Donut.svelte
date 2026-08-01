@@ -1,16 +1,21 @@
 <script lang="ts">
+  import { type IntlString } from '@hcengineering/platform'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   // Segments are OPEN issues grouped by real status name (Done/Cancelled excluded upstream), each
   // with a color. Replaces the old fixed status-category buckets.
   export let segments: Array<{ name: string; count: number; color: string }>
+  // Title + center subtext default to the PM (issues-by-status) case so existing callers are
+  // unaffected; the HR dashboard overrides both for its Office/WFH donut.
+  export let title: IntlString = ygTimesheet.string.IssuesByStatus
+  export let centerLabel: string = 'open'
   $: total = segments.reduce((s, o) => s + o.count, 0)
   // Build stroke-dasharray arcs on a circle (r=70, circumference C). Each segment = share*C.
   const R = 70; const C = 2 * Math.PI * R
   $: segs = (() => { let acc = 0; return segments.filter((o) => o.count > 0).map((o) => { const frac = total === 0 ? 0 : o.count / total; const seg = { color: o.color, dash: frac * C, offset: -acc * C }; acc += frac; return seg }) })()
 </script>
 <div class="chart">
-  <div class="chart__title"><Label label={ygTimesheet.string.IssuesByStatus} /></div>
+  <div class="chart__title"><Label label={title} /></div>
   <div class="chart__body">
     <svg class="chart__svg" viewBox="0 0 180 180" width="180" height="180">
       <g transform="translate(90,90) rotate(-90)">
@@ -20,7 +25,7 @@
         {/each}
       </g>
       <text x="90" y="82" text-anchor="middle" dominant-baseline="central" class="chart__total">{total}</text>
-      <text x="90" y="106" text-anchor="middle" dominant-baseline="central" class="chart__sub">open</text>
+      <text x="90" y="106" text-anchor="middle" dominant-baseline="central" class="chart__sub">{centerLabel}</text>
     </svg>
     <div class="chart__legend">
       {#each segments as o}<div class="lg"><span class="lg__dot" style="background:{o.color}" /><span class="lg__name">{o.name}</span><b>{o.count}</b></div>{:else}<div class="yg-empty">No open issues.</div>{/each}

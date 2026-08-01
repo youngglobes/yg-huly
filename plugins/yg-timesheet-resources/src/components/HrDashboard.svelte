@@ -128,10 +128,14 @@
       <HrAttendanceTodayCard {present} {notPunched} />
       <HrNotLoggedCard emps={notLogged} />
       <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} />
-      <Donut segments={[
-        { name: 'Office', count: split.office, color: '#6366f1' },
-        { name: 'WFH', count: split.wfh, color: '#14b8a6' }
-      ]} />
+      <Donut
+        segments={[
+          { name: 'Office', count: split.office, color: '#6366f1' },
+          { name: 'WFH', count: split.wfh, color: '#14b8a6' }
+        ]}
+        title={ygTimesheet.string.OfficeVsWfh}
+        centerLabel={'present'}
+      />
     </div>
 
     <!-- Full-width detail: per-person hours table. -->
