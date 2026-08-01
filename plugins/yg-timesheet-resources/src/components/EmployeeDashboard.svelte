@@ -177,6 +177,10 @@
 
 <style lang="scss">
   @use './yg-table' as *;
+  // Fill the app pane. The Dashboard app has no navigator, so its component mounts inside
+  // .hulyPanels-container (a flex ROW); without flex-grow the page shrinks to content width and
+  // hugs the left. flex:1 makes it fill the full pane like the navigator-based YG views do.
+  .dash { flex: 1; min-width: 0; }
   .dash-detail { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
   // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
   // tallest, and align-items: stretch makes each card fill its cell (cards are flex-column with

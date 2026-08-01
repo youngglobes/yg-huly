@@ -266,19 +266,22 @@ export function createModel (builder: Builder): void {
       navigatorModel: {
         spaces: [],
         specials: [
-          {
-            id: 'timesheets',
-            label: ygTimesheet.string.HrTimesheets,
-            icon: ygTimesheet.icon.Timesheet,
-            component: ygTimesheet.component.HrTimesheet,
-            accessLevel: AccountRole.DocGuest,
-            position: 'top'
-          },
+          // Overview first so opening the HR app lands here by default (the default-landing picks the
+          // first visible special). Overview shows org-wide data immediately; Timesheets needs an
+          // employee selected before it shows anything, so it makes a poor landing tab. (2026-08-01)
           {
             id: 'overview',
             label: ygTimesheet.string.HrOverview,
             icon: hr.icon.Structure,
             component: ygTimesheet.component.HrOverview,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'timesheets',
+            label: ygTimesheet.string.HrTimesheets,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.HrTimesheet,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
           },
