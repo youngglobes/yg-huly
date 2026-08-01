@@ -24,6 +24,8 @@
 
   export let present: AttToday[]
   export let notPunched: HrEmp[]
+  // Optional top accent colour (set by the HR dashboard to distinguish the row's cards).
+  export let accent = ''
 
   const CAP = 6
   const SUB_CAP = 6
@@ -34,7 +36,7 @@
   $: subHiddenCount = notPunched.length - subShown.length
 </script>
 
-<div class="atc">
+<div class="atc" style={accent ? `border-top: 3px solid ${accent}` : ''}>
   <div class="atc__title"><Label label={ygTimesheet.string.AttendanceToday} /></div>
 
   <div class="atc__list">
@@ -89,7 +91,9 @@
   .atc :global(.yg-empty) { margin: auto 0; }
   .atc__title { font-size: 13px; font-weight: 680; color: var(--yg-text); margin-bottom: 8px; }
 
-  .atc__list { max-height: 220px; overflow: auto; }
+  // Fill the remaining card height and scroll when the present-list overflows (card height is fixed
+  // by the parent grid); the not-punched subsection below stays pinned.
+  .atc__list { flex: 1; min-height: 0; overflow: auto; }
   .atrow { display: flex; align-items: center; gap: 8px; padding: 8px 6px; border-top: 1px solid var(--yg-border); color: var(--yg-text); }
   .atrow:first-child { border-top: 0; }
   .atrow__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

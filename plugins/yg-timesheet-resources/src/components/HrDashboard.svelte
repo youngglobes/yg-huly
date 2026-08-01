@@ -28,7 +28,7 @@
     type AttendanceSession, type HrTimeEntry, type Timesheet, type TimesheetDay
   } from '@hcengineering/yg-timesheet'
   import {
-    attendanceToday, headcount, hoursByPerson, notLoggedThisWeek, notPunchedToday, orgHoursTotal,
+    attendanceToday, headcount, hoursByPerson, notPunchedToday, orgHoursTotal,
     submissionCompliance, wfhOfficeSplit, type HrAtt, type HrEmp, type HrHours, type HrSub
   } from '../utils/hr-dashboard'
   import { localMidnight } from '../utils/attendance'
@@ -38,7 +38,6 @@
   import HrAttendanceTodayCard from './dashboard/HrAttendanceTodayCard.svelte'
   import HrComplianceCard from './dashboard/HrComplianceCard.svelte'
   import HrHoursByPersonCard from './dashboard/HrHoursByPersonCard.svelte'
-  import HrNotLoggedCard from './dashboard/HrNotLoggedCard.svelte'
   import KpiStrip, { type Kpi } from './dashboard/KpiStrip.svelte'
   import { ensureHrMembership } from '../utils/hrMembership'
 
@@ -46,11 +45,23 @@
 
   const me = getCurrentEmployee()
 
+  // Org owners - not tracked on this dashboard: they do not log in, punch, or do tasks, so counting
+  // them would skew every metric (headcount, present, hours, compliance). Excluded from ALL data.
+  // Refs are the workspace contact Person _ids (looked up 2026-08-01): Pravin Mohanraj, Arunkumar M,
+  // Raj kumar R.
+  const EXCLUDED = new Set<string>([
+    '65b35513cc768dc52f35e01e',
+    '66d59296fa21aec0c6251ab7',
+    '66a9ec9f00e2942c53e1ec93'
+  ])
+
   // --- Employees ---------------------------------------------------------------
   const empQuery = createQuery()
   let empDocs: Employee[] = []
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => { empDocs = res })
-  $: emps = empDocs.map((e): HrEmp => ({ id: e._id, name: formatName(e.name), active: e.active !== false }))
+  $: emps = empDocs
+    .filter((e) => !EXCLUDED.has(e._id))
+    .map((e): HrEmp => ({ id: e._id, name: formatName(e.name), active: e.active !== false }))
   $: meName = emps.find((e) => e.id === me)?.name ?? ''
 
   // --- Today's attendance, org-wide --------------------------------------------
@@ -58,7 +69,9 @@
   const attQuery = createQuery()
   let attDocs: AttendanceSession[] = []
   $: attQuery.query(ygTimesheet.class.AttendanceSession, { date: today }, (res: AttendanceSession[]) => { attDocs = res })
-  $: att = attDocs.map((a): HrAtt => ({ employee: a.employee, mode: a.mode, open: a.punchOut == null, punchIn: a.punchIn }))
+  $: att = attDocs
+    .filter((a) => !EXCLUDED.has(a.employee))
+    .map((a): HrAtt => ({ employee: a.employee, mode: a.mode, open: a.punchOut == null, punchIn: a.punchIn }))
 
   // --- Hours logged this week, org-wide -----------------------------------------
   $: week = weekRange(Date.now())
@@ -69,7 +82,9 @@
     { date: { $gte: week.start, $lt: week.end } },
     (res: HrTimeEntry[]) => { hoursDocs = res }
   )
-  $: hours = hoursDocs.map((h): HrHours => ({ employee: h.employee, hours: h.hours, date: h.date }))
+  $: hours = hoursDocs
+    .filter((h) => !EXCLUDED.has(h.employee))
+    .map((h): HrHours => ({ employee: h.employee, hours: h.hours, date: h.date }))
 
   // --- Timesheet submissions this week -------------------------------------------
   // Timesheet -> its TimesheetDay children (attachedTo), joined in JS (no $lookup) - same pattern
@@ -88,7 +103,7 @@
     .filter((d) => d.submittedOn != null)
     .map((d): HrSub | undefined => {
       const employee = tsEmpById.get(d.attachedTo as Ref<Timesheet>)
-      return employee === undefined ? undefined : { employee, submitted: true }
+      return employee === undefined || EXCLUDED.has(employee) ? undefined : { employee, submitted: true }
     })
     .filter((s): s is HrSub => s !== undefined)
 
@@ -97,7 +112,6 @@
   $: split = wfhOfficeSplit(att, emps)
   $: notPunched = notPunchedToday(att, emps)
   $: byPerson = hoursByPerson(hours, emps)
-  $: notLogged = notLoggedThisWeek(hours, emps)
   $: comp = submissionCompliance(subs, emps)
 
   // Headline KPIs, org-scoped. Matches Dashboard.svelte/EmployeeDashboard.svelte precedent: plain
@@ -107,7 +121,6 @@
     { label: 'Present today', value: present.length, tone: 'neutral' },
     { label: 'WFH / Office', value: `${split.wfh} / ${split.office}`, tone: 'neutral' },
     { label: 'Hours this week', value: formatHours(orgHoursTotal(hours)), tone: 'neutral' },
-    { label: 'Not logged this week', value: notLogged.length, tone: 'amber' },
     {
       label: 'Timesheet submissions',
       value: `${comp.submitted} / ${comp.expected}`,
@@ -123,11 +136,10 @@
     <!-- Headline KPIs, org-scoped. -->
     <KpiStrip tiles={kpis} />
 
-    <!-- Attention band: the "act now" items, at the top. -->
+    <!-- Attention band: fixed-height, colour-accented cards in one row. -->
     <div class="dash-attention">
-      <HrAttendanceTodayCard {present} {notPunched} />
-      <HrNotLoggedCard emps={notLogged} />
-      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} />
+      <HrAttendanceTodayCard {present} {notPunched} accent="#6366f1" />
+      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} accent="#f59e0b" />
       <Donut
         segments={[
           { name: 'Office', count: split.office, color: '#6366f1' },
@@ -135,6 +147,8 @@
         ]}
         title={ygTimesheet.string.OfficeVsWfh}
         centerLabel={'present'}
+        accent="#8b5cf6"
+        fill
       />
     </div>
 
@@ -154,9 +168,9 @@
   .dash { flex: 1; min-width: 0; }
   // Single full-width detail block (unlike EmployeeDashboard's two-column split).
   .dash-detail { margin-top: 16px; }
-  // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
-  // tallest, and align-items: stretch makes each card fill its cell. Collapses to a single column
-  // on narrow screens.
-  .dash-attention { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 1fr; gap: 16px; margin-top: 16px; align-items: stretch; }
-  @media (max-width: 900px) { .dash-attention { grid-template-columns: 1fr; grid-auto-rows: auto; } }
+  // Attention band: three fixed-height cards in one row. grid-auto-rows pins the height so each card
+  // is the same size regardless of content; cards that overflow scroll internally. Collapses to a
+  // single column (auto height) on narrow screens.
+  .dash-attention { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 320px; gap: 16px; margin-top: 16px; align-items: stretch; }
+  @media (max-width: 1100px) { .dash-attention { grid-template-columns: 1fr; grid-auto-rows: auto; } }
 </style>

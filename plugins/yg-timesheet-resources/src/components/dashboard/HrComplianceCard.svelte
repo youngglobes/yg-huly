@@ -25,6 +25,8 @@
   export let submitted: number
   export let expected: number
   export let missing: HrEmp[]
+  // Optional top accent colour (set by the HR dashboard to distinguish the row's cards).
+  export let accent = ''
 
   const CAP = 5
 
@@ -33,7 +35,7 @@
   $: hiddenCount = missing.length - shown.length
 </script>
 
-<div class="cc">
+<div class="cc" style={accent ? `border-top: 3px solid ${accent}` : ''}>
   <div class="cc__title"><Label label={ygTimesheet.string.TimesheetCompliance} /></div>
 
   {#if expected === 0}
