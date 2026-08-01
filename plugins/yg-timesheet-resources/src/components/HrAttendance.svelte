@@ -24,7 +24,7 @@
   import core, { type Ref } from '@hcengineering/core'
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
-  import ui, { Label } from '@hcengineering/ui'
+  import { Label } from '@hcengineering/ui'
   import ygTimesheet, { type AttendanceSession } from '@hcengineering/yg-timesheet'
   import {
     todayBoard,
@@ -60,6 +60,9 @@
   let toKey = localDayKey(Date.now())
   $: fromMid = new Date(`${fromKey}T00:00:00`).getTime()
   $: toExcl = new Date(`${toKey}T00:00:00`).getTime() + 86_400_000 // inclusive `to`, exclusive query bound
+  function today (): void {
+    fromKey = toKey = localDayKey(Date.now())
+  }
   function thisWeek (): void {
     fromKey = localDayKey(weekRange(Date.now()).start)
     toKey = localDayKey(Date.now())
@@ -160,7 +163,8 @@
           <input class="att-date" type="date" bind:value={fromKey} />
           <span class="att-range__sep">-</span>
           <input class="att-date" type="date" bind:value={toKey} />
-          <button class="att-preset" on:click={thisWeek}><Label label={ui.string.Today} /></button>
+          <button class="att-preset" on:click={today}><Label label={ygTimesheet.string.Today} /></button>
+          <button class="att-preset" on:click={thisWeek}><Label label={ygTimesheet.string.Week} /></button>
           <button class="att-preset" on:click={thisMonth}><Label label={ygTimesheet.string.Month} /></button>
         </span>
       {/if}
