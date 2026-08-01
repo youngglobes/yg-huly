@@ -21,11 +21,13 @@
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
-  import { type Ref } from '@hcengineering/core'
-  import { createQuery } from '@hcengineering/presentation'
+  import core, { type AccountUuid, type Ref } from '@hcengineering/core'
+  import { employeeByAccountStore } from '@hcengineering/contact-resources'
+  import { createQuery, getClient } from '@hcengineering/presentation'
+  import tracker, { type Project } from '@hcengineering/tracker'
   import { onMount } from 'svelte'
   import ygTimesheet, {
-    type AttendanceSession, type HrTimeEntry, type Timesheet, type TimesheetDay
+    type AttendanceSession, type HrTimeEntry, type ProjectApprovers, type Timesheet, type TimesheetDay
   } from '@hcengineering/yg-timesheet'
   import {
     attendanceToday, headcount, hoursByPerson, notPunchedToday, orgHoursTotal,
@@ -54,6 +56,32 @@
     '66d59296fa21aec0c6251ab7',
     '66a9ec9f00e2942c53e1ec93'
   ])
+
+  const client = getClient()
+  const h = client.getHierarchy()
+
+  // Timesheet compliance must not count people who never submit their own timesheet: project
+  // managers / team leads (they approve, not submit) and HR-roster members. Owners are already
+  // excluded from all data above. These two sets are subtracted from the compliance denominator only.
+  const projQuery = createQuery()
+  let projDocs: Project[] = []
+  projQuery.query(tracker.class.Project, {}, (res: Project[]) => { projDocs = res })
+  $: pmRefs = new Set<string>(
+    projDocs
+      .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
+      .flatMap((p) => {
+        const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
+        return [a.pm, a.teamLead]
+      })
+      .filter((r): r is Ref<Employee> => r != null)
+  )
+
+  const hrSpaceQuery = createQuery()
+  let hrMembers: AccountUuid[] = []
+  hrSpaceQuery.query(core.class.Space, { _id: ygTimesheet.space.HrData }, (res) => { hrMembers = res[0]?.members ?? [] })
+  $: hrRefs = new Set<string>(
+    hrMembers.map((acc) => $employeeByAccountStore.get(acc)?._id).filter((id): id is Ref<Employee> => id != null)
+  )
 
   // --- Employees ---------------------------------------------------------------
   const empQuery = createQuery()
@@ -127,7 +155,11 @@
   $: split = wfhOfficeSplit(att, emps)
   $: notPunched = notPunchedToday(att, emps)
   $: byPerson = hoursByPerson(hours, emps)
-  $: comp = submissionCompliance(subs, emps)
+  // Compliance denominator = active employees minus PMs/TLs and HR-roster members (they do not
+  // submit timesheets). Headcount/present/hours above stay on the full employee set.
+  $: nonSubmitters = new Set<string>([...pmRefs, ...hrRefs])
+  $: complianceEmps = emps.filter((e) => !nonSubmitters.has(e.id))
+  $: comp = submissionCompliance(subs, complianceEmps)
   // Human-readable label for the compliance reference day (e.g. "Fri, 31 Jul").
   $: refDayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(refDay)
 
