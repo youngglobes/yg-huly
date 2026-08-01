@@ -19,21 +19,24 @@
 -->
 <script lang="ts">
   import { Label } from '@hcengineering/ui'
-  import ygTimesheet, { type AttendanceMode } from '@hcengineering/yg-timesheet'
-  import { formatDuration } from '../../utils/attendance'
+  import ygTimesheet, { type AttendanceMode, type AttendanceSession } from '@hcengineering/yg-timesheet'
+  import { buildDayTimeline, formatDuration, localMidnight } from '../../utils/attendance'
 
   export let open: boolean
   export let mode: AttendanceMode | undefined
   export let todayMs: number
   export let sessions: number
   export let firstIn: number | undefined
+  // Today's raw sessions + a live clock, for the punch-in/out timeline.
+  export let todaySessions: AttendanceSession[] = []
+  export let now: number = Date.now()
 
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
 
-  // Progress toward a standard 8h working day - fills the card and gives the total context.
-  const STANDARD_MS = 8 * 60 * 60 * 1000
-  $: pct = Math.min(100, Math.round((todayMs / STANDARD_MS) * 100))
-  $: remainingMs = Math.max(0, STANDARD_MS - todayMs)
+  // Timeline of today's sessions. Window is driven purely by the punches (startHour=24/endHour=0
+  // disables the default padding), so it fits ANY shift with no special-casing: first punch to
+  // now/last punch. A 9-6 day and a 3pm-1am night shift each get their own tight axis.
+  $: timeline = buildDayTimeline(todaySessions, localMidnight(now), now, 24, 0)
 </script>
 
 <div class="mac">
@@ -52,16 +55,22 @@
 
   <div class="mac__total">{formatDuration(todayMs)}</div>
 
-  <div class="mac__prog">
-    <div class="mac__prog-row">
-      <span class="mac__prog-cap">of 8h day</span>
-      <span class="mac__prog-pct">{pct}%</span>
+  {#if todaySessions.length > 0}
+    <div class="mac__tl">
+      <div class="mac__track">
+        {#each timeline.blocks as b, i (i)}
+          <span class="mac__blk" class:is-wfh={b.mode === 'wfh'} class:is-open={b.open} style="left:{b.leftPct}%; width:{b.widthPct}%" />
+        {/each}
+        {#if timeline.nowPct !== undefined}<span class="mac__now" style="left:{timeline.nowPct}%" />{/if}
+      </div>
+      <div class="mac__tl-lbl">
+        <span>{timeFmt.format(timeline.startMs)}</span>
+        <span>{timeFmt.format(timeline.endMs)}</span>
+      </div>
     </div>
-    <span class="mac__track"><span class="mac__fill" style="width:{pct}%" /></span>
-    <div class="mac__prog-note">
-      {#if remainingMs > 0}{formatDuration(remainingMs)} to go{:else}Full day complete{/if}
-    </div>
-  </div>
+  {:else}
+    <div class="mac__none">No sessions yet today.</div>
+  {/if}
 
   <div class="mac__grid">
     <div class="mac__stat">
@@ -107,13 +116,15 @@
     font-size: 28px; font-weight: 720; letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums; color: var(--yg-text);
   }
-  .mac__prog { display: flex; flex-direction: column; gap: 6px; }
-  .mac__prog-row { display: flex; align-items: baseline; justify-content: space-between; }
-  .mac__prog-cap { font-size: 12px; color: var(--yg-text-dim); }
-  .mac__prog-pct { font-size: 12px; font-weight: 650; color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
-  .mac__track { display: block; height: 10px; background: var(--yg-border); border-radius: 6px; overflow: hidden; }
-  .mac__fill { display: block; height: 100%; background: var(--yg-green); }
-  .mac__prog-note { font-size: 12px; color: var(--yg-text-faint); }
+  // Session timeline: bars positioned on a per-person window (first punch to now/last punch).
+  .mac__tl { display: flex; flex-direction: column; gap: 6px; }
+  .mac__track { position: relative; height: 26px; border-radius: 8px; background: var(--yg-panel-soft); border: 1px solid var(--yg-border); }
+  .mac__blk { position: absolute; top: 6px; height: 12px; min-width: 4px; border-radius: 4px; background: #6366f1; }
+  .mac__blk.is-wfh { background: #14b8a6; }
+  .mac__blk.is-open { opacity: 0.85; box-shadow: 0 0 0 2px var(--yg-panel-soft), 0 0 0 3px currentColor; }
+  .mac__now { position: absolute; top: 2px; bottom: 2px; width: 2px; background: var(--yg-ink); transform: translateX(-1px); border-radius: 2px; }
+  .mac__tl-lbl { display: flex; justify-content: space-between; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--yg-text-faint); }
+  .mac__none { font-size: 12px; color: var(--yg-text-faint); }
   .mac__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: auto; }
   .mac__stat {
     display: flex; flex-direction: column; gap: 2px; padding: 8px 10px;

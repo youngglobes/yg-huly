@@ -161,6 +161,8 @@
         todayMs={todayStats.totalMs}
         sessions={todayStats.count}
         firstIn={todayStats.firstIn}
+        todaySessions={attendanceDocs}
+        {now}
       />
       <InboxWidget />
       <PriorityWatch issues={priority} {employeeNames} />
