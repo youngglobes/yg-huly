@@ -85,7 +85,7 @@
   let dayDocs: TimesheetDay[] = []
   $: dayQuery.query(ygTimesheet.class.TimesheetDay, { attachedTo: { $in: tsIds } }, (res: TimesheetDay[]) => { dayDocs = res })
   $: subs = dayDocs
-    .filter((d) => d.status === 'Submitted' || d.status === 'Approved')
+    .filter((d) => d.submittedOn != null)
     .map((d): HrSub | undefined => {
       const employee = tsEmpById.get(d.attachedTo as Ref<Timesheet>)
       return employee === undefined ? undefined : { employee, submitted: true }
