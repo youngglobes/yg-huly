@@ -22,7 +22,8 @@
 </div>
 <style lang="scss">
   @use '../yg-table' as *;
-  .q { background: var(--yg-panel); border: 1px solid var(--yg-border); border-radius: var(--yg-radius); box-shadow: var(--yg-shadow); padding: 14px 16px; }
+  .q { background: var(--yg-panel); border: 1px solid var(--yg-border); border-radius: var(--yg-radius); box-shadow: var(--yg-shadow); padding: 14px 16px; height: 100%; display: flex; flex-direction: column; }
+  .q :global(.yg-empty) { margin: auto 0; }
   .q__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
   .q__title { font-size: 13px; font-weight: 680; color: var(--yg-text); }
   .q__n { font-size: 11px; font-weight: 700; color: var(--yg-amber); background: var(--yg-amber-bg); border-radius: 999px; padding: 1px 7px; margin-left: 6px; }

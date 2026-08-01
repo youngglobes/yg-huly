@@ -20,7 +20,8 @@
     <span class="ipt__title"><Label label={ygTimesheet.string.InProgressTasks} /></span>
     <DropdownLabels {items} bind:selected={projSel} label={ygTimesheet.string.Project} autoSelect={false} allowDeselect kind="regular" />
   </div>
-  <table class="yg-table">
+  <div class="ipt__wrap">
+    <table class="yg-table">
     <thead><tr><th class="left">ID</th><th class="left">Title</th><th class="left"><Label label={ygTimesheet.string.Assignee} /></th><th><Label label={ygTimesheet.string.Priority} /></th><th><Label label={ygTimesheet.string.DueDate} /></th><th class="yg-num"><Label label={ygTimesheet.string.Hours} /></th></tr></thead>
     <tbody>
       {#each rows as r (r.id)}
@@ -42,11 +43,14 @@
         <tr><td colspan={6} class="yg-empty">No in-progress tasks.</td></tr>
       {/each}
     </tbody>
-  </table>
+    </table>
+  </div>
 </div>
 <style lang="scss">
   @use '../yg-table' as *;
   .ipt { margin-top: 16px; background: var(--yg-panel); border: 1px solid var(--yg-border); border-radius: var(--yg-radius); box-shadow: var(--yg-shadow); padding: 14px 16px; }
+  // Fixed-height scroll (matches "Projects you handle") so a long in-progress list doesn't push the page.
+  .ipt__wrap { max-height: 320px; overflow: auto; }
   .ipt__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .ipt__title { font-size: 13px; font-weight: 680; color: var(--yg-text); }
   a.yg-idbadge { text-decoration: none; }

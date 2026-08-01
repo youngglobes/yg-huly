@@ -62,7 +62,7 @@ import { templatesId } from '@hcengineering/templates'
 import { testManagementId } from '@hcengineering/test-management'
 import textEditor, { textEditorId } from '@hcengineering/text-editor'
 import { timeId } from '@hcengineering/time'
-import tracker, { trackerId } from '@hcengineering/tracker'
+import { trackerId } from '@hcengineering/tracker'
 import { trainingId } from '@hcengineering/training'
 import uiPlugin from '@hcengineering/ui'
 import { uploaderId } from '@hcengineering/uploader'
@@ -738,9 +738,9 @@ export async function configurePlatform() {
   setMetadata(uiPlugin.metadata.PlatformTitle, title)
   setMetadata(workbench.metadata.PlatformTitle, title)
   setDefaultLanguage(myBranding.defaultLanguage ?? 'en')
-  setMetadata(workbench.metadata.DefaultApplication, myBranding.defaultApplication ?? 'tracker')
-  setMetadata(workbench.metadata.DefaultSpace, myBranding.defaultSpace ?? tracker.project.DefaultProject)
-  setMetadata(workbench.metadata.DefaultSpecial, myBranding.defaultSpecial ?? 'issues')
+  setMetadata(workbench.metadata.DefaultApplication, myBranding.defaultApplication ?? 'yg-dashboard')
+  setMetadata(workbench.metadata.DefaultSpace, myBranding.defaultSpace ?? undefined)
+  setMetadata(workbench.metadata.DefaultSpecial, myBranding.defaultSpecial ?? undefined)
 
   setMetadata(setting.metadata.DefaultInviteRole, myBranding.defaultInviteRole)
   setMetadata(setting.metadata.DefaultInviteLinkGeneratorRoles, myBranding.inviteLinkGeneratorRoles)

@@ -27,12 +27,17 @@
   import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet } from '@hcengineering/yg-timesheet'
   import { canApproveView } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
-  import { weekRange } from '../utils/week'
+  import { type DropdownTextItem } from '@hcengineering/ui'
+  import { periodRange } from '../utils/week'
   import {
-    projectStats, portfolioHours, statusBuckets, hoursByProject, inProgressIssues, overdueIssues, dueSoonIssues,
-    teamWorkload, priorityWatch, type Cat, type DashIssue, type DashTime, type DashProject
+    projectStats, portfolioHours, overdueIssues, dueSoonIssues,
+    teamWorkload, priorityWatch, openStatusNames, openStatusTotals, isOpen, type Cat, type DashIssue, type DashTime, type DashProject
   } from '../utils/dashboard'
+  // Palette for the "Issues by status" chart segments (real status names are dynamic). Mid-tone
+  // hues that read on both light and dark themes; cycled if there are more statuses than colors.
+  const STATUS_COLORS = ['#6366f1', '#f59e0b', '#0ea5e9', '#8b5cf6', '#14b8a6', '#ec4899', '#f43f5e', '#84cc16']
   import GreetingCard from './dashboard/GreetingCard.svelte'
+  import KpiStrip, { type Kpi } from './dashboard/KpiStrip.svelte'
   import ProjectCards from './dashboard/ProjectCards.svelte'
   import InProgressTable from './dashboard/InProgressTable.svelte'
   import ApprovalsQueue from './dashboard/ApprovalsQueue.svelte'
@@ -41,7 +46,6 @@
   import PriorityWatch from './dashboard/PriorityWatch.svelte'
   import TeamWorkload from './dashboard/TeamWorkload.svelte'
   import Donut from './dashboard/Donut.svelte'
-  import HoursBar from './dashboard/HoursBar.svelte'
 
   // Owner bootstrap: the HR app is hidden from non-roster accounts and the roster editor lives INSIDE
   // that hidden app, so a fresh Owner could never reach it (chicken-and-egg - first member had to be
@@ -94,10 +98,13 @@
   // --- Status names/categories --------------------------------------------
   const statusQuery = createQuery()
   let statusCat = new Map<string, Cat>()
+  let statusName = new Map<string, string>()
   statusQuery.query(tracker.class.IssueStatus, {}, (res: IssueStatus[]) => {
     const m = new Map<string, Cat>()
-    for (const s of res) m.set(s._id, toCat(s.category))
+    const nm = new Map<string, string>()
+    for (const s of res) { m.set(s._id, toCat(s.category)); nm.set(s._id, s.name) }
     statusCat = m
+    statusName = nm
   })
 
   // --- Issues in my projects ----------------------------------------------
@@ -110,6 +117,7 @@
     title: i.title,
     project: i.space,
     cat: statusCat.get(i.status) ?? 'unstarted',
+    status: statusName.get(i.status) ?? '—',
     assignee: (i.assignee as string) ?? null,
     priority: i.priority,
     dueDate: i.dueDate ?? null,
@@ -117,11 +125,20 @@
     reportedTime: i.reportedTime ?? 0
   }))
 
-  // --- Time this week in my projects --------------------------------------
-  const week = weekRange(Date.now())
+  // --- Logged time in the selected period (Projects-you-handle filter, owned here + bound in) ---
+  const presetItems: DropdownTextItem[] = [
+    { id: 'thisWeek', label: 'This week' },
+    { id: 'lastWeek', label: 'Last week' },
+    { id: 'thisMonth', label: 'This month' },
+    { id: 'custom', label: 'Custom' }
+  ]
+  let preset = 'thisWeek'
+  let fromStr = ''
+  let toStr = ''
+  $: range = periodRange(preset, fromStr, toStr, Date.now())
   const timeQuery = createQuery()
   let timeDocs: TimeSpendReport[] = []
-  $: timeQuery.query(tracker.class.TimeSpendReport, { date: { $gte: week.start, $lt: week.end } }, (res: TimeSpendReport[]) => { timeDocs = res })
+  $: timeQuery.query(tracker.class.TimeSpendReport, { date: { $gte: range.start, $lt: range.end } }, (res: TimeSpendReport[]) => { timeDocs = res })
   // TimeSpendReport.attachedTo = Issue; map issue -> project via the issue set above.
   $: issueProject = new Map(issueDocs.map((i) => [i._id as string, i.space as string]))
   $: times = timeDocs
@@ -168,11 +185,13 @@
   $: now = Date.now()
   $: stats = projectStats(issues, times, myProjects)
   $: portfolio = portfolioHours(stats)
-  $: buckets = statusBuckets(issues)
-  $: hoursBars = hoursByProject(times, myProjects)
+  $: statusColumns = openStatusNames(issues)
+  $: statusSegments = openStatusTotals(issues).map((s, idx) => ({ ...s, color: STATUS_COLORS[idx % STATUS_COLORS.length] }))
   $: overdue = overdueIssues(issues, now)
   $: dueSoon = dueSoonIssues(issues, now, 7)
-  $: inProg = inProgressIssues(issues)
+  // In-progress table shows ONLY the literal "In Progress" status (not every active-category status
+  // such as In Testing / In Review, which the coarse category would lump together).
+  $: inProg = issues.filter((i) => i.status.trim().toLowerCase() === 'in progress')
   $: team = teamWorkload(issues, times)
   $: priority = priorityWatch(issues)
   $: hoursByIssue = (() => {
@@ -180,6 +199,16 @@
     for (const t of times) m.set(t.issue, Math.round(((m.get(t.issue) ?? 0) + t.hours) * 100) / 100)
     return m
   })()
+  // Headline KPIs across the PM's projects. Neutral tiles are the "state of play"; overdue and
+  // pending-approvals are "attention" tones that only light up when non-zero (see KpiStrip).
+  $: openCount = issues.filter((i) => isOpen(i.cat)).length
+  $: kpis = [
+    { label: 'Open issues', value: openCount, tone: 'neutral', accent: '#6366f1', hint: 'Issues not Done/Cancelled across your projects' },
+    { label: 'In progress', value: inProg.length, tone: 'neutral', accent: '#0ea5e9', hint: 'Issues in the In Progress status' },
+    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', accent: '#8b5cf6', hint: 'Open issues due in the next 7 days' },
+    { label: 'Overdue', value: overdue.length, tone: 'red', accent: '#ef4444', hint: 'Open issues past their due date' },
+    { label: 'Pending approvals', value: pendingRows.length, tone: 'amber', accent: '#f59e0b', hint: 'Submitted timesheet tasks awaiting your approval' }
+  ] as Kpi[]
 </script>
 
 {#if !canView}
@@ -189,6 +218,9 @@
     <div class="yg-scroll">
       <GreetingCard name={employeeNames.get(me) ?? ''} />
 
+      <!-- Headline KPIs: state-of-play + attention counters, right under the greeting. -->
+      <KpiStrip tiles={kpis} />
+
       <!-- Attention band: the "act now" items, at the top. -->
       <div class="dash-attention">
         <InboxWidget />
@@ -197,27 +229,35 @@
         <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
       </div>
 
-      <!-- Overview charts. -->
+      <!-- Overview: status mix + team workload this week (Hours-by-project dropped; the same
+           per-project totals live in the "Projects you handle" Logged column). -->
       <div class="dash-two">
-        <Donut {buckets} />
-        <HoursBar bars={hoursBars} />
+        <Donut segments={statusSegments} />
+        <TeamWorkload {team} {employeeNames} />
       </div>
 
       <!-- Detail tables. -->
-      <ProjectCards {stats} {portfolio} />
+      <ProjectCards {stats} {portfolio} {statusColumns} {presetItems} bind:preset bind:fromStr bind:toStr />
       <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
-      <div class="dash-one">
-        <TeamWorkload {team} {employeeNames} />
-      </div>
     </div>
   </div>
 {/if}
 
 <style lang="scss">
   @use './yg-table' as *;
-  .dash-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-  .dash-one { margin-top: 16px; }
-  // Attention band: as many columns as fit (4 wide -> 2 -> 1), each at least 240px.
-  .dash-attention { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; align-items: start; }
-  @media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } }
+  // Fill the app pane. The Dashboard app has no navigator, so its component mounts inside
+  // .hulyPanels-container (a flex ROW); without flex-grow the page shrinks to content width and
+  // hugs the left. flex:1 makes it fill the full pane like the navigator-based YG views do.
+  .dash { flex: 1; min-width: 0; }
+  // Issues-by-status (Donut) gets the wider column; the team table needs less width. Both cells
+  // stretch to the taller card so the enlarged donut has room to breathe.
+  // align-items: start so each card sizes to its own content - the donut card no longer stretches to
+  // the (much taller) team table, which was leaving a large empty white area below the donut.
+  .dash-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+  // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
+  // tallest, and align-items: stretch makes each card fill its cell (cards are flex-column with
+  // height:100% so their list fills and any "view all" link sits at the bottom). Cards cap their
+  // lists at ~6 rows and link to the full view. Collapses to a single column on narrow screens.
+  .dash-attention { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 1fr; gap: 16px; margin-top: 16px; align-items: stretch; }
+  @media (max-width: 900px) { .dash-two { grid-template-columns: 1fr; } .dash-attention { grid-template-columns: 1fr; grid-auto-rows: auto; } }
 </style>

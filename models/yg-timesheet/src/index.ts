@@ -190,14 +190,6 @@ export function createModel (builder: Builder): void {
         spaces: [],
         specials: [
           {
-            id: 'dashboard',
-            label: ygTimesheet.string.Dashboard,
-            icon: tracker.icon.Home,
-            component: ygTimesheet.component.Dashboard,
-            visibleIf: ygTimesheet.function.CanApprove,
-            position: 'top'
-          },
-          {
             id: 'my',
             label: ygTimesheet.string.MyTimesheet,
             icon: ygTimesheet.icon.Timesheet,
@@ -274,19 +266,22 @@ export function createModel (builder: Builder): void {
       navigatorModel: {
         spaces: [],
         specials: [
-          {
-            id: 'timesheets',
-            label: ygTimesheet.string.HrTimesheets,
-            icon: ygTimesheet.icon.Timesheet,
-            component: ygTimesheet.component.HrTimesheet,
-            accessLevel: AccountRole.DocGuest,
-            position: 'top'
-          },
+          // Overview first so opening the HR app lands here by default (the default-landing picks the
+          // first visible special). Overview shows org-wide data immediately; Timesheets needs an
+          // employee selected before it shows anything, so it makes a poor landing tab. (2026-08-01)
           {
             id: 'overview',
             label: ygTimesheet.string.HrOverview,
             icon: hr.icon.Structure,
             component: ygTimesheet.component.HrOverview,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'timesheets',
+            label: ygTimesheet.string.HrTimesheets,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.HrTimesheet,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
           },
@@ -343,6 +338,23 @@ export function createModel (builder: Builder): void {
       }
     },
     ygTimesheet.app.Attendance
+  )
+
+  // New top-level "Dashboard" app (replaces the old in-Timesheet dashboard special). Single view
+  // that routes internally by role; no navigatorModel/specials, unlike the other apps above.
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.Dashboard,
+      icon: tracker.icon.Home, // dashboard/home glyph (swap if a better asset exists)
+      alias: 'yg-dashboard',
+      hidden: false,
+      position: 'top',
+      order: 1, // sort first in the left rail (above Inbox/order:100 and every stock top app)
+      component: ygTimesheet.component.DashboardHome
+    },
+    ygTimesheet.app.Dashboard
   )
 
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel

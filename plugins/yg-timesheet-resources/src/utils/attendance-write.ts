@@ -10,6 +10,15 @@ import { localMidnight } from './attendance'
 export async function createPunchIn (
   client: TxOperations, employee: Ref<Employee>, mode: AttendanceMode, note?: string
 ): Promise<void> {
+  // Authoritative single-open-session guard: if a session is already open for this employee, do
+  // nothing. Prevents a double punch-in (e.g. a rapid second click before the live query reflected
+  // the first) from opening two concurrent sessions - the bug that produced an Office + WFH pair.
+  const open = await client.findAll(
+    ygTimesheet.class.AttendanceSession,
+    { employee, punchOut: { $exists: false } },
+    { limit: 1 }
+  )
+  if (open.length > 0) return
   const at = Date.now()
   const trimmed = (note ?? '').trim()
   await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
