@@ -31,12 +31,13 @@
   import { periodRange } from '../utils/week'
   import {
     projectStats, portfolioHours, overdueIssues, dueSoonIssues,
-    teamWorkload, priorityWatch, openStatusNames, openStatusTotals, type Cat, type DashIssue, type DashTime, type DashProject
+    teamWorkload, priorityWatch, openStatusNames, openStatusTotals, isOpen, type Cat, type DashIssue, type DashTime, type DashProject
   } from '../utils/dashboard'
   // Palette for the "Issues by status" chart segments (real status names are dynamic). Mid-tone
   // hues that read on both light and dark themes; cycled if there are more statuses than colors.
   const STATUS_COLORS = ['#6366f1', '#f59e0b', '#0ea5e9', '#8b5cf6', '#14b8a6', '#ec4899', '#f43f5e', '#84cc16']
   import GreetingCard from './dashboard/GreetingCard.svelte'
+  import KpiStrip, { type Kpi } from './dashboard/KpiStrip.svelte'
   import ProjectCards from './dashboard/ProjectCards.svelte'
   import InProgressTable from './dashboard/InProgressTable.svelte'
   import ApprovalsQueue from './dashboard/ApprovalsQueue.svelte'
@@ -198,6 +199,16 @@
     for (const t of times) m.set(t.issue, Math.round(((m.get(t.issue) ?? 0) + t.hours) * 100) / 100)
     return m
   })()
+  // Headline KPIs across the PM's projects. Neutral tiles are the "state of play"; overdue and
+  // pending-approvals are "attention" tones that only light up when non-zero (see KpiStrip).
+  $: openCount = issues.filter((i) => isOpen(i.cat)).length
+  $: kpis = [
+    { label: 'Open issues', value: openCount, tone: 'neutral', hint: 'Issues not Done/Cancelled across your projects' },
+    { label: 'In progress', value: inProg.length, tone: 'neutral', hint: 'Issues in the In Progress status' },
+    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', hint: 'Open issues due in the next 7 days' },
+    { label: 'Overdue', value: overdue.length, tone: 'red', hint: 'Open issues past their due date' },
+    { label: 'Pending approvals', value: pendingRows.length, tone: 'amber', hint: 'Submitted timesheet tasks awaiting your approval' }
+  ] as Kpi[]
 </script>
 
 {#if !canView}
@@ -206,6 +217,9 @@
   <div class="dash yg-page">
     <div class="yg-scroll">
       <GreetingCard name={employeeNames.get(me) ?? ''} />
+
+      <!-- Headline KPIs: state-of-play + attention counters, right under the greeting. -->
+      <KpiStrip tiles={kpis} />
 
       <!-- Attention band: the "act now" items, at the top. -->
       <div class="dash-attention">
@@ -231,7 +245,9 @@
 
 <style lang="scss">
   @use './yg-table' as *;
-  .dash-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  // Issues-by-status (Donut) gets the wider column; the team table needs less width. Both cells
+  // stretch to the taller card so the enlarged donut has room to breathe.
+  .dash-two { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: stretch; }
   // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
   // tallest, and align-items: stretch makes each card fill its cell (cards are flex-column with
   // height:100% so their list fills and any "view all" link sits at the bottom). Cards cap their

@@ -348,6 +348,7 @@ export function createModel (builder: Builder): void {
       alias: 'yg-dashboard',
       hidden: false,
       position: 'top',
+      order: 1, // sort first in the left rail (above Inbox/order:100 and every stock top app)
       component: ygTimesheet.component.DashboardHome
     },
     ygTimesheet.app.Dashboard

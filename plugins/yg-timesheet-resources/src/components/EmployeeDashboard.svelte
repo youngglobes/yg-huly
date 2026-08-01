@@ -29,8 +29,9 @@
   import {
     assignedTo, dueSoonIssues, isOpen, openStatusNames, overdueIssues, priorityWatch, type Cat, type DashIssue
   } from '../utils/dashboard'
-  import { weekRange } from '../utils/week'
+  import { formatHours, weekRange } from '../utils/week'
   import GreetingCard from './dashboard/GreetingCard.svelte'
+  import KpiStrip, { type Kpi } from './dashboard/KpiStrip.svelte'
   import InboxWidget from './dashboard/InboxWidget.svelte'
   import MyAttendanceCard from './dashboard/MyAttendanceCard.svelte'
   import MyHoursCard from './dashboard/MyHoursCard.svelte'
@@ -131,6 +132,14 @@
   $: priority = priorityWatch(myIssues)
   $: overdue = overdueIssues(myIssues, now)
   $: dueSoon = dueSoonIssues(myIssues, now, 7)
+  // Headline KPIs, "me"-scoped. Neutral state-of-play tiles; overdue is the one attention tone that
+  // lights up only when non-zero (see KpiStrip). Mirrors the PM dashboard so the two read as a family.
+  $: kpis = [
+    { label: 'My open tasks', value: myOpenIssues.length, tone: 'neutral', hint: 'Your assigned issues not Done/Cancelled' },
+    { label: 'Hours this week', value: formatHours(hours), tone: 'neutral', hint: 'Time you logged this week' },
+    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', hint: 'Your open tasks due in the next 7 days' },
+    { label: 'Overdue', value: overdue.length, tone: 'red', hint: 'Your open tasks past their due date' }
+  ] as Kpi[]
 
   function round2 (n: number): number {
     return Math.round(n * 100) / 100
@@ -140,6 +149,9 @@
 <div class="dash yg-page">
   <div class="yg-scroll">
     <GreetingCard name={employeeNames.get(me) ?? ''} />
+
+    <!-- Headline KPIs, me-scoped. -->
+    <KpiStrip tiles={kpis} />
 
     <!-- Attention band: the "act now" items, at the top. -->
     <div class="dash-attention">
