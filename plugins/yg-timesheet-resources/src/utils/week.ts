@@ -120,3 +120,33 @@ export function formatHours (n: number): string {
   if (h > 0) return `${h}h`
   return `${m}m`
 }
+
+// YoungGlobes work week: Mon-Fri, plus ODD Saturdays (the 1st/3rd/5th Saturday of the month). Even
+// Saturdays (2nd/4th) and Sundays are holidays. "Odd/even" = the Saturday's ordinal within its
+// month, ceil(dayOfMonth / 7).
+export function isOddSaturday (dateMs: number): boolean {
+  const d = new Date(dateMs)
+  if (d.getDay() !== 6) return false
+  return Math.ceil(d.getDate() / 7) % 2 === 1
+}
+
+export function isWorkingDay (dateMs: number): boolean {
+  const dow = new Date(dateMs).getDay() // 0 Sun .. 6 Sat
+  if (dow === 0) return false // Sunday off
+  if (dow === 6) return isOddSaturday(dateMs) // Saturday: only odd ones
+  return true // Mon-Fri
+}
+
+// The most recent completed working day STRICTLY before today (today is excluded - timesheets are
+// submitted at end of day, so today's is not in yet). Walks back day by day; bounded so it always
+// terminates. Returns local midnight of that day.
+export function lastWorkingDay (nowMs: number): number {
+  const t = new Date(nowMs)
+  const midnight = new Date(t.getFullYear(), t.getMonth(), t.getDate())
+  for (let i = 1; i <= 14; i++) {
+    const d = new Date(midnight)
+    d.setDate(midnight.getDate() - i)
+    if (isWorkingDay(d.getTime())) return d.getTime()
+  }
+  return midnight.getTime() // unreachable in practice (a working day always exists within 14 days)
+}

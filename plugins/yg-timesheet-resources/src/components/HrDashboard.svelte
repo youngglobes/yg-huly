@@ -32,7 +32,7 @@
     submissionCompliance, wfhOfficeSplit, type HrAtt, type HrEmp, type HrHours, type HrSub
   } from '../utils/hr-dashboard'
   import { localMidnight } from '../utils/attendance'
-  import { formatHours, weekRange } from '../utils/week'
+  import { formatHours, lastWorkingDay, weekRange } from '../utils/week'
   import Donut from './dashboard/Donut.svelte'
   import GreetingCard from './dashboard/GreetingCard.svelte'
   import HrAttendanceTodayCard from './dashboard/HrAttendanceTodayCard.svelte'
@@ -90,19 +90,30 @@
     .filter((h) => !EXCLUDED.has(h.employee))
     .map((h): HrHours => ({ employee: h.employee, hours: h.hours, date: localMidnight(h.date) }))
 
-  // --- Timesheet submissions this week -------------------------------------------
-  // Timesheet -> its TimesheetDay children (attachedTo), joined in JS (no $lookup) - same pattern
-  // as Dashboard.svelte's pendingRows. HR may lack read access to Timesheet/TimesheetDay entirely;
-  // both queries then simply resolve empty, which yields an empty-state compliance card - fine.
+  // --- Timesheet submissions for the last working day ----------------------------
+  // Compliance is measured against the most recent COMPLETED working day (today is excluded -
+  // employees submit at end of day, so today's would read zero until EOD). lastWorkingDay() encodes
+  // the YoungGlobes work week (Mon-Fri + odd Saturdays). That day may sit in a prior calendar week
+  // (e.g. on Monday it is Friday/Saturday of last week), so scope the Timesheet query to THAT day's
+  // week, then keep only the TimesheetDay rows for that exact day.
+  // Timesheet -> its TimesheetDay children (attachedTo), joined in JS (no $lookup). HR may lack read
+  // access to Timesheet/TimesheetDay entirely; both queries then resolve empty -> empty-state card.
+  const DAY_MS = 24 * 60 * 60 * 1000
+  $: refDay = lastWorkingDay(Date.now())
+  $: refWeekStart = weekRange(refDay).start
   const tsQuery = createQuery()
   let tsDocs: Timesheet[] = []
-  $: tsQuery.query(ygTimesheet.class.Timesheet, { weekStart: week.start }, (res: Timesheet[]) => { tsDocs = res })
+  $: tsQuery.query(ygTimesheet.class.Timesheet, { weekStart: refWeekStart }, (res: Timesheet[]) => { tsDocs = res })
   $: tsEmpById = new Map<Ref<Timesheet>, Ref<Employee>>(tsDocs.map((t) => [t._id, t.employee]))
   $: tsIds = tsDocs.map((t) => t._id)
 
   const dayQuery = createQuery()
   let dayDocs: TimesheetDay[] = []
-  $: dayQuery.query(ygTimesheet.class.TimesheetDay, { attachedTo: { $in: tsIds } }, (res: TimesheetDay[]) => { dayDocs = res })
+  $: dayQuery.query(
+    ygTimesheet.class.TimesheetDay,
+    { attachedTo: { $in: tsIds }, date: { $gte: refDay, $lt: refDay + DAY_MS } },
+    (res: TimesheetDay[]) => { dayDocs = res }
+  )
   $: subs = dayDocs
     .filter((d) => d.submittedOn != null)
     .map((d): HrSub | undefined => {
@@ -117,6 +128,8 @@
   $: notPunched = notPunchedToday(att, emps)
   $: byPerson = hoursByPerson(hours, emps)
   $: comp = submissionCompliance(subs, emps)
+  // Human-readable label for the compliance reference day (e.g. "Fri, 31 Jul").
+  $: refDayLabel = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' }).format(refDay)
 
   // Headline KPIs, org-scoped. Matches Dashboard.svelte/EmployeeDashboard.svelte precedent: plain
   // string labels (KpiStrip's Kpi.label is `string`, not IntlString) - not resolved via translate().
@@ -128,7 +141,8 @@
     {
       label: 'Timesheet submissions',
       value: `${comp.submitted} / ${comp.expected}`,
-      tone: comp.expected > 0 && comp.submitted < comp.expected ? 'amber' : 'neutral'
+      tone: comp.expected > 0 && comp.submitted < comp.expected ? 'amber' : 'neutral',
+      hint: `Submitted for ${refDayLabel} (the last working day)`
     }
   ] as Kpi[]
 </script>
@@ -143,7 +157,7 @@
     <!-- Attention band: fixed-height, colour-accented cards in one row. -->
     <div class="dash-attention">
       <HrAttendanceTodayCard {present} {notPunched} accent="#6366f1" />
-      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} accent="#f59e0b" />
+      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} dayLabel={refDayLabel} accent="#f59e0b" />
       <Donut
         segments={[
           { name: 'Office', count: split.office, color: '#6366f1' },

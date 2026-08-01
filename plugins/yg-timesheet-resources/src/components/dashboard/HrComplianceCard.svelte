@@ -27,6 +27,8 @@
   export let missing: HrEmp[]
   // Optional top accent colour (set by the HR dashboard to distinguish the row's cards).
   export let accent = ''
+  // The working day this compliance is measured for (e.g. "Fri, 31 Jul"); shown under the title.
+  export let dayLabel = ''
 
   const CAP = 5
 
@@ -36,7 +38,10 @@
 </script>
 
 <div class="cc" style={accent ? `border-top: 3px solid ${accent}` : ''}>
-  <div class="cc__title"><Label label={ygTimesheet.string.TimesheetCompliance} /></div>
+  <div class="cc__title">
+    <Label label={ygTimesheet.string.TimesheetCompliance} />
+    {#if dayLabel}<span class="cc__day">{dayLabel}</span>{/if}
+  </div>
 
   {#if expected === 0}
     <div class="yg-empty cc__empty">No timesheet activity yet.</div>
@@ -80,6 +85,7 @@
   }
   .cc :global(.yg-empty) { margin: auto 0; }
   .cc__title { font-size: 13px; font-weight: 680; color: var(--yg-text); margin-bottom: 10px; }
+  .cc__day { font-weight: 500; font-size: 12px; color: var(--yg-text-dim); margin-left: 6px; }
 
   .cc__bar-row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 6px; }
   .cc__frac { font-size: 20px; font-weight: 720; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--yg-text); }

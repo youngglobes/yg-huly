@@ -1,4 +1,4 @@
-import { weekRange, groupByDay, formatHours, type ReportLike } from '../utils/week'
+import { weekRange, groupByDay, formatHours, isOddSaturday, isWorkingDay, lastWorkingDay, type ReportLike } from '../utils/week'
 
 // A fixed Wednesday: 2026-07-15 10:00 local
 const wed = new Date(2026, 6, 15, 10, 0, 0).getTime()
@@ -76,5 +76,54 @@ describe('groupByDay', () => {
       w
     )
     expect(days[0].issues.map((i) => i.identifier)).toEqual(['PROJ-1', 'PROJ-2', 'PROJ-10'])
+  })
+})
+
+// YoungGlobes work week: Mon-Fri + odd (1st/3rd/5th) Saturdays; even Sat + Sun off.
+// Aug 2026 Saturdays: 1st=Aug 1, 2nd=Aug 8, 3rd=Aug 15, 4th=Aug 22, 5th=Aug 29.
+const D = (y: number, m: number, d: number): number => new Date(y, m, d).getTime()
+
+describe('isOddSaturday', () => {
+  it('true for 1st/3rd/5th Saturday, false for 2nd/4th', () => {
+    expect(isOddSaturday(D(2026, 7, 1))).toBe(true)   // 1st Sat
+    expect(isOddSaturday(D(2026, 7, 8))).toBe(false)  // 2nd Sat
+    expect(isOddSaturday(D(2026, 7, 15))).toBe(true)  // 3rd Sat
+    expect(isOddSaturday(D(2026, 7, 22))).toBe(false) // 4th Sat
+    expect(isOddSaturday(D(2026, 7, 29))).toBe(true)  // 5th Sat
+  })
+  it('false for any non-Saturday', () => {
+    expect(isOddSaturday(D(2026, 7, 3))).toBe(false) // Monday
+    expect(isOddSaturday(D(2026, 7, 2))).toBe(false) // Sunday
+  })
+})
+
+describe('isWorkingDay', () => {
+  it('Mon-Fri working, Sunday off', () => {
+    expect(isWorkingDay(D(2026, 7, 3))).toBe(true)  // Mon
+    expect(isWorkingDay(D(2026, 7, 7))).toBe(true)  // Fri
+    expect(isWorkingDay(D(2026, 7, 2))).toBe(false) // Sun
+  })
+  it('odd Saturdays working, even Saturdays off', () => {
+    expect(isWorkingDay(D(2026, 7, 1))).toBe(true)   // 1st Sat
+    expect(isWorkingDay(D(2026, 7, 8))).toBe(false)  // 2nd Sat
+    expect(isWorkingDay(D(2026, 7, 15))).toBe(true)  // 3rd Sat
+  })
+})
+
+describe('lastWorkingDay (excludes today)', () => {
+  it('from Monday skips Sunday, lands on the prior working Saturday if odd', () => {
+    // Mon Aug 3 -> back over Sun Aug 2 (off) -> Sat Aug 1 (1st, odd, working)
+    expect(lastWorkingDay(D(2026, 7, 3))).toBe(D(2026, 7, 1))
+  })
+  it('from Monday after an even Saturday lands on Friday', () => {
+    // Mon Aug 10 -> Sun Aug 9 (off) -> Sat Aug 8 (2nd, even, off) -> Fri Aug 7 (working)
+    expect(lastWorkingDay(D(2026, 7, 10))).toBe(D(2026, 7, 7))
+  })
+  it('from a working Saturday returns the prior Friday (today excluded)', () => {
+    // Sat Aug 1 (working) -> Fri Jul 31
+    expect(lastWorkingDay(D(2026, 7, 1))).toBe(D(2026, 6, 31))
+  })
+  it('from Tuesday returns Monday', () => {
+    expect(lastWorkingDay(D(2026, 7, 4))).toBe(D(2026, 7, 3))
   })
 })
