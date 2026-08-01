@@ -203,11 +203,11 @@
   // pending-approvals are "attention" tones that only light up when non-zero (see KpiStrip).
   $: openCount = issues.filter((i) => isOpen(i.cat)).length
   $: kpis = [
-    { label: 'Open issues', value: openCount, tone: 'neutral', hint: 'Issues not Done/Cancelled across your projects' },
-    { label: 'In progress', value: inProg.length, tone: 'neutral', hint: 'Issues in the In Progress status' },
-    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', hint: 'Open issues due in the next 7 days' },
-    { label: 'Overdue', value: overdue.length, tone: 'red', hint: 'Open issues past their due date' },
-    { label: 'Pending approvals', value: pendingRows.length, tone: 'amber', hint: 'Submitted timesheet tasks awaiting your approval' }
+    { label: 'Open issues', value: openCount, tone: 'neutral', accent: '#6366f1', hint: 'Issues not Done/Cancelled across your projects' },
+    { label: 'In progress', value: inProg.length, tone: 'neutral', accent: '#0ea5e9', hint: 'Issues in the In Progress status' },
+    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', accent: '#8b5cf6', hint: 'Open issues due in the next 7 days' },
+    { label: 'Overdue', value: overdue.length, tone: 'red', accent: '#ef4444', hint: 'Open issues past their due date' },
+    { label: 'Pending approvals', value: pendingRows.length, tone: 'amber', accent: '#f59e0b', hint: 'Submitted timesheet tasks awaiting your approval' }
   ] as Kpi[]
 </script>
 

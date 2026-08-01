@@ -134,14 +134,15 @@
   // Headline KPIs, org-scoped. Matches Dashboard.svelte/EmployeeDashboard.svelte precedent: plain
   // string labels (KpiStrip's Kpi.label is `string`, not IntlString) - not resolved via translate().
   $: kpis = [
-    { label: 'Headcount', value: headcount(emps), tone: 'neutral' },
-    { label: 'Present today', value: present.length, tone: 'neutral' },
-    { label: 'WFH / Office', value: `${split.wfh} / ${split.office}`, tone: 'neutral' },
-    { label: 'Hours this week', value: formatHours(orgHoursTotal(hours)), tone: 'neutral' },
+    { label: 'Headcount', value: headcount(emps), tone: 'neutral', accent: '#6366f1' },
+    { label: 'Present today', value: present.length, tone: 'neutral', accent: '#10b981' },
+    { label: 'WFH / Office', value: `${split.wfh} / ${split.office}`, tone: 'neutral', accent: '#14b8a6' },
+    { label: 'Hours this week', value: formatHours(orgHoursTotal(hours)), tone: 'neutral', accent: '#8b5cf6' },
     {
       label: 'Timesheet submissions',
       value: `${comp.submitted} / ${comp.expected}`,
       tone: comp.expected > 0 && comp.submitted < comp.expected ? 'amber' : 'neutral',
+      accent: '#f59e0b',
       hint: `Submitted for ${refDayLabel} (the last working day)`
     }
   ] as Kpi[]

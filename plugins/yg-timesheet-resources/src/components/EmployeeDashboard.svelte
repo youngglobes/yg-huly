@@ -135,10 +135,10 @@
   // Headline KPIs, "me"-scoped. Neutral state-of-play tiles; overdue is the one attention tone that
   // lights up only when non-zero (see KpiStrip). Mirrors the PM dashboard so the two read as a family.
   $: kpis = [
-    { label: 'My open tasks', value: myOpenIssues.length, tone: 'neutral', hint: 'Your assigned issues not Done/Cancelled' },
-    { label: 'Hours this week', value: formatHours(hours), tone: 'neutral', hint: 'Time you logged this week' },
-    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', hint: 'Your open tasks due in the next 7 days' },
-    { label: 'Overdue', value: overdue.length, tone: 'red', hint: 'Your open tasks past their due date' }
+    { label: 'My open tasks', value: myOpenIssues.length, tone: 'neutral', accent: '#6366f1', hint: 'Your assigned issues not Done/Cancelled' },
+    { label: 'Hours this week', value: formatHours(hours), tone: 'neutral', accent: '#14b8a6', hint: 'Time you logged this week' },
+    { label: 'Due this week', value: dueSoon.length, tone: 'neutral', accent: '#0ea5e9', hint: 'Your open tasks due in the next 7 days' },
+    { label: 'Overdue', value: overdue.length, tone: 'red', accent: '#ef4444', hint: 'Your open tasks past their due date' }
   ] as Kpi[]
 
   function round2 (n: number): number {

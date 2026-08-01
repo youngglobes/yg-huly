@@ -29,6 +29,11 @@
   export let firstIn: number | undefined
 
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+
+  // Progress toward a standard 8h working day - fills the card and gives the total context.
+  const STANDARD_MS = 8 * 60 * 60 * 1000
+  $: pct = Math.min(100, Math.round((todayMs / STANDARD_MS) * 100))
+  $: remainingMs = Math.max(0, STANDARD_MS - todayMs)
 </script>
 
 <div class="mac">
@@ -46,6 +51,17 @@
   </div>
 
   <div class="mac__total">{formatDuration(todayMs)}</div>
+
+  <div class="mac__prog">
+    <div class="mac__prog-row">
+      <span class="mac__prog-cap">of 8h day</span>
+      <span class="mac__prog-pct">{pct}%</span>
+    </div>
+    <span class="mac__track"><span class="mac__fill" style="width:{pct}%" /></span>
+    <div class="mac__prog-note">
+      {#if remainingMs > 0}{formatDuration(remainingMs)} to go{:else}Full day complete{/if}
+    </div>
+  </div>
 
   <div class="mac__grid">
     <div class="mac__stat">
@@ -91,6 +107,13 @@
     font-size: 28px; font-weight: 720; letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums; color: var(--yg-text);
   }
+  .mac__prog { display: flex; flex-direction: column; gap: 6px; }
+  .mac__prog-row { display: flex; align-items: baseline; justify-content: space-between; }
+  .mac__prog-cap { font-size: 12px; color: var(--yg-text-dim); }
+  .mac__prog-pct { font-size: 12px; font-weight: 650; color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
+  .mac__track { display: block; height: 10px; background: var(--yg-border); border-radius: 6px; overflow: hidden; }
+  .mac__fill { display: block; height: 100%; background: var(--yg-green); }
+  .mac__prog-note { font-size: 12px; color: var(--yg-text-faint); }
   .mac__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: auto; }
   .mac__stat {
     display: flex; flex-direction: column; gap: 2px; padding: 8px 10px;
