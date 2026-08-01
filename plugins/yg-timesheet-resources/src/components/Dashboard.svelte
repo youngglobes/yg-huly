@@ -251,7 +251,9 @@
   .dash { flex: 1; min-width: 0; }
   // Issues-by-status (Donut) gets the wider column; the team table needs less width. Both cells
   // stretch to the taller card so the enlarged donut has room to breathe.
-  .dash-two { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: stretch; }
+  // align-items: start so each card sizes to its own content - the donut card no longer stretches to
+  // the (much taller) team table, which was leaving a large empty white area below the donut.
+  .dash-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
   // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
   // tallest, and align-items: stretch makes each card fill its cell (cards are flex-column with
   // height:100% so their list fills and any "view all" link sits at the bottom). Cards cap their

@@ -29,10 +29,11 @@
 </div>
 <style lang="scss">
   @use '../yg-table' as *;
-  .chart { display: flex; flex-direction: column; height: 100%; background: var(--yg-panel); border: 1px solid var(--yg-border); border-radius: var(--yg-radius); box-shadow: var(--yg-shadow); padding: 16px 20px; }
+  // Card sizes to its content (no height:100%) so it stays compact next to the taller team table.
+  .chart { display: flex; flex-direction: column; background: var(--yg-panel); border: 1px solid var(--yg-border); border-radius: var(--yg-radius); box-shadow: var(--yg-shadow); padding: 16px 20px; }
   .chart__title { font-size: 13px; font-weight: 680; color: var(--yg-text); margin-bottom: 8px; }
-  // Fill the card and center the donut+legend vertically so the enlarged ring has room to breathe.
-  .chart__body { flex: 1; display: flex; align-items: center; gap: 28px; }
+  // Donut + legend side by side, vertically centered on the ring.
+  .chart__body { display: flex; align-items: center; gap: 28px; }
   .chart__svg { flex: none; }
   .chart__total { font-size: 34px; font-weight: 760; fill: var(--yg-text); }
   .chart__sub { font-size: 12px; font-weight: 600; fill: var(--yg-text-faint); text-transform: uppercase; letter-spacing: 0.04em; }
