@@ -82,9 +82,13 @@
     { date: { $gte: week.start, $lt: week.end } },
     (res: HrTimeEntry[]) => { hoursDocs = res }
   )
+  // HrTimeEntry.date is a full ms timestamp (the moment logged), not a day boundary. Bucket it to
+  // the local calendar day so hoursByPerson's distinct-"days" counts real working days (<= 7 in a
+  // week) instead of distinct entry timestamps, and "last active" shows the correct day. The week
+  // filter above already ran on the raw timestamp, so this only affects day-grouping/display.
   $: hours = hoursDocs
     .filter((h) => !EXCLUDED.has(h.employee))
-    .map((h): HrHours => ({ employee: h.employee, hours: h.hours, date: h.date }))
+    .map((h): HrHours => ({ employee: h.employee, hours: h.hours, date: localMidnight(h.date) }))
 
   // --- Timesheet submissions this week -------------------------------------------
   // Timesheet -> its TimesheetDay children (attachedTo), joined in JS (no $lookup) - same pattern
