@@ -316,7 +316,20 @@ export default plugin(ygTimesheetId, {
     Enabled: '' as IntlString,
     MyAttendanceToday: '' as IntlString,
     MyTasks: '' as IntlString,
-    MyHoursThisWeek: '' as IntlString
+    MyHoursThisWeek: '' as IntlString,
+    HrDashboard: '' as IntlString,
+    Headcount: '' as IntlString,
+    PresentToday: '' as IntlString,
+    WfhOffice: '' as IntlString,
+    NotLoggedThisWeek: '' as IntlString,
+    TimesheetSubmissions: '' as IntlString,
+    AttendanceToday: '' as IntlString,
+    TimesheetCompliance: '' as IntlString,
+    OfficeVsWfh: '' as IntlString,
+    HoursByPerson: '' as IntlString,
+    NotSubmitted: '' as IntlString,
+    LastActive: '' as IntlString,
+    DaysLogged: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

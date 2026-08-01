@@ -145,6 +145,19 @@
     "Enabled": "Включено",
     "MyAttendanceToday": "My attendance today",
     "MyTasks": "My tasks",
-    "MyHoursThisWeek": "My hours this week"
+    "MyHoursThisWeek": "My hours this week",
+    "HrDashboard": "HR dashboard",
+    "Headcount": "Headcount",
+    "PresentToday": "Present today",
+    "WfhOffice": "WFH / Office",
+    "NotLoggedThisWeek": "Not logged this week",
+    "TimesheetSubmissions": "Timesheet submissions",
+    "AttendanceToday": "Attendance today",
+    "TimesheetCompliance": "Timesheet compliance",
+    "OfficeVsWfh": "Office vs WFH",
+    "HoursByPerson": "Hours this week by person",
+    "NotSubmitted": "Not submitted",
+    "LastActive": "Last active",
+    "DaysLogged": "Days"
   }
 }
