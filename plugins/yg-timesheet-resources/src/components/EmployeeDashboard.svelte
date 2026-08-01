@@ -181,7 +181,10 @@
   // .hulyPanels-container (a flex ROW); without flex-grow the page shrinks to content width and
   // hugs the left. flex:1 makes it fill the full pane like the navigator-based YG views do.
   .dash { flex: 1; min-width: 0; }
-  .dash-detail { display: flex; flex-direction: column; gap: 16px; margin-top: 16px; }
+  // My tasks + My hours side by side (align-items: start so each sizes to its own content);
+  // collapses to a single column on narrow screens.
+  .dash-detail { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+  @media (max-width: 900px) { .dash-detail { grid-template-columns: 1fr; } }
   // Attention band: fixed 2x2 grid of equal-height cards. grid-auto-rows: 1fr sizes both rows to the
   // tallest, and align-items: stretch makes each card fill its cell (cards are flex-column with
   // height:100% so their list fills and any "view all" link sits at the bottom). Cards cap their
