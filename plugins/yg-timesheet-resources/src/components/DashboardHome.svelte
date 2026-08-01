@@ -19,13 +19,14 @@
 -->
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
+  import core, { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
   import ygTimesheet, { type ProjectApprovers } from '@hcengineering/yg-timesheet'
   import { canApproveView } from '../utils/task-approval'
   import Dashboard from './Dashboard.svelte'
   import EmployeeDashboard from './EmployeeDashboard.svelte'
+  import HrDashboard from './HrDashboard.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -41,21 +42,36 @@
   let isApprover = false
   // Projects query still resolving on first render; render nothing until it returns so the
   // template never flashes the wrong dashboard.
-  let ready = false
+  let projReady = false
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     const pairs = res
       .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
       .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: a.pm, teamLead: a.teamLead } })
     isApprover = canApproveView(false, pairs, me)
-    ready = true
+    projReady = true
   })
   $: isPM = isAdmin || isApprover
+
+  // --- HR roster membership (HrData space) ----------------------------------
+  let isHR = false
+  let hrReady = false
+  const hrQuery = createQuery()
+  hrQuery.query(core.class.Space, { _id: ygTimesheet.space.HrData }, (res) => {
+    const space = res[0]
+    isHR = space !== undefined && space.members.includes(getCurrentAccount().uuid)
+    hrReady = true
+  })
+
+  // Wait for both queries before branching so the template never flashes the wrong dashboard.
+  $: ready = projReady && hrReady
 </script>
 
 {#if !ready}
-  <!-- projects query still resolving; render nothing to avoid a PM/employee flash -->
+  <!-- projects/HR queries still resolving; render nothing to avoid a role flash -->
 {:else if isPM}
   <Dashboard />
+{:else if isHR}
+  <HrDashboard />
 {:else}
   <EmployeeDashboard />
 {/if}
