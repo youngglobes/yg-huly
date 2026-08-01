@@ -25,16 +25,14 @@
   export let submitted: number
   export let expected: number
   export let missing: HrEmp[]
+  // Active employees who DID submit (for the "submitted" section).
+  export let submittedList: HrEmp[] = []
   // Optional top accent colour (set by the HR dashboard to distinguish the row's cards).
   export let accent = ''
   // The working day this compliance is measured for (e.g. "Fri, 31 Jul"); shown under the title.
   export let dayLabel = ''
 
-  const CAP = 5
-
   $: pct = expected > 0 ? Math.round((submitted / expected) * 100) : 0
-  $: shown = missing.slice(0, CAP)
-  $: hiddenCount = missing.length - shown.length
 </script>
 
 <div class="cc" style={accent ? `border-top: 3px solid ${accent}` : ''}>
@@ -52,21 +50,36 @@
     </div>
     <span class="cc__track"><span class="cc__fill" style="width:{pct}%" /></span>
 
-    <div class="cc__sub">
-      <div class="cc__sub-title">
-        <Label label={ygTimesheet.string.NotSubmitted} />
-        <span class="cc__count">{missing.length}</span>
-      </div>
-      {#if missing.length > 0}
-        <div class="cc__sub-list">
-          {#each shown as e (e.id)}
-            <span class="cc__chip">{e.name}</span>
-          {/each}
-          {#if hiddenCount > 0}
-            <span class="cc__chip cc__chip--more">+{hiddenCount} more</span>
-          {/if}
+    <!-- Fills the remaining fixed card height and scrolls; shows who is behind (primary) and who
+         is done, so HR can both chase and confirm at a glance. -->
+    <div class="cc__body">
+      <div class="cc__sec">
+        <div class="cc__sec-title cc__sec-title--miss">
+          <Label label={ygTimesheet.string.NotSubmitted} />
+          <span class="cc__count">{missing.length}</span>
         </div>
-      {/if}
+        {#if missing.length > 0}
+          <div class="cc__chips">
+            {#each missing as e (e.id)}<span class="cc__chip cc__chip--miss">{e.name}</span>{/each}
+          </div>
+        {:else}
+          <div class="cc__none">Everyone submitted.</div>
+        {/if}
+      </div>
+
+      <div class="cc__sec">
+        <div class="cc__sec-title cc__sec-title--done">
+          <Label label={ygTimesheet.string.Submitted} />
+          <span class="cc__count">{submitted}</span>
+        </div>
+        {#if submittedList.length > 0}
+          <div class="cc__chips">
+            {#each submittedList as e (e.id)}<span class="cc__chip cc__chip--done">{e.name}</span>{/each}
+          </div>
+        {:else}
+          <div class="cc__none">None yet.</div>
+        {/if}
+      </div>
     </div>
   {/if}
 </div>
@@ -94,21 +107,27 @@
   .cc__track { display: block; height: 10px; background: var(--yg-border); border-radius: 6px; overflow: hidden; }
   .cc__fill { display: block; height: 100%; background: var(--yg-green); }
 
-  .cc__sub { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--yg-border); }
-  .cc__sub-title {
+  // Fills the remaining fixed card height and scrolls when the name lists overflow.
+  .cc__body { flex: 1; min-height: 0; overflow: auto; margin-top: 12px; }
+  .cc__sec { padding-top: 10px; margin-top: 10px; border-top: 1px solid var(--yg-border); }
+  .cc__sec:first-child { padding-top: 0; margin-top: 0; border-top: 0; }
+  .cc__sec-title {
     display: flex; align-items: center; gap: 8px;
-    font-size: 11px; font-weight: 650; color: var(--yg-text-dim);
+    font-size: 11px; font-weight: 650;
     text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;
   }
+  .cc__sec-title--miss { color: var(--yg-amber); }
+  .cc__sec-title--done { color: var(--yg-green); }
   .cc__count {
     font-size: 11px; font-weight: 700; color: var(--yg-text-dim);
     background: var(--yg-panel-soft); border-radius: 999px; padding: 1px 8px;
   }
-  .cc__sub-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cc__chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .cc__chip {
     font-size: 12px; color: var(--yg-text-dim);
     background: var(--yg-panel-soft); border: 1px solid var(--yg-border);
     border-radius: 999px; padding: 3px 10px;
   }
-  .cc__chip--more { color: var(--yg-text-faint); }
+  .cc__chip--done { color: var(--yg-green); background: var(--yg-green-bg); border-color: var(--yg-green-line); }
+  .cc__none { font-size: 12px; color: var(--yg-text-faint); }
 </style>

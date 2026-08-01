@@ -67,14 +67,19 @@ export function notLoggedThisWeek (hours: HrHours[], emps: HrEmp[]): HrEmp[] {
   return emps.filter((e) => e.active && !logged.has(e.id))
 }
 
-// submitted = distinct employees with a submitted record; expected = active headcount; missing =
-// active employees who did NOT submit (no record, or record with submitted=false).
-export function submissionCompliance (subs: HrSub[], emps: HrEmp[]): { submitted: number, expected: number, missing: HrEmp[] } {
+// submitted = count of distinct active employees with a submitted record; expected = active
+// headcount; submittedList = the active employees who submitted; missing = active employees who did
+// NOT submit (no record, or record with submitted=false).
+export function submissionCompliance (
+  subs: HrSub[], emps: HrEmp[]
+): { submitted: number, expected: number, submittedList: HrEmp[], missing: HrEmp[] } {
   const done = new Set(subs.filter((s) => s.submitted).map((s) => s.employee))
   const active = activeIds(emps)
+  const submittedList = emps.filter((e) => e.active && done.has(e.id))
   return {
-    submitted: [...done].filter((id) => active.has(id)).length,
+    submitted: submittedList.length,
     expected: active.size,
+    submittedList,
     missing: emps.filter((e) => e.active && !done.has(e.id))
   }
 }

@@ -160,8 +160,8 @@
           <input class="att-date" type="date" bind:value={fromKey} />
           <span class="att-range__sep">-</span>
           <input class="att-date" type="date" bind:value={toKey} />
-          <button class="yg-btn" on:click={thisWeek}><Label label={ui.string.Today} /></button>
-          <button class="yg-btn" on:click={thisMonth}><Label label={ygTimesheet.string.Month} /></button>
+          <button class="att-preset" on:click={thisWeek}><Label label={ui.string.Today} /></button>
+          <button class="att-preset" on:click={thisMonth}><Label label={ygTimesheet.string.Month} /></button>
         </span>
       {/if}
 
@@ -303,6 +303,10 @@
   .att-range { display: inline-flex; align-items: center; gap: 8px; }
   .att-range__sep { color: var(--yg-text-faint); }
   .att-date { appearance: none; font: inherit; font-size: 13px; color: var(--yg-text); background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 8px; padding: 5px 9px; }
+  // Quick period presets ("Today"/"Month"): soft pill buttons matching the date inputs (base .yg-btn
+  // is border/background-less, so it rendered as bare text here).
+  .att-preset { appearance: none; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; color: var(--yg-text-dim); background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 8px; padding: 5px 12px; }
+  .att-preset:hover { color: var(--yg-text); border-color: var(--yg-border-strong); }
   .att-empbox { display: inline-flex; align-items: center; }
 
   .att-live { display: inline-flex; align-items: center; gap: 6px; color: var(--yg-green); font-weight: 600; }

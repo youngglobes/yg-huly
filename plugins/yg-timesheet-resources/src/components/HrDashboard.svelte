@@ -157,7 +157,7 @@
     <!-- Attention band: fixed-height, colour-accented cards in one row. -->
     <div class="dash-attention">
       <HrAttendanceTodayCard {present} {notPunched} accent="#6366f1" />
-      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} dayLabel={refDayLabel} accent="#f59e0b" />
+      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} submittedList={comp.submittedList} dayLabel={refDayLabel} accent="#f59e0b" />
       <Donut
         segments={[
           { name: 'Office', count: split.office, color: '#6366f1' },

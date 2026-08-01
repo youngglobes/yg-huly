@@ -64,10 +64,11 @@ describe('submissionCompliance', () => {
     { employee: 'e1', submitted: true },
     { employee: 'e2', submitted: false }
   ]
-  it('counts submitted vs expected(active headcount) and lists the missing', () => {
+  it('counts submitted vs expected(active headcount), lists submitted and missing', () => {
     const r = submissionCompliance(subs, emps)
     expect(r.submitted).toBe(1)
     expect(r.expected).toBe(3)
+    expect(r.submittedList.map((e) => e.id)).toEqual(['e1'])
     expect(r.missing.map((e) => e.id).sort()).toEqual(['e2', 'e3']) // e2 not submitted, e3 no record
   })
 })
