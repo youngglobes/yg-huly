@@ -30,6 +30,16 @@ function num (n: number, decimals = 2): any {
   return { value: Math.round(n * 10 ** decimals) / 10 ** decimals, type: Number }
 }
 
+// Mirrors the readable category labels in plugins/yg-timesheet-assets/lang/en.json
+// (CatJuniorDev/CatSeniorDev/CatSales/CatSalesforce/CatOther) so the export matches the on-screen table.
+const CATEGORY_LABEL: Record<string, string> = {
+  'junior-dev': 'Junior developer',
+  'senior-dev': 'Senior developer',
+  sales: 'Sales',
+  salesforce: 'Salesforce',
+  other: 'Other'
+}
+
 export async function exportPerformanceXlsx (rows: PerfRow[], from: number, to: number): Promise<void> {
   const header = [
     { value: 'Employee', type: String, fontWeight: 'bold' },
@@ -43,7 +53,7 @@ export async function exportPerformanceXlsx (rows: PerfRow[], from: number, to: 
   ]
   const body = rows.map((r) => [
     { value: r.name, type: String },
-    { value: r.category, type: String },
+    { value: CATEGORY_LABEL[r.category] ?? r.category, type: String },
     num(r.offDayDays, 0),
     num(r.offDayHours),
     num(r.overtimeHours),
