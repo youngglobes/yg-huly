@@ -50,8 +50,12 @@ A new HR-app special **"Performance"** (report page), sibling to the Attendance 
 - **Aggregation** in a pure, unit-tested lib (same pattern as the dashboards).
 - **Naming:** "Performance" is deliberately broad so more metrics can be added later without renaming.
 
-**Public holidays:** read Huly `hr.class.PublicHoliday` docs if maintained; if none entered, fall back
-to weekends-only. Small "keep the holiday list updated" dependency for accurate holiday credit.
+**Public holidays (DEFERRED — decided 2026-08-04):** Phase 1 ships **weekends-only** (Sundays + even
+Saturdays via `isWorkingDay`) — no holiday setup required. A small HR/owner **holiday-list editor** is
+a **later follow-on** (see build order), not a prerequisite. Tradeoff until then: work on a *weekday*
+public holiday (Diwali/Pongal etc.) is not credited as holiday-work — a conservative under-count, never
+a wrong answer. Prioritise the holiday editor early only if weekday-holiday work matters for the first
+review.
 
 ## Phase 2 — Late punch-in surfacing (employee-facing)
 
@@ -100,6 +104,9 @@ counts/lists/reports.
 3. **Phase 2 — Late punch-in surfacing** (needs shiftStart + attendance data).
 4. **Phase 3 — HR late-punch list** (needs Phase 2's late computation).
 5. **Phase 4 — Waiver/dismissal** (extends Phase 3).
+6. **Later follow-on — Holiday-list editor** (HR/owner-maintained public holidays; plugs into
+   `isWorkingDay` so Phase 1's holiday credit also covers weekday public holidays). Deferred per user
+   2026-08-04 — not a prerequisite for Phase 1.
 
 Each phase is its own spec → plan → implement cycle. This doc is the umbrella roadmap.
 
