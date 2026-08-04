@@ -302,6 +302,14 @@ export function createModel (builder: Builder): void {
             position: 'top'
           },
           {
+            id: 'performance',
+            label: ygTimesheet.string.Performance,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.Performance,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
             id: 'roster',
             label: ygTimesheet.string.HrRoster,
             icon: contact.icon.Person,

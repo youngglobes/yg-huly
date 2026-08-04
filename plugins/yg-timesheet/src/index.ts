@@ -175,7 +175,8 @@ export default plugin(ygTimesheetId, {
     AttendanceReminder: '' as AnyComponent,
     AttendanceReminderSettings: '' as AnyComponent,
     DashboardHome: '' as AnyComponent,
-    WorkProfileEditor: '' as AnyComponent
+    WorkProfileEditor: '' as AnyComponent,
+    Performance: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
