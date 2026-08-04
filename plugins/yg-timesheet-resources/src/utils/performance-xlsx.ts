@@ -13,8 +13,49 @@
 // limitations under the License.
 //
 
-// Excel export for the Performance report. Stub for Task 3 (Performance.svelte wiring only) -
-// filled in by Task 4.
+// Excel (.xlsx) export of the Performance report - same idiom as utils/hr-attendance-xlsx.ts:
+// a header row + one row per PerfRow, numbers as typed Number cells, client-side download via
+// write-excel-file.
+import writeXlsxFile, { type SheetData } from 'write-excel-file'
 import { type PerfRow } from './performance'
 
-export async function exportPerformanceXlsx (rows: PerfRow[], from: number, to: number): Promise<void> {}
+// yyyy-mm-dd (local) for filenames.
+function ymd (ms: number): string {
+  const d = new Date(ms)
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+function num (n: number, decimals = 2): any {
+  return { value: Math.round(n * 10 ** decimals) / 10 ** decimals, type: Number }
+}
+
+export async function exportPerformanceXlsx (rows: PerfRow[], from: number, to: number): Promise<void> {
+  const header = [
+    { value: 'Employee', type: String, fontWeight: 'bold' },
+    { value: 'Category', type: String, fontWeight: 'bold' },
+    { value: 'Off-day days', type: String, fontWeight: 'bold' },
+    { value: 'Off-day hours', type: String, fontWeight: 'bold' },
+    { value: 'Overtime hours', type: String, fontWeight: 'bold' },
+    { value: 'Overtime days', type: String, fontWeight: 'bold' },
+    { value: 'Late-night days', type: String, fontWeight: 'bold' },
+    { value: 'Total extra hours', type: String, fontWeight: 'bold' }
+  ]
+  const body = rows.map((r) => [
+    { value: r.name, type: String },
+    { value: r.category, type: String },
+    num(r.offDayDays, 0),
+    num(r.offDayHours),
+    num(r.overtimeHours),
+    num(r.overtimeDays, 0),
+    num(r.lateNightDays, 0),
+    num(r.totalExtraHours)
+  ])
+  const data = [header, ...body] as unknown as SheetData
+  // `to` is the exclusive end; label the last included day (to - 1 day).
+  const lastDay = to - 86_400_000
+  await writeXlsxFile(data, {
+    fileName: `performance-${ymd(from)}_${ymd(lastDay)}.xlsx`,
+    stickyRowsCount: 1
+  })
+}
