@@ -17,7 +17,7 @@ import {
   TypeString,
   UX
 } from '@hcengineering/model'
-import contact from '@hcengineering/contact'
+import contact, { TEmployee } from '@hcengineering/model-contact'
 import hr from '@hcengineering/hr'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import presentation from '@hcengineering/model-presentation'
@@ -39,7 +39,9 @@ import ygTimesheet, {
   type TimesheetApproval,
   type TimesheetDay,
   type TimesheetLine,
-  type TimesheetTask
+  type TimesheetTask,
+  type WorkProfile,
+  type WorkProfileCategory
 } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
@@ -119,6 +121,12 @@ export class TProjectApprovers extends TProject implements ProjectApprovers {
     teamLead?: Ref<Employee>
 }
 
+@Mixin(ygTimesheet.mixin.WorkProfile, contact.mixin.Employee)
+export class TWorkProfile extends TEmployee implements WorkProfile {
+  @Prop(TypeString(), ygTimesheet.string.WorkProfileCategoryLabel) category!: WorkProfileCategory
+  @Prop(TypeNumber(), ygTimesheet.string.ShiftStart) shiftStart?: number
+}
+
 @Model(ygTimesheet.class.HrTimeEntry, core.class.Doc, DOMAIN_YG_TIMESHEET)
 export class THrTimeEntry extends TDoc implements HrTimeEntry {
   @Prop(TypeRef(tracker.class.TimeSpendReport), core.string.Object) source!: Ref<TimeSpendReport>
@@ -156,7 +164,7 @@ export class TAttendanceReminderSettings extends TDoc implements AttendanceRemin
 }
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.

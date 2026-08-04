@@ -80,6 +80,13 @@ export interface ProjectApprovers extends Project {
   teamLead?: Ref<Employee>
 }
 
+export type WorkProfileCategory = 'junior-dev' | 'senior-dev' | 'sales' | 'salesforce' | 'other'
+export interface WorkProfile extends Employee {
+  category: WorkProfileCategory
+  // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
+  shiftStart?: number
+}
+
 /** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
 export interface HrTimeEntry extends Doc {
   source: Ref<TimeSpendReport>
@@ -136,7 +143,8 @@ export default plugin(ygTimesheetId, {
     AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>
   },
   mixin: {
-    ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>
+    ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>,
+    WorkProfile: '' as Ref<Mixin<WorkProfile>>
   },
   space: {
     Timesheets: '' as Ref<Space>,
@@ -166,7 +174,8 @@ export default plugin(ygTimesheetId, {
     HrAttendance: '' as AnyComponent,
     AttendanceReminder: '' as AnyComponent,
     AttendanceReminderSettings: '' as AnyComponent,
-    DashboardHome: '' as AnyComponent
+    DashboardHome: '' as AnyComponent,
+    WorkProfileEditor: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -329,7 +338,15 @@ export default plugin(ygTimesheetId, {
     HoursByPerson: '' as IntlString,
     NotSubmitted: '' as IntlString,
     LastActive: '' as IntlString,
-    DaysLogged: '' as IntlString
+    DaysLogged: '' as IntlString,
+    TeamProfiles: '' as IntlString,
+    WorkProfileCategoryLabel: '' as IntlString,
+    ShiftStart: '' as IntlString,
+    CatJuniorDev: '' as IntlString,
+    CatSeniorDev: '' as IntlString,
+    CatSales: '' as IntlString,
+    CatSalesforce: '' as IntlString,
+    CatOther: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

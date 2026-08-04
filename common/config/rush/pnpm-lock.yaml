@@ -13949,6 +13949,9 @@ importers:
       '@hcengineering/model':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/model
+      '@hcengineering/model-contact':
+        specifier: workspace:^0.7.426
+        version: link:../contact
       '@hcengineering/model-core':
         specifier: workspace:^0.7.426
         version: link:../core

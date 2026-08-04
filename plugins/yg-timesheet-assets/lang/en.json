@@ -158,6 +158,14 @@
     "HoursByPerson": "Hours this week by person",
     "NotSubmitted": "Not submitted",
     "LastActive": "Last active",
-    "DaysLogged": "Days"
+    "DaysLogged": "Days",
+    "TeamProfiles": "Team profiles",
+    "WorkProfileCategoryLabel": "Category",
+    "ShiftStart": "Shift start",
+    "CatJuniorDev": "Junior developer",
+    "CatSeniorDev": "Senior developer",
+    "CatSales": "Sales",
+    "CatSalesforce": "Salesforce",
+    "CatOther": "Other"
   }
 }
