@@ -308,6 +308,14 @@ export function createModel (builder: Builder): void {
             component: ygTimesheet.component.HrRoster,
             accessLevel: AccountRole.Owner,
             position: 'bottom'
+          },
+          {
+            id: 'team-profiles',
+            label: ygTimesheet.string.TeamProfiles,
+            icon: contact.icon.Person,
+            component: ygTimesheet.component.WorkProfileEditor,
+            accessLevel: AccountRole.Owner,
+            position: 'bottom'
           }
         ]
       }
