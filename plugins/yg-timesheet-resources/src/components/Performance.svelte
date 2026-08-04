@@ -1,0 +1,162 @@
+<!--
+// Copyright © 2026 YoungGlobes
+//
+// Licensed under the Eclipse Public License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License. You may
+// obtain a copy of the License at https://www.eclipse.org/legal/epl-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//
+// See the License for the specific language governing permissions and
+// limitations under the License.
+-->
+<!--
+  Performance report: date-range ranking of off-day work / overtime / late-night hours per
+  tracked employee (junior-dev, senior-dev - see utils/work-profile.ts TRACKED_CATEGORIES). Reads
+  HrTimeEntry + AttendanceSession + each employee's WorkProfile category, hands them to the pure
+  performanceRows lib (utils/performance.ts) and renders the ranked table. Read-only. Excel export.
+-->
+<script lang="ts">
+  import { onMount } from 'svelte'
+  import contact, { formatName, type Employee } from '@hcengineering/contact'
+  import { setPlatformStatus, unknownError, type IntlString } from '@hcengineering/platform'
+  import { createQuery, getClient } from '@hcengineering/presentation'
+  import { Label } from '@hcengineering/ui'
+  import ygTimesheet, {
+    type AttendanceSession, type HrTimeEntry, type WorkProfile, type WorkProfileCategory
+  } from '@hcengineering/yg-timesheet'
+  import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours } from '../utils/performance'
+  import { exportPerformanceXlsx } from '../utils/performance-xlsx'
+  import { ensureHrMembership } from '../utils/hrMembership'
+  import { formatHours, localDayKey } from '../utils/week'
+
+  onMount(() => { void ensureHrMembership() })
+
+  const client = getClient()
+  const h = client.getHierarchy()
+
+  // Date range: defaults to the trailing 12 months .. today. yyyy-mm-dd native inputs, same
+  // fromKey/toKey/fromMid/toExcl idiom as HrAttendance.svelte.
+  let fromKey = localDayKey(Date.now() - 365 * 86_400_000)
+  let toKey = localDayKey(Date.now())
+  $: fromMid = new Date(`${fromKey}T00:00:00`).getTime()
+  $: toExcl = new Date(`${toKey}T00:00:00`).getTime() + 86_400_000 // inclusive `to`, exclusive query bound
+
+  // Category label lookup, same map shape as WorkProfileEditor.svelte's CAT_STRING.
+  const CAT_STRING: Record<WorkProfileCategory, IntlString> = {
+    'junior-dev': ygTimesheet.string.CatJuniorDev,
+    'senior-dev': ygTimesheet.string.CatSeniorDev,
+    sales: ygTimesheet.string.CatSales,
+    salesforce: ygTimesheet.string.CatSalesforce,
+    other: ygTimesheet.string.CatOther
+  }
+
+  // Active employees + their (optional) WorkProfile category.
+  const empQuery = createQuery()
+  let empDocs: Employee[] = []
+  empQuery.query(contact.mixin.Employee, { active: true }, (res: Employee[]) => { empDocs = res })
+  $: emps = empDocs.map((e): PerfEmp => ({
+    id: e._id,
+    name: formatName(e.name),
+    category: h.hasMixin(e, ygTimesheet.mixin.WorkProfile)
+      ? (h.as(e, ygTimesheet.mixin.WorkProfile) as WorkProfile).category
+      : undefined
+  }))
+
+  // Logged hours in the window.
+  const hoursQuery = createQuery()
+  let hoursDocs: HrTimeEntry[] = []
+  $: hoursQuery.query(
+    ygTimesheet.class.HrTimeEntry,
+    { date: { $gte: fromMid, $lt: toExcl } },
+    (res: HrTimeEntry[]) => { hoursDocs = res }
+  )
+  $: hours = hoursDocs.map((d): PerfHours => ({ employee: d.employee, hours: d.hours, date: d.date }))
+
+  // Attendance sessions in the window - filtered on the day-bucket `date` field, matching how
+  // HrDashboard.svelte queries AttendanceSession.
+  const attQuery = createQuery()
+  let attDocs: AttendanceSession[] = []
+  $: attQuery.query(
+    ygTimesheet.class.AttendanceSession,
+    { date: { $gte: fromMid, $lt: toExcl } },
+    (res: AttendanceSession[]) => { attDocs = res }
+  )
+  $: atts = attDocs.map((d): PerfAtt => ({ employee: d.employee, punchIn: d.punchIn, punchOut: d.punchOut }))
+
+  $: now = Date.now()
+  $: rows = performanceRows(emps, hours, atts, now)
+
+  let exporting = false
+  async function doExport (): Promise<void> {
+    exporting = true
+    try {
+      await exportPerformanceXlsx(rows, fromMid, toExcl)
+    } catch (err: any) {
+      await setPlatformStatus(unknownError(err))
+    } finally {
+      exporting = false
+    }
+  }
+</script>
+
+<div class="dash yg-page">
+  <div class="yg-head">
+    <h1 class="yg-title"><Label label={ygTimesheet.string.Performance} /></h1>
+    <div class="yg-weekbar">
+      <span class="perf-range">
+        <input class="yg-input" type="date" bind:value={fromKey} />
+        <span class="perf-range__sep">-</span>
+        <input class="yg-input" type="date" bind:value={toKey} />
+      </span>
+      <span class="yg-weekbar__spacer" />
+      <button class="yg-btn yg-btn--primary" disabled={exporting} on:click={doExport}>
+        <Label label={ygTimesheet.string.Export} />
+      </button>
+    </div>
+  </div>
+
+  <div class="yg-scroll">
+    <table class="yg-table">
+      <thead>
+        <tr>
+          <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+          <th class="left"><Label label={ygTimesheet.string.WorkProfileCategoryLabel} /></th>
+          <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)</th>
+          <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)</th>
+          <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
+          <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Days} />)</th>
+          <th class="yg-num"><Label label={ygTimesheet.string.LateNightCol} /></th>
+          <th class="yg-num"><Label label={ygTimesheet.string.TotalExtraHours} /></th>
+        </tr>
+      </thead>
+      <tbody>
+        {#each rows as r (r.employee)}
+          <tr class="yg-row">
+            <td class="left bold">{r.name}</td>
+            <td class="left"><Label label={CAT_STRING[r.category]} /></td>
+            <td class="yg-num">{r.offDayDays}</td>
+            <td class="yg-num">{formatHours(r.offDayHours)}</td>
+            <td class="yg-num">{formatHours(r.overtimeHours)}</td>
+            <td class="yg-num">{r.overtimeDays}</td>
+            <td class="yg-num">{r.lateNightDays}</td>
+            <td class="yg-num bold">{formatHours(r.totalExtraHours)}</td>
+          </tr>
+        {:else}
+          <tr><td colspan={8} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style lang="scss">
+  @use './yg-table' as *;
+  // See HrDashboard.svelte: this special has no navigator, so the page needs flex:1 to fill
+  // the app pane instead of shrinking to content width.
+  .dash { flex: 1; min-width: 0; }
+  .perf-range { display: inline-flex; align-items: center; gap: 8px; }
+  .perf-range__sep { color: var(--yg-text-faint); }
+</style>
