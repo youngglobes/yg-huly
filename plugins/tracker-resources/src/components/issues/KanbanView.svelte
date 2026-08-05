@@ -33,8 +33,9 @@
   import tags from '@hcengineering/tags'
   import { DocWithRank, getStates } from '@hcengineering/task'
   import { getTaskKanbanResultQuery, typeStore, updateTaskKanbanCategories } from '@hcengineering/task-resources'
-  import { Issue, IssuesGrouping, IssuesOrdering, Project } from '@hcengineering/tracker'
+  import { Issue, IssueStatus, IssuesGrouping, IssuesOrdering, Project } from '@hcengineering/tracker'
   import {
+    addNotification,
     Button,
     ColorDefinition,
     Component,
@@ -42,6 +43,7 @@
     IconAdd,
     Label,
     Loading,
+    NotificationSeverity,
     showPopup,
     themeStore
   } from '@hcengineering/ui'
@@ -78,6 +80,8 @@
   import PriorityEditor from './PriorityEditor.svelte'
   import StatusEditor from './StatusEditor.svelte'
   import MilestoneEditor from '../milestones/MilestoneEditor.svelte'
+  import { estimateBlocksActivation } from './estimateGate'
+  import EstimateBlockedNotification from './EstimateBlockedNotification.svelte'
 
   const _class = tracker.class.Issue
   export let space: Ref<Project> | undefined = undefined
@@ -260,6 +264,15 @@
     if (groupValue === undefined) {
       return undefined
     }
+    // Estimate gate (backlog #1): reject a board drop that would start an un-estimated issue. Returning
+    // undefined blocks the move (consistent with the server) and stops the card entering the column;
+    // the toast is shown from the move-blocked handler below so it fires once, on drop only.
+    if (
+      groupByKey === IssuesGrouping.Status &&
+      estimateBlocksActivation(groupValue as Ref<IssueStatus>, (doc as Issue).estimation, $statusStore.byId)
+    ) {
+      return undefined
+    }
     return {
       [groupByKey]: groupValue,
       space: doc.space
@@ -297,6 +310,28 @@
     }
 
     return categories
+  }
+
+  // move-blocked also fires for the ordinary groupValue === undefined rejection in getUpdateProps;
+  // re-check the estimate condition so the toast only shows for that case.
+  function handleMoveBlocked (evt: CustomEvent<{ doc: Doc, state: CategoryType }>): void {
+    const doc = evt.detail.doc as Issue
+    const state = evt.detail.state
+    const newStatus = (typeof state === 'object' ? state.values.find((it) => it.space === doc.space)?._id : state) as
+      | Ref<IssueStatus>
+      | undefined
+    if (
+      groupByKey === IssuesGrouping.Status &&
+      estimateBlocksActivation(newStatus, doc.estimation, $statusStore.byId)
+    ) {
+      addNotification(
+        'Set an estimate first',
+        `Add an estimate to ${doc.identifier} before moving it to a started status.`,
+        EstimateBlockedNotification,
+        undefined,
+        NotificationSeverity.Error
+      )
+    }
   }
 </script>
 
@@ -337,6 +372,7 @@
     on:contextmenu={(evt) => {
       showMenu(evt.detail.evt, { object: evt.detail.objects, baseMenuClass })
     }}
+    on:move-blocked={handleMoveBlocked}
   >
     <svelte:fragment slot="header" let:state let:count let:index>
       <div class="header flex-between">
