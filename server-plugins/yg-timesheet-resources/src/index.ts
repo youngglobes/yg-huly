@@ -1121,6 +1121,11 @@ export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): 
 // LOOP-SAFETY: the only write is a System-attributed status revert (createTxUpdateDoc's 7th arg),
 // which the top-of-loop `modifiedBy === System` guard skips - so it never re-enters and re-reverts.
 //
+// SCOPE: this gate covers TRANSITIONS only (a TxUpdateDoc that changes an issue's status). Creating
+// an issue DIRECTLY into an Active status (a TxCreateDoc<Issue>) is INTENTIONALLY NOT gated here
+// (product-owner decision): the timesheet submit-time estimation check in Timesheet.svelte is the
+// backstop for that path. Do not "fix" this by adding TxCreateDoc handling - it is deliberate.
+//
 export async function OnIssueEstimateGate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     if (tx.modifiedBy === core.account.System) continue
@@ -1144,16 +1149,38 @@ export async function OnIssueEstimateGate (txes: Tx[], control: TriggerControl):
 
     if (!estimateRequiredToActivate(status.category, task.statusCategory.Active, issue.estimation)) continue
 
-    // Revert to a not-started sibling status. Statuses of the same task type share `ofAttribute`,
-    // so this stays within THIS issue's project type. Prefer ToDo (nearest not-started), else
-    // UnStarted (Backlog). If neither exists we cannot safely revert - log and bail (the client
-    // pre-check covers the common path; a project type with no not-started status is unheard of).
-    const siblings = await control.findAll(
-      control.ctx, tracker.class.IssueStatus, { ofAttribute: status.ofAttribute }
+    // Revert to a not-started status THAT BELONGS TO THIS ISSUE'S OWN TASK TYPE. Do NOT scope by
+    // `ofAttribute`: every IssueStatus in the workspace shares one global ofAttribute
+    // (tracker.attribute.IssueStatus), so that query returns statuses across ALL projects/task types
+    // and could land the issue in a foreign status that has no column on its own board. A TaskType
+    // instead owns an ordered `statuses: Ref<Status>[]` array that defines exactly which statuses -
+    // and in what order - belong to it (this is what the client's getTaskTypeStates reads). The
+    // issue's task type is `issue.kind`. Prefer the first ToDo (nearest not-started), else the first
+    // UnStarted (Backlog), in the task type's own ordering. If the task type or a not-started status
+    // can't be resolved we cannot safely revert - log and bail (the client pre-check covers the
+    // common path).
+    const taskType = (
+      await control.findAll(control.ctx, task.class.TaskType, { _id: issue.kind }, { limit: 1 })
+    )[0]
+    if (taskType === undefined) {
+      control.ctx.warn('yg-timesheet: estimate gate could not resolve the issue task type', {
+        issue: issue._id, project: issue.space, kind: issue.kind, attempted: nextStatus
+      })
+      continue
+    }
+
+    // Resolve the task type's statuses, preserving its own ordering (findAll does not guarantee it).
+    const statusDocs = await control.findAll(
+      control.ctx, tracker.class.IssueStatus, { _id: { $in: taskType.statuses } }
     )
+    const byId = new Map(statusDocs.map((s) => [s._id, s]))
+    const orderedStatuses = taskType.statuses
+      .map((id) => byId.get(id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+
     const revertTo =
-      siblings.find((s) => s.category === task.statusCategory.ToDo)?._id ??
-      siblings.find((s) => s.category === task.statusCategory.UnStarted)?._id
+      orderedStatuses.find((s) => s.category === task.statusCategory.ToDo)?._id ??
+      orderedStatuses.find((s) => s.category === task.statusCategory.UnStarted)?._id
     if (revertTo == null || revertTo === nextStatus) {
       control.ctx.warn('yg-timesheet: estimate gate could not resolve a not-started status', {
         issue: issue._id, project: issue.space, attempted: nextStatus
