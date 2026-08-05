@@ -24,6 +24,7 @@ export default plugin(serverYgTimesheetId, {
     OnTimeSpendReportChange: '' as Resource<TriggerFunc>,
     OnHrDataMembershipGuard: '' as Resource<TriggerFunc>,
     OnHrMembershipChange: '' as Resource<TriggerFunc>,
-    OnHrEmployeeCreate: '' as Resource<TriggerFunc>
+    OnHrEmployeeCreate: '' as Resource<TriggerFunc>,
+    OnIssueEstimateGate: '' as Resource<TriggerFunc>
   }
 })

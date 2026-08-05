@@ -59,7 +59,9 @@ import ygTimesheet, {
   type TimesheetTask
 } from '@hcengineering/yg-timesheet'
 import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
+import task from '@hcengineering/task'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
+import { estimateRequiredToActivate } from './estimate-gate'
 
 // ---------------------------------------------------------------------------
 // Inbox notifications (2026-07-25). The approval workflow now pushes Huly inbox
@@ -1108,6 +1110,87 @@ export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): 
   return []
 }
 
+//
+// Estimate gate (backlog #1): an issue may not enter a started (Active-category) status - In
+// Progress / In Testing / In Review - unless it has a positive estimate. This is the HARD
+// enforcement point: it covers every path that can change a status (the StatusEditor dropdown,
+// kanban drag, bulk edit, and the raw API), complementing the StatusEditor client pre-check
+// (which only fast-fails the common dropdown path). The submit-time check in Timesheet.svelte
+// stays as the final backstop.
+//
+// LOOP-SAFETY: the only write is a System-attributed status revert (createTxUpdateDoc's 7th arg),
+// which the top-of-loop `modifiedBy === System` guard skips - so it never re-enters and re-reverts.
+//
+export async function OnIssueEstimateGate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const utx = tx as TxUpdateDoc<Issue>
+    if (utx.objectClass !== tracker.class.Issue) continue
+
+    const nextStatus = (utx.operations as Partial<Issue>).status
+    if (nextStatus == null) continue
+
+    // Resolve the target status's category; only Active (started) statuses are gated.
+    const status = (
+      await control.findAll(control.ctx, tracker.class.IssueStatus, { _id: nextStatus }, { limit: 1 })
+    )[0]
+    if (status === undefined) continue
+
+    const issue = (
+      await control.findAll(control.ctx, tracker.class.Issue, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (issue === undefined) continue
+
+    if (!estimateRequiredToActivate(status.category, task.statusCategory.Active, issue.estimation)) continue
+
+    // Revert to a not-started sibling status. Statuses of the same task type share `ofAttribute`,
+    // so this stays within THIS issue's project type. Prefer ToDo (nearest not-started), else
+    // UnStarted (Backlog). If neither exists we cannot safely revert - log and bail (the client
+    // pre-check covers the common path; a project type with no not-started status is unheard of).
+    const siblings = await control.findAll(
+      control.ctx, tracker.class.IssueStatus, { ofAttribute: status.ofAttribute }
+    )
+    const revertTo =
+      siblings.find((s) => s.category === task.statusCategory.ToDo)?._id ??
+      siblings.find((s) => s.category === task.statusCategory.UnStarted)?._id
+    if (revertTo == null || revertTo === nextStatus) {
+      control.ctx.warn('yg-timesheet: estimate gate could not resolve a not-started status', {
+        issue: issue._id, project: issue.space, attempted: nextStatus
+      })
+      continue
+    }
+
+    control.ctx.warn('yg-timesheet: estimate gate reverted un-estimated issue activation', {
+      issue: issue._id, identifier: issue.identifier, actor: utx.modifiedBy, attempted: nextStatus
+    })
+
+    const revert = control.txFactory.createTxUpdateDoc(
+      utx.objectClass,
+      utx.objectSpace,
+      utx.objectId,
+      { status: revertTo } as any,
+      false,
+      Date.now(),
+      core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+
+    // Notify the actor why it snapped back (best-effort; the visible revert is the primary signal).
+    const actor = await getEmployee(control, utx.modifiedBy)
+    if (actor !== undefined) {
+      await notifyInbox(
+        control,
+        tx,
+        [actor._id],
+        issue,
+        `Set an estimate on ${issue.identifier} before moving it to "${status.name}".`
+      )
+    }
+  }
+  return []
+}
+
 export default async () => ({
   trigger: {
     OnTimesheetDayUpdate,
@@ -1119,6 +1202,7 @@ export default async () => ({
     OnTimeSpendReportChange,
     OnHrDataMembershipGuard,
     OnHrMembershipChange,
-    OnHrEmployeeCreate
+    OnHrEmployeeCreate,
+    OnIssueEstimateGate
   }
 })

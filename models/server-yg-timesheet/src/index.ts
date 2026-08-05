@@ -116,4 +116,13 @@ export function createModel (builder: Builder): void {
       'attributes.active': true
     }
   })
+
+  // Estimate gate (backlog #1): an issue may not enter a started (Active-category) status without a
+  // positive estimate. Broad objectClass match on Issue; OnIssueEstimateGate exits fast unless the
+  // tx actually changes `status` to an Active-category status on an un-estimated issue.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnIssueEstimateGate,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectClass: tracker.class.Issue }
+  })
 }
