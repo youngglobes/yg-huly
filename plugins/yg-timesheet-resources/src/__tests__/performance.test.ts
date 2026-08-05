@@ -43,16 +43,46 @@ describe('performanceRows', () => {
     expect(r.totalExtraHours).toBe(16) // 12 off-day + 4 OT
   })
 
-  it('late-night = distinct days with a session past 22:00 (incl. cross-midnight + open)', () => {
-    const atts: PerfAtt[] = [
-      { employee: 'e1', punchIn: D(2026, 7, 3, 14), punchOut: D(2026, 7, 3, 23) },        // out 11pm -> past 22:00 -> late (Aug 3)
-      { employee: 'e1', punchIn: D(2026, 7, 3, 9), punchOut: D(2026, 7, 3, 17) },         // same day, not late -> still 1 day
-      { employee: 'e1', punchIn: D(2026, 7, 6, 13), punchOut: D(2026, 7, 6, 21) + 30 * 60_000 }, // out 9:30pm -> past 21:00 but NOT 22:00 -> NOT late
-      { employee: 'e1', punchIn: D(2026, 7, 1, 20), punchOut: D(2026, 7, 2, 1) },         // 8pm -> 1am cross-midnight -> late on Aug 1
-      { employee: 'e1', punchIn: D(2026, 7, 4, 19) }                                      // open, now=12:00 same day -> NOT past 22:00
+  it('late-night = day with >8h logged AND a session past 22:00 (both gates required)', () => {
+    const hours: PerfHours[] = [
+      { employee: 'e1', hours: 11, date: D(2026, 7, 3) }, // Mon: 11h logged
+      { employee: 'e1', hours: 6, date: D(2026, 7, 1) },  // Sat (odd, working): 6h logged (<=8)
+      { employee: 'e1', hours: 12, date: D(2026, 7, 6) }  // Thu: 12h logged
     ]
-    const r = performanceRows(emps, [], atts, NOW).find((x) => x.employee === 'e1')!
-    expect(r.lateNightDays).toBe(2) // Aug 3 (11pm) + Aug 1 (cross-midnight); Aug 6 excluded (out 9:30pm)
+    const atts: PerfAtt[] = [
+      { employee: 'e1', punchIn: D(2026, 7, 3, 13), punchOut: D(2026, 7, 3, 23) }, // Mon out 11pm + 11h -> LATE
+      { employee: 'e1', punchIn: D(2026, 7, 1, 15), punchOut: D(2026, 7, 2, 0) },  // Sat past 10pm but only 6h -> NOT late
+      { employee: 'e1', punchIn: D(2026, 7, 6, 9), punchOut: D(2026, 7, 6, 21) }   // Thu 12h but out 9pm -> NOT late
+    ]
+    const r = performanceRows(emps, hours, atts, NOW).find((x) => x.employee === 'e1')!
+    expect(r.lateNightDays).toBe(1) // only Mon Aug 3
+  })
+
+  it('days = flagged days only, newest first, merged hours + punches, multi-signal once', () => {
+    const hours: PerfHours[] = [
+      { employee: 'e1', hours: 11, date: D(2026, 7, 3) }, // Mon working: OT +3, plus late punch -> late-night
+      { employee: 'e1', hours: 6, date: D(2026, 7, 2) },  // Sun off: off-day 6h
+      { employee: 'e1', hours: 5, date: D(2026, 7, 4) }   // Tue working, 5h, no session -> NOT flagged
+    ]
+    const atts: PerfAtt[] = [
+      { employee: 'e1', punchIn: D(2026, 7, 3, 13), punchOut: D(2026, 7, 3, 23) } // Mon 1pm -> 11pm
+    ]
+    const r = performanceRows(emps, hours, atts, NOW).find((x) => x.employee === 'e1')!
+    expect(r.days.map((d) => d.date)).toEqual([D(2026, 7, 3, 0), D(2026, 7, 2, 0)]) // newest first, Tue excluded
+    const mon = r.days[0]
+    expect(mon.offDay).toBe(false)
+    expect(mon.overtimeHours).toBe(3)
+    expect(mon.lateNight).toBe(true)
+    expect(mon.hoursLogged).toBe(11)
+    expect(mon.punchIn).toBe(D(2026, 7, 3, 13))
+    expect(mon.punchOut).toBe(D(2026, 7, 3, 23))
+    const sun = r.days[1]
+    expect(sun.offDay).toBe(true)
+    expect(sun.overtimeHours).toBe(0)
+    expect(sun.lateNight).toBe(false)
+    expect(sun.hoursLogged).toBe(6)
+    expect(sun.punchIn).toBeUndefined()
+    expect(sun.punchOut).toBeUndefined()
   })
 
   it('sorts by totalExtraHours desc then name', () => {

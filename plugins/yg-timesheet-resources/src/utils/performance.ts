@@ -6,60 +6,106 @@ import { localMidnight } from './attendance'
 export interface PerfEmp { id: string; name: string; category?: WorkProfileCategory }
 export interface PerfHours { employee: string; hours: number; date: number }
 export interface PerfAtt { employee: string; punchIn: number; punchOut?: number }
+
+/** One flagged day in an employee's drill-down (only days that fired a signal are kept). */
+export interface FlaggedDay {
+  date: number          // localMidnight (ms) of the day
+  offDay: boolean       // non-working day with hoursLogged > 0
+  overtimeHours: number // working day: max(0, hoursLogged - 8); 0 otherwise
+  lateNight: boolean    // hoursLogged > 8 AND a session that day ran past 22:00
+  hoursLogged: number   // summed logged hours that day
+  punchIn?: number      // earliest punch-in of the day (if any session)
+  punchOut?: number     // latest punch-out of the day (undefined if none closed / no session)
+}
+
 export interface PerfRow {
   employee: string; name: string; category: WorkProfileCategory
   offDayDays: number; offDayHours: number
   overtimeHours: number; overtimeDays: number
   lateNightDays: number; totalExtraHours: number
+  days: FlaggedDay[] // flagged days only, newest first
 }
 
 const STD_HOURS = 8
 // Late-night threshold, local time. 22:00 (10 PM): tracked devs finish by ~8:30 PM, so work past
-// 9 PM is just minor overtime - only past 10 PM counts as genuine late-night effort. This also
-// keeps a normal 8h day that merely ends late (started late, wrapped up 8:30-9 PM) out of the count.
+// 9 PM is just minor overtime. Late-night ALSO requires > 8 production (logged) hours that day, so a
+// normal 8h day that merely ends late does not count - only genuine heavy work that ran late does.
 const LATE_NIGHT_HOUR = 22
 const HOUR_MS = 3_600_000
+
+interface DayAcc {
+  hoursLogged: number
+  punchIn?: number  // earliest in
+  punchOut?: number // latest closed out
+  latestEnd: number // max(punchOut ?? now) across the day's sessions; 0 if no session
+}
 
 export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number): PerfRow[] {
   const included = emps.filter((e) => isTracked(e.category))
   const ids = new Set(included.map((e) => e.id))
 
-  const dayHours = new Map<string, Map<number, number>>()
-  for (const h of hours) {
-    if (!ids.has(h.employee)) continue
-    const day = localMidnight(h.date)
-    let m = dayHours.get(h.employee)
-    if (m === undefined) { m = new Map(); dayHours.set(h.employee, m) }
-    m.set(day, round2((m.get(day) ?? 0) + h.hours))
+  // Per-employee, per-day accumulator merging logged hours with that day's attendance.
+  const byEmp = new Map<string, Map<number, DayAcc>>()
+  const acc = (emp: string, day: number): DayAcc => {
+    let m = byEmp.get(emp)
+    if (m === undefined) { m = new Map(); byEmp.set(emp, m) }
+    let d = m.get(day)
+    if (d === undefined) { d = { hoursLogged: 0, latestEnd: 0 }; m.set(day, d) }
+    return d
   }
 
-  const lateDays = new Map<string, Set<number>>()
+  for (const hh of hours) {
+    if (!ids.has(hh.employee)) continue
+    const d = acc(hh.employee, localMidnight(hh.date))
+    d.hoursLogged = round2(d.hoursLogged + hh.hours)
+  }
+
   for (const a of atts) {
     if (!ids.has(a.employee)) continue
     const day = localMidnight(a.punchIn)
-    const end = a.punchOut ?? now
-    if (end > day + LATE_NIGHT_HOUR * HOUR_MS) {
-      let s = lateDays.get(a.employee)
-      if (s === undefined) { s = new Set(); lateDays.set(a.employee, s) }
-      s.add(day)
+    const d = acc(a.employee, day)
+    d.punchIn = d.punchIn === undefined ? a.punchIn : Math.min(d.punchIn, a.punchIn)
+    if (a.punchOut !== undefined) {
+      d.punchOut = d.punchOut === undefined ? a.punchOut : Math.max(d.punchOut, a.punchOut)
     }
+    const end = a.punchOut ?? now
+    if (end > d.latestEnd) d.latestEnd = end
   }
 
   const rows = included.map((e): PerfRow => {
-    const days = dayHours.get(e.id) ?? new Map<number, number>()
+    const dayMap = byEmp.get(e.id) ?? new Map<number, DayAcc>()
     let offDayDays = 0; let offDayHours = 0; let overtimeHours = 0; let overtimeDays = 0
-    for (const [day, hrs] of days) {
-      if (!isWorkingDay(day)) {
-        if (hrs > 0) { offDayDays++; offDayHours = round2(offDayHours + hrs) }
-      } else if (hrs > STD_HOURS) {
-        overtimeHours = round2(overtimeHours + (hrs - STD_HOURS)); overtimeDays++
+    const days: FlaggedDay[] = []
+
+    for (const [day, d] of dayMap) {
+      const working = isWorkingDay(day)
+      const offDay = !working && d.hoursLogged > 0
+      const ot = working && d.hoursLogged > STD_HOURS ? round2(d.hoursLogged - STD_HOURS) : 0
+      const lateNight = d.hoursLogged > STD_HOURS && d.latestEnd > day + LATE_NIGHT_HOUR * HOUR_MS
+
+      if (offDay) { offDayDays++; offDayHours = round2(offDayHours + d.hoursLogged) }
+      if (ot > 0) { overtimeHours = round2(overtimeHours + ot); overtimeDays++ }
+
+      if (offDay || ot > 0 || lateNight) {
+        days.push({
+          date: day,
+          offDay,
+          overtimeHours: ot,
+          lateNight,
+          hoursLogged: d.hoursLogged,
+          punchIn: d.punchIn,
+          punchOut: d.punchOut
+        })
       }
     }
+
+    days.sort((a, b) => b.date - a.date) // newest first
     return {
       employee: e.id, name: e.name, category: e.category as WorkProfileCategory,
       offDayDays, offDayHours, overtimeHours, overtimeDays,
-      lateNightDays: lateDays.get(e.id)?.size ?? 0,
-      totalExtraHours: round2(offDayHours + overtimeHours)
+      lateNightDays: days.filter((x) => x.lateNight).length,
+      totalExtraHours: round2(offDayHours + overtimeHours),
+      days
     }
   })
   return rows.sort((a, b) => b.totalExtraHours - a.totalExtraHours || a.name.localeCompare(b.name))
