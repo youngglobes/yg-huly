@@ -10,10 +10,10 @@ export interface PerfAtt { employee: string; punchIn: number; punchOut?: number 
 /** One flagged day in an employee's drill-down (only days that fired a signal are kept). */
 export interface FlaggedDay {
   date: number          // localMidnight (ms) of the day
-  offDay: boolean       // non-working day with hoursLogged > 0
-  overtimeHours: number // working day: max(0, hoursLogged - 8); 0 otherwise
-  lateNight: boolean    // hoursLogged > 8 AND a session that day ran past 22:00
-  hoursLogged: number   // summed logged hours that day
+  offDay: boolean       // non-working day with workedHours > 0
+  overtimeHours: number // working day: max(0, workedHours - 8); 0 otherwise
+  lateNight: boolean    // workedHours > 8 AND a session that day ran past 22:00
+  workedHours: number   // summed punch-session hours that day, or logged-hours fallback
   punchIn?: number      // earliest punch-in of the day (if any session)
   punchOut?: number     // latest punch-out of the day (undefined if none closed / no session)
 }
@@ -28,47 +28,53 @@ export interface PerfRow {
 
 const STD_HOURS = 8
 // Late-night threshold, local time. 22:00 (10 PM): tracked devs finish by ~8:30 PM, so work past
-// 9 PM is just minor overtime. Late-night ALSO requires > 8 production (logged) hours that day, so a
-// normal 8h day that merely ends late does not count - only genuine heavy work that ran late does.
+// 9 PM is minor overtime. Late-night ALSO requires > 8 worked hours that day.
 const LATE_NIGHT_HOUR = 22
 const HOUR_MS = 3_600_000
 
 interface DayAcc {
-  hoursLogged: number
-  punchIn?: number  // earliest in
-  punchOut?: number // latest closed out
-  latestEnd: number // max(punchOut ?? now) across the day's sessions; 0 if no session
+  loggedHours: number // summed HrTimeEntry hours (fallback source when no punch)
+  sessionMs: number   // summed punch-session durations (primary source when hasSession)
+  hasSession: boolean
+  punchIn?: number    // earliest in
+  punchOut?: number   // latest closed out
+  latestEnd: number   // max sessionEnd across the day's sessions; 0 if no session
 }
 
 export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number): PerfRow[] {
   const included = emps.filter((e) => isTracked(e.category))
   const ids = new Set(included.map((e) => e.id))
+  const todayMid = localMidnight(now)
 
-  // Per-employee, per-day accumulator merging logged hours with that day's attendance.
+  // Per-employee, per-day accumulator merging logged hours with that day's punch sessions.
   const byEmp = new Map<string, Map<number, DayAcc>>()
   const acc = (emp: string, day: number): DayAcc => {
     let m = byEmp.get(emp)
     if (m === undefined) { m = new Map(); byEmp.set(emp, m) }
     let d = m.get(day)
-    if (d === undefined) { d = { hoursLogged: 0, latestEnd: 0 }; m.set(day, d) }
+    if (d === undefined) { d = { loggedHours: 0, sessionMs: 0, hasSession: false, latestEnd: 0 }; m.set(day, d) }
     return d
   }
 
   for (const hh of hours) {
     if (!ids.has(hh.employee)) continue
     const d = acc(hh.employee, localMidnight(hh.date))
-    d.hoursLogged = round2(d.hoursLogged + hh.hours)
+    d.loggedHours = round2(d.loggedHours + hh.hours)
   }
 
   for (const a of atts) {
     if (!ids.has(a.employee)) continue
     const day = localMidnight(a.punchIn)
     const d = acc(a.employee, day)
+    d.hasSession = true
     d.punchIn = d.punchIn === undefined ? a.punchIn : Math.min(d.punchIn, a.punchIn)
     if (a.punchOut !== undefined) {
       d.punchOut = d.punchOut === undefined ? a.punchOut : Math.max(d.punchOut, a.punchOut)
     }
-    const end = a.punchOut ?? now
+    // Open session: count to `now` only when punched in today; a past open session (forgotten
+    // punch-out) ends at punchIn (0 duration) rather than a runaway now - punchIn.
+    const end = a.punchOut ?? (day === todayMid ? now : a.punchIn)
+    d.sessionMs += Math.max(0, end - a.punchIn)
     if (end > d.latestEnd) d.latestEnd = end
   }
 
@@ -78,12 +84,15 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
     const days: FlaggedDay[] = []
 
     for (const [day, d] of dayMap) {
+      // Worked hours = summed punch sessions when the day has punch data (excludes break gaps),
+      // else the self-logged timesheet hours (fallback for pre-attendance history).
+      const workedHours = d.hasSession ? round2(d.sessionMs / HOUR_MS) : d.loggedHours
       const working = isWorkingDay(day)
-      const offDay = !working && d.hoursLogged > 0
-      const ot = working && d.hoursLogged > STD_HOURS ? round2(d.hoursLogged - STD_HOURS) : 0
-      const lateNight = d.hoursLogged > STD_HOURS && d.latestEnd > day + LATE_NIGHT_HOUR * HOUR_MS
+      const offDay = !working && workedHours > 0
+      const ot = working && workedHours > STD_HOURS ? round2(workedHours - STD_HOURS) : 0
+      const lateNight = workedHours > STD_HOURS && d.latestEnd > day + LATE_NIGHT_HOUR * HOUR_MS
 
-      if (offDay) { offDayDays++; offDayHours = round2(offDayHours + d.hoursLogged) }
+      if (offDay) { offDayDays++; offDayHours = round2(offDayHours + workedHours) }
       if (ot > 0) { overtimeHours = round2(overtimeHours + ot); overtimeDays++ }
 
       if (offDay || ot > 0 || lateNight) {
@@ -92,7 +101,7 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
           offDay,
           overtimeHours: ot,
           lateNight,
-          hoursLogged: d.hoursLogged,
+          workedHours,
           punchIn: d.punchIn,
           punchOut: d.punchOut
         })

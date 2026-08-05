@@ -185,7 +185,7 @@
                 {#if d.lateNight}<span class="perf-chip perf-chip--late">Late</span>{/if}
               </div>
               <div class="perf-day__meta">
-                {#if d.hoursLogged > 0}<span class="perf-day__hrs">{formatHours(d.hoursLogged)}</span>{/if}
+                {#if d.workedHours > 0}<span class="perf-day__hrs">{formatHours(d.workedHours)}</span>{/if}
                 {#if d.punchIn !== undefined}<span class="perf-day__punch">{fmtPunch(d.punchIn, d.punchOut)}</span>{/if}
               </div>
             </div>
