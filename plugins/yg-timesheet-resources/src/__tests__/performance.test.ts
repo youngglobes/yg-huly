@@ -85,6 +85,38 @@ describe('performanceRows', () => {
     expect(sun.punchOut).toBeUndefined()
   })
 
+  it('merges multiple sessions per day (earliest in / latest out) and handles cross-midnight', () => {
+    const hours: PerfHours[] = [
+      { employee: 'e1', hours: 11, date: D(2026, 7, 3) } // Mon: 11h logged (>8, so late-night can fire)
+    ]
+    const atts: PerfAtt[] = [
+      { employee: 'e1', punchIn: D(2026, 7, 3, 9), punchOut: D(2026, 7, 3, 13) },   // morning session
+      { employee: 'e1', punchIn: D(2026, 7, 3, 20), punchOut: D(2026, 7, 4, 0) + 30 * 60_000 } // 8pm -> 12:30am cross-midnight
+    ]
+    const r = performanceRows(emps, hours, atts, NOW).find((x) => x.employee === 'e1')!
+    const mon = r.days.find((d) => d.date === D(2026, 7, 3, 0))!
+    expect(mon.punchIn).toBe(D(2026, 7, 3, 9))                       // earliest in across both sessions
+    expect(mon.punchOut).toBe(D(2026, 7, 4, 0) + 30 * 60_000)        // latest out (past midnight)
+    expect(mon.lateNight).toBe(true)                                 // 11h logged + a session past 22:00
+    expect(r.lateNightDays).toBe(1)
+  })
+
+  it('open session (no punchOut) with now past 22:00 and >8h logged counts as late-night', () => {
+    const hours: PerfHours[] = [
+      { employee: 'e1', hours: 9, date: D(2026, 7, 3) } // Mon: 9h logged (>8)
+    ]
+    const atts: PerfAtt[] = [
+      { employee: 'e1', punchIn: D(2026, 7, 3, 20) } // 8pm, no punchOut, now=12:00 next day (past 22:00 check uses now)
+    ]
+    // NOW = D(2026, 7, 4, 12) = Aug 4 12pm, so latestEnd for Aug 3 session = NOW = past 22:00 threshold
+    const r = performanceRows(emps, hours, atts, NOW).find((x) => x.employee === 'e1')!
+    const mon = r.days.find((d) => d.date === D(2026, 7, 3, 0))!
+    expect(mon.punchIn).toBe(D(2026, 7, 3, 20))        // earliest (only) in
+    expect(mon.punchOut).toBeUndefined()               // no closed out
+    expect(mon.lateNight).toBe(true)                  // 9h logged + session's latestEnd (now) past 22:00
+    expect(r.lateNightDays).toBe(1)
+  })
+
   it('sorts by totalExtraHours desc then name', () => {
     const hours: PerfHours[] = [
       { employee: 'e1', hours: 10, date: D(2026, 7, 3) }, // 2h OT
