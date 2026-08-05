@@ -26,13 +26,17 @@
     SelectPopup,
     TooltipAlignment,
     eventToHTMLElement,
-    showPopup
+    showPopup,
+    addNotification,
+    NotificationSeverity
   } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
   import { Analytics } from '@hcengineering/analytics'
   import { createEventDispatcher } from 'svelte'
 
   import tracker from '../../plugin'
+  import task from '@hcengineering/task'
+  import EstimateBlockedNotification from './EstimateBlockedNotification.svelte'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
   import StatusPresenter from './StatusPresenter.svelte'
 
@@ -61,6 +65,23 @@
   const changeStatus = async (newStatus: Ref<IssueStatus> | undefined, refocus: boolean = true) => {
     if (!isEditable || newStatus == null || value.status === newStatus) {
       return
+    }
+
+    // Estimate gate (backlog #1): fast-fail the common path so an un-estimated issue never even
+    // dispatches a change, instead of round-tripping through the server guard's revert. Mirrors
+    // estimateRequiredToActivate (server-plugins/yg-timesheet-resources/src/estimate-gate.ts).
+    if ('_class' in value) {
+      const newCategory = $statusStore.byId.get(newStatus)?.category
+      if (newCategory === task.statusCategory.Active && (value.estimation ?? 0) <= 0) {
+        addNotification(
+          'Set an estimate first',
+          `Add an estimate to ${value.identifier} before moving it to a started status.`,
+          EstimateBlockedNotification,
+          undefined,
+          NotificationSeverity.Error
+        )
+        return
+      }
     }
 
     dispatch('change', newStatus)
