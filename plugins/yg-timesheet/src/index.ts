@@ -364,7 +364,8 @@ export default plugin(ygTimesheetId, {
     Holidays: '' as IntlString,
     AddHoliday: '' as IntlString,
     HolidayName: '' as IntlString,
-    RemoveHoliday: '' as IntlString
+    RemoveHoliday: '' as IntlString,
+    EmptyHolidays: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

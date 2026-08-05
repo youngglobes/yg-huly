@@ -3,9 +3,9 @@
   // Small popup for a clicked calendar day: add a holiday (name it) or remove the existing one.
   //
   import { getClient } from '@hcengineering/presentation'
-  import { EditBox, Button, Label } from '@hcengineering/ui'
+  import { EditBox, Button } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
-  import core, { type Ref } from '@hcengineering/core'
+  import core from '@hcengineering/core'
   import ygTimesheet, { type Holiday } from '@hcengineering/yg-timesheet'
 
   export let date: number            // local midnight ms of the clicked day

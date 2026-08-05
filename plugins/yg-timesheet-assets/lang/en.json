@@ -175,6 +175,7 @@
     "Holidays": "Holidays",
     "AddHoliday": "Add holiday",
     "HolidayName": "Holiday name",
-    "RemoveHoliday": "Remove"
+    "RemoveHoliday": "Remove",
+    "EmptyHolidays": "No holidays yet. Click a day to add one."
   }
 }

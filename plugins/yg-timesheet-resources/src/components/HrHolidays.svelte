@@ -43,6 +43,8 @@
         <span class="hol-month">{monthFmt.format(current)}</span>
         <button class="yg-btn yg-btn--ghost" on:click={() => shiftMonth(1)}>{'>'}</button>
       </div>
+      <!-- MonthCalendar's own cell click bubbles up as `change`; we handle day clicks on the inner
+           .hol-cell instead, so on:change here is intentionally a no-op. -->
       <MonthCalendar currentDate={current} selectedDate={current} on:change={() => {}}>
         <svelte:fragment slot="cell" let:date let:today let:wrongMonth>
           {@const h = byDay.get(midOf(date))}
@@ -63,7 +65,7 @@
           <span class="hol-item__name">{h.name}</span>
         </div>
       {:else}
-        <div class="hol-empty">No holidays yet. Click a day to add one.</div>
+        <div class="hol-empty"><Label label={ygTimesheet.string.EmptyHolidays} /></div>
       {/each}
     </div>
   </div>
