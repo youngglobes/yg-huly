@@ -15,7 +15,7 @@
 <script lang="ts">
   import { AttachedData, Ref, WithLookup } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import { getTaskTypeStates } from '@hcengineering/task'
+  import task, { getTaskTypeStates } from '@hcengineering/task'
   import { taskTypeStore } from '@hcengineering/task-resources'
   import { Issue, IssueDraft, IssueStatus, Project, TrackerEvents } from '@hcengineering/tracker'
   import {
@@ -35,7 +35,6 @@
   import { createEventDispatcher } from 'svelte'
 
   import tracker from '../../plugin'
-  import task from '@hcengineering/task'
   import EstimateBlockedNotification from './EstimateBlockedNotification.svelte'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
   import StatusPresenter from './StatusPresenter.svelte'
