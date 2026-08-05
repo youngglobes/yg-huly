@@ -32,7 +32,10 @@
     // of tracker, so this uses a structural `estimation` check rather than a tracker.class.Issue ref.
     const cat = $statusStore.byId.get(newStatus)?.category
     const blocked = (d: Task): boolean =>
-      cat === task.statusCategory.Active && 'estimation' in d && ((d as any).estimation ?? 0) <= 0
+      d.status !== newStatus &&
+      cat === task.statusCategory.Active &&
+      'estimation' in d &&
+      ((d as any).estimation ?? 0) <= 0
     const blockedDocs = docs.filter(blocked)
     if (blockedDocs.length > 0) {
       const ids = blockedDocs
@@ -41,8 +44,8 @@
       addNotification(
         'Set an estimate first',
         ids.length > 0
-          ? `Add an estimate to ${ids.join(', ')} before moving to a started status.`
-          : 'Add an estimate before moving to a started status.',
+          ? `Add an estimate to ${ids.join(', ')} before moving it to a started status.`
+          : 'Add an estimate before moving it to a started status.',
         EstimateBlockedToast,
         undefined,
         NotificationSeverity.Error
