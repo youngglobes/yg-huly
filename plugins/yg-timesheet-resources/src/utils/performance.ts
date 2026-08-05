@@ -41,7 +41,7 @@ interface DayAcc {
   latestEnd: number   // max sessionEnd across the day's sessions; 0 if no session
 }
 
-export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number): PerfRow[] {
+export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number, holidays?: ReadonlySet<number>): PerfRow[] {
   const included = emps.filter((e) => isTracked(e.category))
   const ids = new Set(included.map((e) => e.id))
   const todayMid = localMidnight(now)
@@ -89,7 +89,7 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
       // punch sessions sum to 0 (all past-open / forgotten punch-out) falls back to logged hours
       // rather than reading 0.
       const workedHours = d.hasSession && d.sessionMs > 0 ? round2(d.sessionMs / HOUR_MS) : d.loggedHours
-      const working = isWorkingDay(day)
+      const working = isWorkingDay(day, holidays)
       const offDay = !working && workedHours > 0
       const ot = working && workedHours > STD_HOURS ? round2(workedHours - STD_HOURS) : 0
       const lateNight = workedHours > STD_HOURS && d.latestEnd > day + LATE_NIGHT_HOUR * HOUR_MS

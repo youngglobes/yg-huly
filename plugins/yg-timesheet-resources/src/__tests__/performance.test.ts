@@ -156,4 +156,14 @@ describe('performanceRows', () => {
     ]
     expect(performanceRows(emps, hours, [], NOW).map((r) => r.employee)).toEqual(['e2', 'e1'])
   })
+
+  it('a holiday makes a working day count as off-day effort (not overtime)', () => {
+    const hours: PerfHours[] = [{ employee: 'e2', hours: 10, date: D(2026, 7, 3) }] // Mon, 10h logged
+    const holidays = new Set<number>([new Date(2026, 7, 3).getTime()])              // Aug 3 is a holiday
+    const r = performanceRows(emps, hours, [], NOW, holidays).find((x) => x.employee === 'e2')!
+    expect(r.offDayDays).toBe(1)        // holiday -> non-working -> off-day
+    expect(r.offDayHours).toBe(10)
+    expect(r.overtimeHours).toBe(0)     // not overtime (it is not a working day)
+    expect(r.days[0].offDay).toBe(true)
+  })
 })

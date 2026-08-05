@@ -108,6 +108,14 @@ describe('isWorkingDay', () => {
     expect(isWorkingDay(D(2026, 7, 8))).toBe(false)  // 2nd Sat
     expect(isWorkingDay(D(2026, 7, 15))).toBe(true)  // 3rd Sat
   })
+  it('treats a holiday as a non-working day (keyed by local midnight)', () => {
+    const mon = D(2026, 7, 3)                      // Mon = normally working
+    const holidays = new Set<number>([new Date(2026, 7, 3).getTime()]) // Aug 3 local midnight
+    expect(isWorkingDay(mon)).toBe(true)           // no set -> unchanged
+    expect(isWorkingDay(mon, holidays)).toBe(false) // holiday -> off
+    expect(isWorkingDay(D(2026, 7, 3, 15), holidays)).toBe(false) // any time that day matches
+    expect(isWorkingDay(D(2026, 7, 4), holidays)).toBe(true)  // a different day is unaffected
+  })
 })
 
 describe('lastWorkingDay (excludes today)', () => {
