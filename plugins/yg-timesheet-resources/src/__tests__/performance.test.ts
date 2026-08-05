@@ -43,15 +43,16 @@ describe('performanceRows', () => {
     expect(r.totalExtraHours).toBe(16) // 12 off-day + 4 OT
   })
 
-  it('late-night = distinct days with a session past 21:00 (incl. cross-midnight + open)', () => {
+  it('late-night = distinct days with a session past 22:00 (incl. cross-midnight + open)', () => {
     const atts: PerfAtt[] = [
-      { employee: 'e1', punchIn: D(2026, 7, 3, 14), punchOut: D(2026, 7, 3, 22) },      // past 21:00
-      { employee: 'e1', punchIn: D(2026, 7, 3, 9), punchOut: D(2026, 7, 3, 17) },        // same day, not late -> still 1 day
-      { employee: 'e1', punchIn: D(2026, 7, 1, 20), punchOut: D(2026, 7, 2, 1) },        // 8pm -> 1am cross-midnight -> late on Aug 1
-      { employee: 'e1', punchIn: D(2026, 7, 4, 19) }                                     // open, now=12:00 same day -> NOT past 21:00
+      { employee: 'e1', punchIn: D(2026, 7, 3, 14), punchOut: D(2026, 7, 3, 23) },        // out 11pm -> past 22:00 -> late (Aug 3)
+      { employee: 'e1', punchIn: D(2026, 7, 3, 9), punchOut: D(2026, 7, 3, 17) },         // same day, not late -> still 1 day
+      { employee: 'e1', punchIn: D(2026, 7, 6, 13), punchOut: D(2026, 7, 6, 21) + 30 * 60_000 }, // out 9:30pm -> past 21:00 but NOT 22:00 -> NOT late
+      { employee: 'e1', punchIn: D(2026, 7, 1, 20), punchOut: D(2026, 7, 2, 1) },         // 8pm -> 1am cross-midnight -> late on Aug 1
+      { employee: 'e1', punchIn: D(2026, 7, 4, 19) }                                      // open, now=12:00 same day -> NOT past 22:00
     ]
     const r = performanceRows(emps, [], atts, NOW).find((x) => x.employee === 'e1')!
-    expect(r.lateNightDays).toBe(2) // Aug 3 + Aug 1
+    expect(r.lateNightDays).toBe(2) // Aug 3 (11pm) + Aug 1 (cross-midnight); Aug 6 excluded (out 9:30pm)
   })
 
   it('sorts by totalExtraHours desc then name', () => {

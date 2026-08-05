@@ -14,7 +14,10 @@ export interface PerfRow {
 }
 
 const STD_HOURS = 8
-const LATE_NIGHT_HOUR = 21
+// Late-night threshold, local time. 22:00 (10 PM): tracked devs finish by ~8:30 PM, so work past
+// 9 PM is just minor overtime - only past 10 PM counts as genuine late-night effort. This also
+// keeps a normal 8h day that merely ends late (started late, wrapped up 8:30-9 PM) out of the count.
+const LATE_NIGHT_HOUR = 22
 const HOUR_MS = 3_600_000
 
 export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number): PerfRow[] {
