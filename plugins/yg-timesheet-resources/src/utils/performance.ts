@@ -85,8 +85,10 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
 
     for (const [day, d] of dayMap) {
       // Worked hours = summed punch sessions when the day has punch data (excludes break gaps),
-      // else the self-logged timesheet hours (fallback for pre-attendance history).
-      const workedHours = d.hasSession ? round2(d.sessionMs / HOUR_MS) : d.loggedHours
+      // else the self-logged timesheet hours (fallback for pre-attendance history). A day whose
+      // punch sessions sum to 0 (all past-open / forgotten punch-out) falls back to logged hours
+      // rather than reading 0.
+      const workedHours = d.hasSession && d.sessionMs > 0 ? round2(d.sessionMs / HOUR_MS) : d.loggedHours
       const working = isWorkingDay(day)
       const offDay = !working && workedHours > 0
       const ot = working && workedHours > STD_HOURS ? round2(workedHours - STD_HOURS) : 0

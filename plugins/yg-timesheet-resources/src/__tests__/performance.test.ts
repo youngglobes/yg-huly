@@ -89,6 +89,15 @@ describe('performanceRows', () => {
     expect(r.days[0].lateNight).toBe(false) // latestEnd = now (12:00) is not past 22:00
   })
 
+  it('a past-open-only day with logged hours falls back to logged (not zeroed)', () => {
+    const hours: PerfHours[] = [{ employee: 'e1', hours: 9, date: D(2026, 7, 1) }] // Aug 1 (odd Sat, working)
+    const atts: PerfAtt[] = [{ employee: 'e1', punchIn: D(2026, 7, 1, 9) }] // past open (Aug 1 != today Aug 4) -> 0h session
+    const r = performanceRows(emps, hours, atts, NOW).find((x) => x.employee === 'e1')!
+    const d = r.days.find((x) => x.date === D(2026, 7, 1, 0))!
+    expect(d.workedHours).toBe(9)      // fell back to logged, not 0
+    expect(d.overtimeHours).toBe(1)    // 9 - 8
+  })
+
   it('late-night = summed sessions > 8 AND a session past 22:00 (both gates)', () => {
     const atts: PerfAtt[] = [
       { employee: 'e1', punchIn: D(2026, 7, 3, 13), punchOut: D(2026, 7, 3, 23) }, // 10h, out 23:00 -> LATE
