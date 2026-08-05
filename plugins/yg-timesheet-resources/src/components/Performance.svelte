@@ -86,8 +86,14 @@
   )
   $: atts = attDocs.map((d): PerfAtt => ({ employee: d.employee, punchIn: d.punchIn, punchOut: d.punchOut }))
 
+  // Holidays - no date filter, load all holidays to apply to any date range.
+  const holQuery = createQuery()
+  let holidayDates: number[] = []
+  holQuery.query(ygTimesheet.class.Holiday, {}, (res) => { holidayDates = res.map((h) => h.date) })
+  $: holidays = new Set<number>(holidayDates)
+
   $: now = Date.now()
-  $: rows = performanceRows(emps, hours, atts, now)
+  $: rows = performanceRows(emps, hours, atts, now, holidays)
 
   // Drill-down: the row whose flagged days are shown in the slide-in panel. Tracked by id so it
   // survives a rows recompute (date-range change) and auto-closes if the person drops out.
