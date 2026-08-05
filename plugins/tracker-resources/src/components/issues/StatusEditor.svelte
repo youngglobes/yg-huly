@@ -15,7 +15,7 @@
 <script lang="ts">
   import { AttachedData, Ref, WithLookup } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
-  import task, { getTaskTypeStates } from '@hcengineering/task'
+  import { getTaskTypeStates } from '@hcengineering/task'
   import { taskTypeStore } from '@hcengineering/task-resources'
   import { Issue, IssueDraft, IssueStatus, Project, TrackerEvents } from '@hcengineering/tracker'
   import {
@@ -36,6 +36,7 @@
 
   import tracker from '../../plugin'
   import EstimateBlockedNotification from './EstimateBlockedNotification.svelte'
+  import { estimateBlocksActivation } from './estimateGate'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
   import StatusPresenter from './StatusPresenter.svelte'
 
@@ -67,20 +68,17 @@
     }
 
     // Estimate gate (backlog #1): fast-fail the common path so an un-estimated issue never even
-    // dispatches a change, instead of round-tripping through the server guard's revert. Mirrors
-    // estimateRequiredToActivate (server-plugins/yg-timesheet-resources/src/estimate-gate.ts).
-    if ('_class' in value) {
-      const newCategory = $statusStore.byId.get(newStatus)?.category
-      if (newCategory === task.statusCategory.Active && (value.estimation ?? 0) <= 0) {
-        addNotification(
-          'Set an estimate first',
-          `Add an estimate to ${value.identifier} before moving it to a started status.`,
-          EstimateBlockedNotification,
-          undefined,
-          NotificationSeverity.Error
-        )
-        return
-      }
+    // dispatches a change, instead of round-tripping through the server guard's revert. Shared with
+    // the Kanban drag path via estimateGate.ts (mirrors the server guard).
+    if ('_class' in value && estimateBlocksActivation(newStatus, value.estimation, $statusStore.byId)) {
+      addNotification(
+        'Set an estimate first',
+        `Add an estimate to ${value.identifier} before moving it to a started status.`,
+        EstimateBlockedNotification,
+        undefined,
+        NotificationSeverity.Error
+      )
+      return
     }
 
     dispatch('change', newStatus)
