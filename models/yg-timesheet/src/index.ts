@@ -32,6 +32,7 @@ import ygTimesheet, {
   type AttendanceReminderSettings,
   type AttendanceSession,
   type DayStatus,
+  type Holiday,
   type HrTimeEntry,
   type ProjectApprovers,
   type TaskStatus,
@@ -163,8 +164,14 @@ export class TAttendanceReminderSettings extends TDoc implements AttendanceRemin
   @Prop(TypeNumber(), core.string.Object) punchOutIdleMin!: number
 }
 
+@Model(ygTimesheet.class.Holiday, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class THoliday extends TDoc implements Holiday {
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeString(), core.string.Object) name!: string
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.
@@ -306,6 +313,14 @@ export function createModel (builder: Builder): void {
             label: ygTimesheet.string.Performance,
             icon: ygTimesheet.icon.Timesheet,
             component: ygTimesheet.component.Performance,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'holidays',
+            label: ygTimesheet.string.Holidays,
+            icon: ygTimesheet.icon.Timesheet,
+            component: ygTimesheet.component.HrHolidays,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
           },

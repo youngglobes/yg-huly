@@ -171,6 +171,10 @@
     "CatSeniorDev": "Senior developer",
     "CatSales": "Sales",
     "CatSalesforce": "Salesforce",
-    "CatOther": "Other"
+    "CatOther": "Other",
+    "Holidays": "Holidays",
+    "AddHoliday": "Add holiday",
+    "HolidayName": "Holiday name",
+    "RemoveHoliday": "Remove"
   }
 }

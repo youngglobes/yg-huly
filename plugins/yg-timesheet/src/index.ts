@@ -119,6 +119,12 @@ export interface AttendanceSession extends Doc {
   punchOutNote?: string // optional note captured at punch-out
 }
 
+/** An org-wide holiday (one per day). Non-working everywhere via isWorkingDay. */
+export interface Holiday extends Doc {
+  date: Timestamp // local midnight (ms) of the holiday day
+  name: string    // e.g. "Diwali"
+}
+
 /** Org-wide punch-reminder settings. Singleton (zero or one doc); code falls back to defaults when absent. */
 export interface AttendanceReminderSettings extends Doc {
   enabled: boolean
@@ -140,7 +146,8 @@ export default plugin(ygTimesheetId, {
     TimesheetApproval: '' as Ref<Class<TimesheetApproval>>,
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>,
     AttendanceSession: '' as Ref<Class<AttendanceSession>>,
-    AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>
+    AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>,
+    Holiday: '' as Ref<Class<Holiday>>
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>,
@@ -176,7 +183,8 @@ export default plugin(ygTimesheetId, {
     AttendanceReminderSettings: '' as AnyComponent,
     DashboardHome: '' as AnyComponent,
     WorkProfileEditor: '' as AnyComponent,
-    Performance: '' as AnyComponent
+    Performance: '' as AnyComponent,
+    HrHolidays: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -352,7 +360,11 @@ export default plugin(ygTimesheetId, {
     CatSeniorDev: '' as IntlString,
     CatSales: '' as IntlString,
     CatSalesforce: '' as IntlString,
-    CatOther: '' as IntlString
+    CatOther: '' as IntlString,
+    Holidays: '' as IntlString,
+    AddHoliday: '' as IntlString,
+    HolidayName: '' as IntlString,
+    RemoveHoliday: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

@@ -25,6 +25,7 @@ import AttendanceReminderSettings from './components/AttendanceReminderSettings.
 import AttendanceReminder from './components/AttendanceReminder.svelte'
 import WorkProfileEditor from './components/WorkProfileEditor.svelte'
 import Performance from './components/Performance.svelte'
+import HrHolidays from './components/HrHolidays.svelte'
 
 async function CanApprove (_spaces: Space[]): Promise<boolean> {
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -100,7 +101,8 @@ export default async (): Promise<Resources> => ({
     AttendanceReminderSettings,
     AttendanceReminder,
     WorkProfileEditor,
-    Performance
+    Performance,
+    HrHolidays
   },
   function: { CanApprove, TimesheetDayTitle: timesheetDayTitle },
   resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }
