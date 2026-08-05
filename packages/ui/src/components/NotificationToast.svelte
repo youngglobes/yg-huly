@@ -44,7 +44,7 @@
 </script>
 
 <div
-  class="notifyPopup"
+  class="toastCard"
   class:sev-success={severity === NotificationSeverity.Success}
   class:sev-error={severity === NotificationSeverity.Error}
   class:sev-info={severity === NotificationSeverity.Info}
@@ -83,7 +83,7 @@
 </div>
 
 <style lang="scss">
-  .notifyPopup {
+  .toastCard {
     --toast-accent: var(--theme-popup-divider);
     position: relative;
     overflow: hidden;
