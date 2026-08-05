@@ -89,6 +89,18 @@
   $: now = Date.now()
   $: rows = performanceRows(emps, hours, atts, now)
 
+  // Drill-down: the row whose flagged days are shown in the slide-in panel. Tracked by id so it
+  // survives a rows recompute (date-range change) and auto-closes if the person drops out.
+  let selectedId: string | undefined
+  $: selected = selectedId !== undefined ? rows.find((r) => r.employee === selectedId) : undefined
+
+  const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
+  const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+  function fmtPunch (inMs: number | undefined, outMs: number | undefined): string {
+    if (inMs === undefined) return ''
+    return outMs === undefined ? `${timeFmt.format(inMs)} -> ...` : `${timeFmt.format(inMs)} -> ${timeFmt.format(outMs)}`
+  }
+
   let exporting = false
   async function doExport (): Promise<void> {
     exporting = true
@@ -134,7 +146,7 @@
       </thead>
       <tbody>
         {#each rows as r (r.employee)}
-          <tr class="yg-row">
+          <tr class="yg-row perf-clickable" class:is-sel={r.employee === selectedId} on:click={() => (selectedId = r.employee)}>
             <td class="left bold">{r.name}</td>
             <td class="left"><Label label={CAT_STRING[r.category]} /></td>
             <td class="yg-num">{r.offDayDays}</td>
@@ -150,6 +162,38 @@
       </tbody>
     </table>
   </div>
+
+  {#if selected}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="perf-backdrop" on:click={() => (selectedId = undefined)} />
+    <aside class="perf-panel">
+      <div class="perf-panel__head">
+        <span class="perf-panel__name">{selected.name}</span>
+        <button class="perf-panel__close" aria-label="Close" on:click={() => (selectedId = undefined)}>x</button>
+      </div>
+      {#if selected.days.length === 0}
+        <div class="perf-panel__empty">No off-day, overtime, or late-night days in this range.</div>
+      {:else}
+        <div class="perf-panel__list">
+          {#each selected.days as d (d.date)}
+            <div class="perf-day">
+              <div class="perf-day__date">{dayFmt.format(d.date)}</div>
+              <div class="perf-day__chips">
+                {#if d.offDay}<span class="perf-chip perf-chip--off">Off-day</span>{/if}
+                {#if d.overtimeHours > 0}<span class="perf-chip perf-chip--ot">OT +{formatHours(d.overtimeHours)}</span>{/if}
+                {#if d.lateNight}<span class="perf-chip perf-chip--late">Late</span>{/if}
+              </div>
+              <div class="perf-day__meta">
+                {#if d.hoursLogged > 0}<span class="perf-day__hrs">{formatHours(d.hoursLogged)}</span>{/if}
+                {#if d.punchIn !== undefined}<span class="perf-day__punch">{fmtPunch(d.punchIn, d.punchOut)}</span>{/if}
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </aside>
+  {/if}
 </div>
 
 <style lang="scss">
@@ -159,4 +203,41 @@
   .dash { flex: 1; min-width: 0; }
   .perf-range { display: inline-flex; align-items: center; gap: 8px; }
   .perf-range__sep { color: var(--yg-text-faint); }
+
+  .perf-clickable { cursor: pointer; }
+  .perf-clickable.is-sel { background: var(--yg-panel-soft); }
+
+  .perf-backdrop {
+    position: fixed; inset: 0; z-index: 40; background: rgba(0, 0, 0, 0.18);
+  }
+  .perf-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 41; width: 360px; max-width: 92vw;
+    display: flex; flex-direction: column;
+    background: var(--yg-panel); border-left: 1px solid var(--yg-border); box-shadow: var(--yg-shadow);
+    overflow: hidden;
+  }
+  .perf-panel__head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 16px; border-bottom: 1px solid var(--yg-border);
+  }
+  .perf-panel__name { font-weight: 660; font-size: 15px; color: var(--yg-text); flex: 1; }
+  .perf-panel__close {
+    border: 1px solid var(--yg-border); background: var(--yg-panel); color: var(--yg-text-dim);
+    width: 26px; height: 26px; border-radius: 7px; cursor: pointer; line-height: 1;
+  }
+  .perf-panel__close:hover { color: var(--yg-text); }
+  .perf-panel__empty { padding: 18px 16px; color: var(--yg-text-faint); font-size: 13px; }
+  .perf-panel__list { overflow: auto; padding: 8px 0; }
+
+  .perf-day { padding: 10px 16px; border-bottom: 1px solid var(--yg-border); }
+  .perf-day__date { font-weight: 600; font-size: 13px; color: var(--yg-text); }
+  .perf-day__chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+  .perf-chip {
+    font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
+    border: 1px solid var(--yg-border); color: var(--yg-text-dim);
+  }
+  .perf-chip--off { background: var(--yg-amber-bg, transparent); }
+  .perf-chip--ot { background: var(--yg-panel-soft); }
+  .perf-chip--late { background: var(--yg-red-bg, transparent); color: var(--yg-text); }
+  .perf-day__meta { display: flex; gap: 12px; font-size: 12px; color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
 </style>
