@@ -3,8 +3,7 @@
 // (OnIssueEstimateGate) and the StatusEditor client pre-check: an issue may not move into a
 // started (Active-category) status without a positive estimate.
 //
-import { type Ref } from '@hcengineering/core'
-import { type StatusCategory } from '@hcengineering/task'
+import { type Ref, type StatusCategory } from '@hcengineering/core'
 
 /**
  * True when moving an issue into `newCategory` must be blocked for lack of an estimate: the target
