@@ -25,7 +25,6 @@
     localMidnight,
     findOpenSession,
     dailyTotal,
-    nextMode,
     dayStats,
     buildDayTimeline,
     formatDuration
@@ -76,18 +75,9 @@
   $: todayTotal = dailyTotal(todays, nowMs)
   $: stats = dayStats(todays, nowMs)
 
-  // The Office/WFH selection for the NEXT punch-in. Seeded from today's most recent session's
-  // mode (else office), sticky within the day. Re-seed only when the day rolls over or a punch
-  // closes - not on every tick - so a manual toggle is not clobbered each second.
-  let mode: AttendanceMode = 'office'
-  let modeSeedKey = ''
-  $: {
-    const seed = `${todayMid}:${todays.length}:${punchedIn}`
-    if (seed !== modeSeedKey) {
-      modeSeedKey = seed
-      if (!punchedIn) mode = nextMode(todays)
-    }
-  }
+  // Office/WFH must be chosen explicitly for EVERY punch-in (no sticky default). Starts unset; the
+  // Punch In button is disabled until one is picked, and it resets after each punch-out.
+  let mode: AttendanceMode | undefined = undefined
 
   // Punch reminders are strictly opt-in and per-browser: turning them on asks for the Notification
   // and Idle Detection permissions and registers the service worker that makes the notification
@@ -131,10 +121,12 @@
 
   async function punchIn (): Promise<void> {
     if (punchedIn || busy) return
+    const m = mode
+    if (m === undefined) return // must pick Office or WFH first
     busy = true
     pending = 'in'
     try {
-      await createPunchIn(client, me, mode, note)
+      await createPunchIn(client, me, m, note)
       note = ''
       // keep `busy` until openSession appears (released reactively below)
     } catch (err) {
@@ -161,7 +153,7 @@
   // Release the lock only once the live query is consistent with the write: an open session present
   // after a punch-in, or gone after a punch-out. This closes the query-lag window entirely.
   $: if (busy && pending === 'in' && openSession !== undefined) { busy = false; pending = null }
-  $: if (busy && pending === 'out' && openSession === undefined) { busy = false; pending = null }
+  $: if (busy && pending === 'out' && openSession === undefined) { busy = false; pending = null; mode = undefined }
 
   // The day log: one browsable full-width view. A native <input type="date"> (yyyy-mm-dd) picks the
   // day, defaulting to today; the timeline and the table below both follow it.
@@ -216,7 +208,7 @@
             {#if busy && pending === 'out'}<span class="att-cta__spin" />Punching out…{:else}<Label label={ygTimesheet.string.PunchOut} />{/if}
           </button>
         {:else}
-          <button class="att-cta att-cta--in" on:click={punchIn} disabled={busy}>
+          <button class="att-cta att-cta--in" on:click={punchIn} disabled={busy || mode === undefined}>
             {#if busy && pending === 'in'}<span class="att-cta__spin" />Punching in…{:else}<Label label={ygTimesheet.string.PunchIn} />{/if}
           </button>
         {/if}
