@@ -43,7 +43,8 @@ import ygTimesheet, {
   type TimesheetRejectCycle,
   type TimesheetTask,
   type WorkProfile,
-  type WorkDesignation
+  type WorkDesignation,
+  type WorkDepartment
 } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
@@ -138,6 +139,7 @@ export class TProjectApprovers extends TProject implements ProjectApprovers {
 @Mixin(ygTimesheet.mixin.WorkProfile, contact.mixin.Employee)
 export class TWorkProfile extends TEmployee implements WorkProfile {
   @Prop(TypeString(), ygTimesheet.string.Designation) designation?: WorkDesignation
+  @Prop(TypeString(), ygTimesheet.string.Department) department?: WorkDepartment
   @Prop(TypeString(), ygTimesheet.string.EmployeeId) employeeId?: string
   @Prop(TypeNumber(), ygTimesheet.string.ShiftStart) shiftStart?: number
 }
@@ -341,7 +343,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'roster',
             label: ygTimesheet.string.HrRoster,
-            icon: contact.icon.Person,
+            icon: hr.icon.Members,
             component: ygTimesheet.component.HrRoster,
             accessLevel: AccountRole.Owner,
             position: 'bottom'

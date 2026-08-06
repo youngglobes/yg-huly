@@ -24,9 +24,9 @@
   import { type MixinData } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
-  import ygTimesheet, { type WorkProfile, type WorkDesignation } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type WorkProfile, type WorkDesignation, type WorkDepartment } from '@hcengineering/yg-timesheet'
   import { ensureHrMembership } from '../utils/hrMembership'
-  import { DESIGNATIONS, hhmmToMinutes, minutesToHHMM } from '../utils/work-profile'
+  import { DESIGNATIONS, DEPARTMENTS, hhmmToMinutes, minutesToHHMM } from '../utils/work-profile'
 
   onMount(() => { void ensureHrMembership() })
 
@@ -41,7 +41,7 @@
   const mixinOf = (emp: Employee): WorkProfile | undefined =>
     h.hasMixin(emp, ygTimesheet.mixin.WorkProfile) ? h.as(emp, ygTimesheet.mixin.WorkProfile) : undefined
 
-  async function save (emp: Employee, upd: Partial<Pick<WorkProfile, 'designation' | 'employeeId' | 'shiftStart'>>): Promise<void> {
+  async function save (emp: Employee, upd: Partial<Pick<WorkProfile, 'designation' | 'department' | 'employeeId' | 'shiftStart'>>): Promise<void> {
     if (h.hasMixin(emp, ygTimesheet.mixin.WorkProfile)) {
       await client.updateMixin(emp._id, contact.mixin.Employee, emp.space, ygTimesheet.mixin.WorkProfile, upd)
     } else {
@@ -59,6 +59,11 @@
   function onDesignationChange (emp: Employee, value: string): void {
     if (value === '') return
     void save(emp, { designation: value as WorkDesignation })
+  }
+
+  function onDepartmentChange (emp: Employee, value: string): void {
+    if (value === '') return
+    void save(emp, { department: value as WorkDepartment })
   }
 
   function onEmployeeIdChange (emp: Employee, value: string): void {
@@ -82,6 +87,7 @@
           <th class="left"><Label label={contact.string.Employee} /></th>
           <th class="left"><Label label={ygTimesheet.string.EmployeeId} /></th>
           <th class="left"><Label label={ygTimesheet.string.Designation} /></th>
+          <th class="left"><Label label={ygTimesheet.string.Department} /></th>
           <th class="left"><Label label={ygTimesheet.string.ShiftStart} /></th>
         </tr>
       </thead>
@@ -112,6 +118,18 @@
               </select>
             </td>
             <td class="left">
+              <select
+                class="yg-input"
+                value={mixin?.department ?? ''}
+                on:change={(e) => onDepartmentChange(emp, e.currentTarget.value)}
+              >
+                <option value="">-</option>
+                {#each DEPARTMENTS as d (d)}
+                  <option value={d}>{d}</option>
+                {/each}
+              </select>
+            </td>
+            <td class="left">
               <input
                 class="yg-input"
                 type="time"
@@ -121,7 +139,7 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan={4} class="yg-empty">No active employees.</td></tr>
+          <tr><td colspan={5} class="yg-empty">No active employees.</td></tr>
         {/each}
       </tbody>
     </table>

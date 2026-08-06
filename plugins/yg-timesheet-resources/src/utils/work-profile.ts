@@ -1,4 +1,4 @@
-import { type WorkDesignation } from '@hcengineering/yg-timesheet'
+import { type WorkDesignation, type WorkDepartment } from '@hcengineering/yg-timesheet'
 
 export const DESIGNATIONS: WorkDesignation[] = [
   'Software Engineer Trainee', 'Associate Software Engineer', 'Senior Software Engineer',
@@ -9,6 +9,8 @@ export const DESIGNATIONS: WorkDesignation[] = [
   'Business Development Manager', 'Salesforce Developer', 'Senior Salesforce Developer',
   'Lead Generation Executive', 'CEO', 'CTO', 'COO', 'HR Executive', 'Intern'
 ]
+
+export const DEPARTMENTS: WorkDepartment[] = ['Development', 'Testing', 'SEO', 'Sales', 'HR']
 
 // Titles that appear in the Performance report (dev/tester roles). All others are excluded.
 export const TRACKED_DESIGNATIONS = new Set<WorkDesignation>([

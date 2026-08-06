@@ -114,8 +114,10 @@ export type WorkDesignation =
   | 'Business Development Executive' | 'Senior Business Development Executive'
   | 'Business Development Manager' | 'Salesforce Developer' | 'Senior Salesforce Developer'
   | 'Lead Generation Executive' | 'CEO' | 'CTO' | 'COO' | 'HR Executive' | 'Intern'
+export type WorkDepartment = 'Development' | 'Testing' | 'SEO' | 'Sales' | 'HR'
 export interface WorkProfile extends Employee {
   designation?: WorkDesignation
+  department?: WorkDepartment
   // Free text, e.g. "YGS0024".
   employeeId?: string
   // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
@@ -394,6 +396,7 @@ export default plugin(ygTimesheetId, {
     TeamProfiles: '' as IntlString,
     ShiftStart: '' as IntlString,
     Designation: '' as IntlString,
+    Department: '' as IntlString,
     EmployeeId: '' as IntlString,
     Holidays: '' as IntlString,
     AddHoliday: '' as IntlString,
