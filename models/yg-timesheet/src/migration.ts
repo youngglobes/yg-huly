@@ -14,7 +14,7 @@ import hr from '@hcengineering/hr'
 import tracker from '@hcengineering/tracker'
 import type { Employee } from '@hcengineering/contact'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { ygTimesheetId, type Timesheet, type TimesheetDay } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
@@ -244,6 +244,47 @@ async function backfillHrTimeEntries (client: MigrationUpgradeClient): Promise<v
   }
 }
 
+// Backfill one TimesheetRejectCycle per EXISTING rejected task. rejectTask only records cycles for
+// rejections made AFTER this ships, so without this every pre-existing rejected task displays as
+// never-rejected. Mirrors rejectTask's field mapping, with two unavoidable gaps:
+//  - rejectedBy is left unset: the task never stored who rejected it, so it is not recoverable.
+//  - rejectedOn falls back to the task's submittedOn (then to its date) as the closest available
+//    approximation of when the rejection happened.
+// The row is left OPEN (no resubmittedOn) because a rejected task is by definition not resubmitted.
+// Idempotent: skips any (employee, issue, date) that already has a cycle, so it is safe to re-run.
+async function backfillRejectCycles (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const tasks = await ops.findAll(ygTimesheet.class.TimesheetTask, { status: 'Rejected' })
+  if (tasks.length === 0) return
+
+  const have = new Set(
+    (await ops.findAll(ygTimesheet.class.TimesheetRejectCycle, {})).map(
+      (c) => `${c.employee}|${c.issue}|${c.date}`
+    )
+  )
+  // Resolve each task's employee via day -> timesheet, pre-loading both levels once.
+  const dayById = new Map((await ops.findAll(ygTimesheet.class.TimesheetDay, {})).map((d) => [d._id, d]))
+  const sheetById = new Map((await ops.findAll(ygTimesheet.class.Timesheet, {})).map((s) => [s._id, s]))
+
+  for (const task of tasks) {
+    const reason = task.rejectReason ?? ''
+    if (reason === '') continue // nothing to show; not worth a row
+    const day = dayById.get(task.attachedTo as Ref<TimesheetDay>)
+    const sheet = day !== undefined ? sheetById.get(day.attachedTo as Ref<Timesheet>) : undefined
+    const employee = sheet?.employee
+    if (employee == null) continue // cannot key it; skip rather than mis-attribute
+    if (have.has(`${employee}|${task.issue}|${task.date}`)) continue // idempotent
+    await ops.createDoc(ygTimesheet.class.TimesheetRejectCycle, core.space.Workspace, {
+      employee,
+      issue: task.issue,
+      date: task.date,
+      rejectReason: reason,
+      rejectedOn: task.submittedOn ?? task.date
+    })
+    have.add(`${employee}|${task.issue}|${task.date}`)
+  }
+}
+
 export const ygTimesheetOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await migrateDaysToTasks(client)
@@ -304,6 +345,13 @@ export const ygTimesheetOperation: MigrateOperation = {
           const ops = new TxOperations(client, core.account.System)
           await setHrAppIcon(ops)
         }
+      },
+      {
+        // One-shot backfill of rejection history for tasks rejected before the reject-cycle feature
+        // shipped. Last in the array: it depends only on TimesheetTask rows, which all earlier
+        // states leave alone.
+        state: 'reject-cycle-backfill-0001',
+        func: backfillRejectCycles
       }
     ])
   }
