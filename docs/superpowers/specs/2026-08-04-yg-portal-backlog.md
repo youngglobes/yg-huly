@@ -6,9 +6,9 @@ spec → plan → implement cycle. Order below is the discussion order, not nece
 | # | Change | Notes / area |
 |---|---|---|
 | 1 | **Estimate required before a task enters a started status** | Block Todo/Backlog → any active status (In Progress/In Testing/In Review) unless `estimation > 0`. Server guard (revert+notify) + client pre-check on the status dropdown; submit-check stays as backstop. **← in progress, spec written.** |
-| 2 | Rejection reason maintained/shown on the approval screen | Approvals UI — surface `rejectReason` on the approval/task view. |
-| 3 | Button text → **Resubmit** / **Reapprove** | Timesheet + approval buttons: relabel on the re-cycle. |
-| 4 | Employee can add a **note when resubmitting** | Timesheet resubmit flow — capture a note. |
+| 2 | Rejection reason maintained/shown on the approval screen | Approvals UI — surface `rejectReason` on the approval/task view. **← BUILT + verified locally 2026-08-06.** |
+| 3 | Button text → **Resubmit** / **Reapprove** | Timesheet + approval buttons: relabel on the re-cycle. **← BUILT + verified locally 2026-08-06.** |
+| 4 | Employee can add a **note when resubmitting** | Timesheet resubmit flow — capture a note. **← BUILT + verified locally 2026-08-06.** |
 | 5 | Force **Office/WFH choice on every punch-in** | Attendance punch UI — no sticky default; must pick each time. |
 | 6 | Punch-in from the **notification must not auto punch-in** | Punch-reminder notification action should open the app, not punch. |
 | 7 | **Swap** Timesheet-compliance and Office-vs-WFH blocks | HR dashboard attention-band ordering. |
@@ -24,6 +24,26 @@ spec → plan → implement cycle. Order below is the discussion order, not nece
 | 17 | Reports section — **Approved hours + Approved by not appearing** | Bug in Reports.svelte. |
 | 18 | **Holiday list** | The deferred holiday-list editor (feeds `isWorkingDay` / performance report). |
 | 19 | **Overtime, extra hours, working hours during holidays** | Performance-report extensions (partly covered by the Performance report; refine holiday handling once #18 lands). |
+
+## Found during testing, not yet scheduled
+
+**Approved-hours drift (2 bugs, found 2026-08-06, PRE-EXISTING).** The employee timesheet renders
+the LIVE spent-time sum (`utils/week.ts` `issue.hours += r.value`) under the task's approval status
+label, never comparing against what was actually approved.
+
+- **Editing hours after approval:** submit 1h, approver approves 1h (`TimesheetApproval.approvedHours = 1`),
+  employee edits spent time to 4h. The timesheet shows **4h tagged Approved**. Reports correctly say
+  1h. The approver is unaware.
+- **Adding hours after approval:** new spent time on an already-approved task/day is summed into the
+  same Approved row and can NEVER reach an approver. `deriveDayStatus` returns `Approved` so the
+  Submit button does not render, and `submitDay` skips issues in `keptIssues` anyway.
+
+`driftHours()` (`utils/workflow.ts`) and `ygTimesheet.string.Drift` ("Hours changed since approval")
+already exist and are unit-tested, but are called from nowhere. The surfacing mechanism was designed
+and never wired up; `utils/task-approval.ts` records that not blocking was deliberate.
+
+**Payroll-relevant.** Needs a design decision (surface drift / auto-reopen for re-approval / lock
+approved time) before any code.
 
 **Cross-refs:** the Work Profile foundation + Performance Report are already built (specs
 `2026-08-04-work-profile-*`, `2026-08-04-performance-report-design.md`); several items above extend
