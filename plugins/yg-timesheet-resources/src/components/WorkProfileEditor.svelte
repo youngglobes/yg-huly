@@ -14,21 +14,19 @@
 -->
 <!--
   HR/Owner editor for the ygTimesheet.mixin.WorkProfile mixin: sets each active employee's
-  category and expected shift-start time. One row per employee, plain <select> + <input
-  type="time">, written straight to the mixin on change (no separate save step). Category
-  option labels are resolved via translate() (not <Label>, which cannot render inside an
-  <option>) and re-resolved whenever the UI language changes.
+  employee ID, designation, and expected shift-start time. One row per employee, plain
+  <input>/<select> + <input type="time">, written straight to the mixin on change (no separate
+  save step). The designation <select> stores the option text itself (no per-title i18n).
 -->
 <script lang="ts">
   import { onMount } from 'svelte'
   import contact, { formatName, type Employee } from '@hcengineering/contact'
   import { type MixinData } from '@hcengineering/core'
-  import { translate, type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label, themeStore } from '@hcengineering/ui'
-  import ygTimesheet, { type WorkProfile, type WorkProfileCategory } from '@hcengineering/yg-timesheet'
+  import { Label } from '@hcengineering/ui'
+  import ygTimesheet, { type WorkProfile, type WorkDesignation } from '@hcengineering/yg-timesheet'
   import { ensureHrMembership } from '../utils/hrMembership'
-  import { CATEGORY_ORDER, hhmmToMinutes, minutesToHHMM } from '../utils/work-profile'
+  import { DESIGNATIONS, hhmmToMinutes, minutesToHHMM } from '../utils/work-profile'
 
   onMount(() => { void ensureHrMembership() })
 
@@ -43,32 +41,11 @@
   const mixinOf = (emp: Employee): WorkProfile | undefined =>
     h.hasMixin(emp, ygTimesheet.mixin.WorkProfile) ? h.as(emp, ygTimesheet.mixin.WorkProfile) : undefined
 
-  // Category option labels: <Label> can't render inside a native <option>, so labels are
-  // pre-resolved to plain strings via translate() and refreshed whenever the language changes.
-  const CAT_STRING: Record<WorkProfileCategory, IntlString> = {
-    'junior-dev': ygTimesheet.string.CatJuniorDev,
-    'senior-dev': ygTimesheet.string.CatSeniorDev,
-    sales: ygTimesheet.string.CatSales,
-    salesforce: ygTimesheet.string.CatSalesforce,
-    other: ygTimesheet.string.CatOther
-  }
-  let catLabels: Partial<Record<WorkProfileCategory, string>> = {}
-  async function loadCatLabels (lang: string): Promise<void> {
-    const entries = await Promise.all(
-      CATEGORY_ORDER.map(async (cat) => [cat, await translate(CAT_STRING[cat], {}, lang)] as const)
-    )
-    catLabels = Object.fromEntries(entries)
-  }
-  $: void loadCatLabels($themeStore.language)
-
-  async function save (emp: Employee, upd: Partial<Pick<WorkProfile, 'category' | 'shiftStart'>>): Promise<void> {
+  async function save (emp: Employee, upd: Partial<Pick<WorkProfile, 'designation' | 'employeeId' | 'shiftStart'>>): Promise<void> {
     if (h.hasMixin(emp, ygTimesheet.mixin.WorkProfile)) {
       await client.updateMixin(emp._id, contact.mixin.Employee, emp.space, ygTimesheet.mixin.WorkProfile, upd)
     } else {
-      // A fresh mixin requires `category` (it is mandatory on WorkProfile); a bare shift-start
-      // edit on an employee with no category yet still creates the mixin, deferring the
-      // required-field cast to here the same way core's own migrate-mixin path does
-      // (operations.ts casts a partial payload to MixinData when it knows the value is safe).
+      // All WorkProfile fields are optional, so a partial payload is a valid fresh mixin.
       await client.createMixin(
         emp._id,
         contact.mixin.Employee,
@@ -79,9 +56,13 @@
     }
   }
 
-  function onCategoryChange (emp: Employee, value: string): void {
+  function onDesignationChange (emp: Employee, value: string): void {
     if (value === '') return
-    void save(emp, { category: value as WorkProfileCategory })
+    void save(emp, { designation: value as WorkDesignation })
+  }
+
+  function onEmployeeIdChange (emp: Employee, value: string): void {
+    void save(emp, { employeeId: value.trim() })
   }
 
   function onShiftStartChange (emp: Employee, value: string): void {
@@ -92,14 +73,15 @@
 <div class="dash yg-page">
   <div class="yg-head">
     <h1 class="yg-title"><Label label={ygTimesheet.string.TeamProfiles} /></h1>
-    <p class="wp-note">PMs are detected automatically and do not need a category.</p>
+    <p class="wp-note">PMs are detected automatically and do not need a designation.</p>
   </div>
   <div class="yg-scroll">
     <table class="yg-table">
       <thead>
         <tr>
           <th class="left"><Label label={contact.string.Employee} /></th>
-          <th class="left"><Label label={ygTimesheet.string.WorkProfileCategoryLabel} /></th>
+          <th class="left"><Label label={ygTimesheet.string.EmployeeId} /></th>
+          <th class="left"><Label label={ygTimesheet.string.Designation} /></th>
           <th class="left"><Label label={ygTimesheet.string.ShiftStart} /></th>
         </tr>
       </thead>
@@ -109,14 +91,23 @@
           <tr>
             <td class="left bold">{formatName(emp.name)}</td>
             <td class="left">
+              <input
+                class="yg-input"
+                type="text"
+                placeholder="YGS0024"
+                value={mixin?.employeeId ?? ''}
+                on:change={(e) => onEmployeeIdChange(emp, e.currentTarget.value)}
+              />
+            </td>
+            <td class="left">
               <select
                 class="yg-input"
-                value={mixin?.category ?? ''}
-                on:change={(e) => onCategoryChange(emp, e.currentTarget.value)}
+                value={mixin?.designation ?? ''}
+                on:change={(e) => onDesignationChange(emp, e.currentTarget.value)}
               >
                 <option value="">-</option>
-                {#each CATEGORY_ORDER as cat (cat)}
-                  <option value={cat}>{catLabels[cat] ?? cat}</option>
+                {#each DESIGNATIONS as d (d)}
+                  <option value={d}>{d}</option>
                 {/each}
               </select>
             </td>
@@ -130,7 +121,7 @@
             </td>
           </tr>
         {:else}
-          <tr><td colspan={3} class="yg-empty">No active employees.</td></tr>
+          <tr><td colspan={4} class="yg-empty">No active employees.</td></tr>
         {/each}
       </tbody>
     </table>

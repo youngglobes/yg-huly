@@ -21,11 +21,11 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import contact, { formatName, type Employee } from '@hcengineering/contact'
-  import { setPlatformStatus, unknownError, type IntlString } from '@hcengineering/platform'
+  import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet, {
-    type AttendanceSession, type HrTimeEntry, type WorkProfile, type WorkProfileCategory
+    type AttendanceSession, type HrTimeEntry, type WorkProfile, type WorkDesignation
   } from '@hcengineering/yg-timesheet'
   import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours } from '../utils/performance'
   import { exportPerformanceXlsx } from '../utils/performance-xlsx'
@@ -44,24 +44,15 @@
   $: fromMid = new Date(`${fromKey}T00:00:00`).getTime()
   $: toExcl = new Date(`${toKey}T00:00:00`).getTime() + 86_400_000 // inclusive `to`, exclusive query bound
 
-  // Category label lookup, same map shape as WorkProfileEditor.svelte's CAT_STRING.
-  const CAT_STRING: Record<WorkProfileCategory, IntlString> = {
-    'junior-dev': ygTimesheet.string.CatJuniorDev,
-    'senior-dev': ygTimesheet.string.CatSeniorDev,
-    sales: ygTimesheet.string.CatSales,
-    salesforce: ygTimesheet.string.CatSalesforce,
-    other: ygTimesheet.string.CatOther
-  }
-
-  // Active employees + their (optional) WorkProfile category.
+  // Active employees + their (optional) WorkProfile designation.
   const empQuery = createQuery()
   let empDocs: Employee[] = []
   empQuery.query(contact.mixin.Employee, { active: true }, (res: Employee[]) => { empDocs = res })
   $: emps = empDocs.map((e): PerfEmp => ({
     id: e._id,
     name: formatName(e.name),
-    category: h.hasMixin(e, ygTimesheet.mixin.WorkProfile)
-      ? (h.as(e, ygTimesheet.mixin.WorkProfile) as WorkProfile).category
+    designation: h.hasMixin(e, ygTimesheet.mixin.WorkProfile)
+      ? (h.as(e, ygTimesheet.mixin.WorkProfile) as WorkProfile).designation
       : undefined
   }))
 
@@ -141,7 +132,7 @@
       <thead>
         <tr>
           <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-          <th class="left"><Label label={ygTimesheet.string.WorkProfileCategoryLabel} /></th>
+          <th class="left"><Label label={ygTimesheet.string.Designation} /></th>
           <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)</th>
           <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)</th>
           <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
@@ -154,7 +145,7 @@
         {#each rows as r (r.employee)}
           <tr class="yg-row perf-clickable" class:is-sel={r.employee === selectedId} on:click={() => (selectedId = r.employee)}>
             <td class="left bold">{r.name}</td>
-            <td class="left"><Label label={CAT_STRING[r.category]} /></td>
+            <td class="left">{r.designation ?? '-'}</td>
             <td class="yg-num">{r.offDayDays}</td>
             <td class="yg-num">{formatHours(r.offDayHours)}</td>
             <td class="yg-num">{formatHours(r.overtimeHours)}</td>

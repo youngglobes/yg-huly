@@ -42,7 +42,7 @@ import ygTimesheet, {
   type TimesheetLine,
   type TimesheetTask,
   type WorkProfile,
-  type WorkProfileCategory
+  type WorkDesignation
 } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
@@ -124,7 +124,8 @@ export class TProjectApprovers extends TProject implements ProjectApprovers {
 
 @Mixin(ygTimesheet.mixin.WorkProfile, contact.mixin.Employee)
 export class TWorkProfile extends TEmployee implements WorkProfile {
-  @Prop(TypeString(), ygTimesheet.string.WorkProfileCategoryLabel) category!: WorkProfileCategory
+  @Prop(TypeString(), ygTimesheet.string.Designation) designation?: WorkDesignation
+  @Prop(TypeString(), ygTimesheet.string.EmployeeId) employeeId?: string
   @Prop(TypeNumber(), ygTimesheet.string.ShiftStart) shiftStart?: number
 }
 
