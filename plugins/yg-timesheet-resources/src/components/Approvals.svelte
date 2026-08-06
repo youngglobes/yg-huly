@@ -165,12 +165,14 @@
   }
 
   function onReject (task: TimesheetTask): void {
+    // employeeOf can miss (the "Unknown" group); rejectTask resolves it itself in that case.
+    const employee = employeeOf(task)
     showPopup(
       RejectTaskPopup,
       { identifier: task.identifier, title: task.title },
       undefined,
       (res?: { reason: string }) => {
-        if (res !== undefined) void rejectTask(client, task._id, res.reason)
+        if (res !== undefined) void rejectTask(client, task._id, res.reason, employee)
       }
     )
   }

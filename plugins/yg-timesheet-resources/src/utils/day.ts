@@ -280,14 +280,44 @@ export async function approveTask (
 }
 
 /**
+ * Resolve the employee who owns a task. TimesheetTask has no employee field: it is reachable only
+ * via attachedTo -> TimesheetDay -> attachedTo -> Timesheet -> employee. Used when the caller could
+ * not supply it (Approvals.svelte's lookup can miss, see its "Unknown" bucket).
+ */
+async function resolveTaskEmployee (
+  client: TxOperations, task: TimesheetTask
+): Promise<Ref<Employee> | undefined> {
+  const day = await client.findOne(ygTimesheet.class.TimesheetDay, {
+    _id: task.attachedTo as Ref<TimesheetDay>
+  })
+  if (day === undefined) return undefined
+  const sheet = await client.findOne(ygTimesheet.class.Timesheet, {
+    _id: day.attachedTo as Ref<Timesheet>
+  })
+  return sheet?.employee
+}
+
+/**
  * Reject ONE task with a required reason; it returns to Draft for the employee to fix.
  * A rejected task must not keep an approval record, so any existing TimesheetApproval row for
  * this task (from a prior approval) is removed. approvedHours/approvedBy/approvedOn are not
  * referenced here at all — they no longer live on TimesheetTask.
+ *
+ * Also records a TimesheetRejectCycle so the rejection survives the employee's resubmit (submitDay
+ * deletes and recreates task rows, which is why the cycle is keyed by employee+issue+date and not
+ * by task ref). ORDER MATTERS: the task update runs FIRST. If the cycle create then fails we get a
+ * rejected task with no history, which is exactly the pre-2026-08-05 behaviour and is repairable by
+ * the backfill migration. The reverse order could leave a cycle asserting a rejection that never
+ * happened, and a false entry in an audit trail is worse than a missing one.
  */
 export async function rejectTask (
-  client: TxOperations, taskId: Ref<TimesheetTask>, reason: string
+  client: TxOperations,
+  taskId: Ref<TimesheetTask>,
+  reason: string,
+  employee?: Ref<Employee>
 ): Promise<void> {
+  const task = await client.findOne(ygTimesheet.class.TimesheetTask, { _id: taskId })
+
   await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
     status: 'Rejected',
     rejectReason: reason
@@ -297,6 +327,22 @@ export async function rejectTask (
   if (existing !== undefined) {
     await client.remove(existing)
   }
+
+  if (task === undefined) return
+  const owner = employee ?? (await resolveTaskEmployee(client, task))
+  // No owner means the cycle cannot be keyed. The task is still rejected (the update above already
+  // landed); we simply skip the history rather than write a mis-keyed record that would surface in
+  // some other employee's history.
+  if (owner === undefined) return
+
+  await client.createDoc(ygTimesheet.class.TimesheetRejectCycle, core.space.Workspace, {
+    employee: owner,
+    issue: task.issue,
+    date: task.date,
+    rejectReason: reason,
+    rejectedBy: getCurrentEmployee(),
+    rejectedOn: Date.now()
+  })
 }
 
 /**
