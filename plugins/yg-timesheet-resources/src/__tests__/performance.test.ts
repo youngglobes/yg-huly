@@ -6,14 +6,14 @@ const D = (y: number, m: number, d: number, h = 10): number => new Date(y, m, d,
 const MIN = 60_000
 const NOW = D(2026, 7, 4, 12) // today = Aug 4
 const emps: PerfEmp[] = [
-  { id: 'e1', name: 'Alice A', category: 'junior-dev' },
-  { id: 'e2', name: 'Bob B', category: 'senior-dev' },
-  { id: 'sx', name: 'Sam Sales', category: 'sales' },   // excluded
-  { id: 'ut', name: 'Un Tagged', category: undefined }  // excluded
+  { id: 'e1', name: 'Alice A', designation: 'Associate Software Engineer' }, // tracked
+  { id: 'e2', name: 'Bob B', designation: 'Senior Software Engineer' },       // tracked
+  { id: 'sx', name: 'Sam Sales', designation: 'Business Development Executive' }, // excluded
+  { id: 'ut', name: 'Un Tagged', designation: undefined }                     // excluded
 ]
 
 describe('performanceRows', () => {
-  it('includes only dev/senior-dev, excludes sales + untagged', () => {
+  it('includes only tracked designations, excludes untracked + untagged', () => {
     expect(performanceRows(emps, [], [], NOW).map((r) => r.employee)).toEqual(['e1', 'e2'])
   })
 

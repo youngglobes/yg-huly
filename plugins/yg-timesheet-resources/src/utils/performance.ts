@@ -1,9 +1,9 @@
-import { type WorkProfileCategory } from '@hcengineering/yg-timesheet'
+import { type WorkDesignation } from '@hcengineering/yg-timesheet'
 import { isTracked } from './work-profile'
 import { isWorkingDay } from './week'
 import { localMidnight } from './attendance'
 
-export interface PerfEmp { id: string; name: string; category?: WorkProfileCategory }
+export interface PerfEmp { id: string; name: string; designation?: WorkDesignation }
 export interface PerfHours { employee: string; hours: number; date: number }
 export interface PerfAtt { employee: string; punchIn: number; punchOut?: number }
 
@@ -19,7 +19,7 @@ export interface FlaggedDay {
 }
 
 export interface PerfRow {
-  employee: string; name: string; category: WorkProfileCategory
+  employee: string; name: string; designation?: WorkDesignation
   offDayDays: number; offDayHours: number
   overtimeHours: number; overtimeDays: number
   lateNightDays: number; totalExtraHours: number
@@ -42,7 +42,7 @@ interface DayAcc {
 }
 
 export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number, holidays?: ReadonlySet<number>): PerfRow[] {
-  const included = emps.filter((e) => isTracked(e.category))
+  const included = emps.filter((e) => isTracked(e.designation))
   const ids = new Set(included.map((e) => e.id))
   const todayMid = localMidnight(now)
 
@@ -112,7 +112,7 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
 
     days.sort((a, b) => b.date - a.date) // newest first
     return {
-      employee: e.id, name: e.name, category: e.category as WorkProfileCategory,
+      employee: e.id, name: e.name, designation: e.designation,
       offDayDays, offDayHours, overtimeHours, overtimeDays,
       lateNightDays: days.filter((x) => x.lateNight).length,
       totalExtraHours: round2(offDayHours + overtimeHours),

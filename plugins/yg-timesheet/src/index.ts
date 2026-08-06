@@ -80,9 +80,18 @@ export interface ProjectApprovers extends Project {
   teamLead?: Ref<Employee>
 }
 
-export type WorkProfileCategory = 'junior-dev' | 'senior-dev' | 'sales' | 'salesforce' | 'other'
+export type WorkDesignation =
+  | 'Software Engineer Trainee' | 'Associate Software Engineer' | 'Senior Software Engineer'
+  | 'Team Leader' | 'Project Manager' | 'Software Test Engineer' | 'Senior Software Tester'
+  | 'Web Designer' | 'Front End Developer' | 'Senior Front End Developer'
+  | 'SEO Analyst Trainee' | 'SEO Analyst' | 'Senior SEO Analyst'
+  | 'Business Development Executive' | 'Senior Business Development Executive'
+  | 'Business Development Manager' | 'Salesforce Developer' | 'Senior Salesforce Developer'
+  | 'Lead Generation Executive' | 'CEO' | 'CTO' | 'COO' | 'HR Executive' | 'Intern'
 export interface WorkProfile extends Employee {
-  category: WorkProfileCategory
+  designation?: WorkDesignation
+  // Free text, e.g. "YGS0024".
+  employeeId?: string
   // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
   shiftStart?: number
 }
@@ -354,13 +363,9 @@ export default plugin(ygTimesheetId, {
     LateNightCol: '' as IntlString,
     TotalExtraHours: '' as IntlString,
     TeamProfiles: '' as IntlString,
-    WorkProfileCategoryLabel: '' as IntlString,
     ShiftStart: '' as IntlString,
-    CatJuniorDev: '' as IntlString,
-    CatSeniorDev: '' as IntlString,
-    CatSales: '' as IntlString,
-    CatSalesforce: '' as IntlString,
-    CatOther: '' as IntlString,
+    Designation: '' as IntlString,
+    EmployeeId: '' as IntlString,
     Holidays: '' as IntlString,
     AddHoliday: '' as IntlString,
     HolidayName: '' as IntlString,
