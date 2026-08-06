@@ -40,6 +40,7 @@ import ygTimesheet, {
   type TimesheetApproval,
   type TimesheetDay,
   type TimesheetLine,
+  type TimesheetRejectCycle,
   type TimesheetTask,
   type WorkProfile,
   type WorkProfileCategory
@@ -113,6 +114,18 @@ export class TTimesheetApproval extends TDoc implements TimesheetApproval {
   @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
 }
 
+@Model(ygTimesheet.class.TimesheetRejectCycle, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TTimesheetRejectCycle extends TDoc implements TimesheetRejectCycle {
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) employee!: Ref<Employee>
+  @Prop(TypeRef(tracker.class.Issue), core.string.Object) issue!: Ref<Issue>
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeString(), core.string.Object) rejectReason!: string
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) rejectedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) rejectedOn!: Timestamp
+  @Prop(TypeString(), core.string.Object) resubmitNote?: string
+  @Prop(TypeDate(), core.string.Object) resubmittedOn?: Timestamp
+}
+
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
 export class TProjectApprovers extends TProject implements ProjectApprovers {
   @Prop(TypeRef(contact.mixin.Employee), ygTimesheet.string.PM)
@@ -171,7 +184,7 @@ export class THoliday extends TDoc implements Holiday {
 }
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TTimesheetRejectCycle, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.

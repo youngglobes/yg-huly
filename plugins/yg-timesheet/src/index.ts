@@ -75,6 +75,32 @@ export interface TimesheetApproval extends Doc {
   approvedOn?: Timestamp
 }
 
+/**
+ * One reject/resubmit round for a single (employee, issue, date) unit of work.
+ *
+ * Deliberately NOT keyed by Ref<TimesheetTask>: submitDay deletes and recreates task rows on every
+ * resubmit (yg-timesheet-resources utils/day.ts), so a task ref would orphan the history. The
+ * employee+issue+date triple is stable across that churn, which is the whole reason this is a
+ * separate doc rather than an array on the task.
+ *
+ * World-readable (core.space.Workspace), matching where rejectReason already lives on
+ * TimesheetTask. Deliberate, see the 2026-08-05 approval-recycle design.
+ */
+export interface TimesheetRejectCycle extends Doc {
+  employee: Ref<Employee>
+  issue: Ref<Issue>
+  /** Local midnight, same convention as TimesheetTask.date. */
+  date: Timestamp
+  rejectReason: string
+  /** Absent on rows written by the backfill: the old task never stored who rejected it. */
+  rejectedBy?: Ref<Employee>
+  rejectedOn: Timestamp
+  /** The employee's reply, captured at resubmit. Optional by design. */
+  resubmitNote?: string
+  /** Absent = the cycle is still open (rejected, not yet resubmitted). */
+  resubmittedOn?: Timestamp
+}
+
 export interface ProjectApprovers extends Project {
   pm?: Ref<Employee>
   teamLead?: Ref<Employee>
@@ -144,6 +170,7 @@ export default plugin(ygTimesheetId, {
     TimesheetDay: '' as Ref<Class<TimesheetDay>>,
     TimesheetTask: '' as Ref<Class<TimesheetTask>>,
     TimesheetApproval: '' as Ref<Class<TimesheetApproval>>,
+    TimesheetRejectCycle: '' as Ref<Class<TimesheetRejectCycle>>,
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>,
     AttendanceSession: '' as Ref<Class<AttendanceSession>>,
     AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>,
