@@ -190,7 +190,8 @@
     <!-- Attention band: fixed-height, colour-accented cards in one row. -->
     <div class="dash-attention">
       <HrAttendanceTodayCard {present} {notPunched} accent="#6366f1" />
-      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} submittedList={comp.submittedList} dayLabel={refDayLabel} accent="#f59e0b" />
+      <!-- Office vs WFH sits in the 2nd column so it lines up under the "WFH / Office" KPI card in the
+           row above; Timesheet compliance follows it. -->
       <Donut
         segments={[
           { name: 'Office', count: split.office, color: '#6366f1' },
@@ -201,6 +202,7 @@
         accent="#8b5cf6"
         fill
       />
+      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} submittedList={comp.submittedList} dayLabel={refDayLabel} accent="#f59e0b" />
     </div>
 
     <!-- Full-width detail: per-person hours table. -->
