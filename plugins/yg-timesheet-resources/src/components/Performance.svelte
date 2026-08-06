@@ -14,8 +14,9 @@
 -->
 <!--
   Performance report: date-range ranking of off-day work / overtime / late-night hours per
-  tracked employee (junior-dev, senior-dev - see utils/work-profile.ts TRACKED_CATEGORIES). Reads
-  HrTimeEntry + AttendanceSession + each employee's WorkProfile category, hands them to the pure
+  tracked employee (only those whose designation is in TRACKED_DESIGNATIONS - see
+  utils/work-profile.ts). Reads HrTimeEntry + AttendanceSession + each employee's WorkProfile
+  designation, hands them to the pure
   performanceRows lib (utils/performance.ts) and renders the ranked table. Read-only. Excel export.
 -->
 <script lang="ts">
@@ -25,7 +26,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet, {
-    type AttendanceSession, type HrTimeEntry, type WorkProfile, type WorkDesignation
+    type AttendanceSession, type HrTimeEntry, type WorkProfile
   } from '@hcengineering/yg-timesheet'
   import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours } from '../utils/performance'
   import { exportPerformanceXlsx } from '../utils/performance-xlsx'
