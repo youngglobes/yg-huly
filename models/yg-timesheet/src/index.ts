@@ -309,7 +309,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'timesheets',
             label: ygTimesheet.string.HrTimesheets,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: tracker.icon.TimeReport,
             component: ygTimesheet.component.HrTimesheet,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
@@ -317,7 +317,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'attendance',
             label: ygTimesheet.string.HrAttendance,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: hr.icon.Overtime,
             component: ygTimesheet.component.HrAttendance,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
@@ -325,7 +325,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'performance',
             label: ygTimesheet.string.Performance,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: view.icon.Star,
             component: ygTimesheet.component.Performance,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
@@ -333,7 +333,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'holidays',
             label: ygTimesheet.string.Holidays,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: hr.icon.Vacation,
             component: ygTimesheet.component.HrHolidays,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
