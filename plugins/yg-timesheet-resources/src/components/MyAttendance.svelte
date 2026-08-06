@@ -357,7 +357,7 @@
   }
 
   // Hero band ---------------------------------------------------------------
-  .att-hero { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: stretch; }
+  .att-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }
   .att-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
   .att-punch { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
@@ -387,7 +387,7 @@
   .att-seg__opt--wfh.is-on { background: var(--att-wfh); color: #fff; }
 
   .att-note {
-    width: 100%; resize: vertical; min-height: 44px;
+    width: 100%; resize: vertical; min-height: 120px; flex: 1;
     border: 1px solid var(--yg-border); border-radius: 10px;
     background: var(--yg-panel-soft); color: var(--yg-text);
     padding: 10px 12px; font: inherit; font-size: 14px;

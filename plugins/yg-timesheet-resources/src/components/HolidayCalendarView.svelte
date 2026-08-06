@@ -27,7 +27,7 @@
     <span class="holcal__month">{monthFmt.format(current)}</span>
     <button class="holcal__nav" on:click={() => shiftMonth(1)} aria-label="Next month">{'>'}</button>
   </div>
-  <MonthCalendar currentDate={current} selectedDate={current}>
+  <MonthCalendar currentDate={current} selectedDate={current} weekFormat="short">
     <svelte:fragment slot="cell" let:date let:today let:wrongMonth>
       {@const h = byDay.get(midOf(date))}
       <div class="holcal__cell" class:today class:wrong={wrongMonth} class:is-hol={h !== undefined}>
