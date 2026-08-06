@@ -188,15 +188,36 @@
     approverNames = m
   })
 
-  function cyclesFor (task: TimesheetTask): TimesheetRejectCycle[] {
-    return cyclesByKey.get(cycleKey(me, task.issue, task.date)) ?? []
+  /**
+   * Rounds for a task, oldest first.
+   *
+   * `byKey` is a PARAMETER, not read from the closure, and callers in the template MUST pass
+   * `cyclesByKey` explicitly. Svelte derives a template expression's dependencies from the
+   * identifiers it REFERENCES; state read inside a function body is invisible to the compiler.
+   * When this read cyclesByKey from the closure, the {#each} never re-rendered as the cycles
+   * live-query resolved, so the history vanished on every cold load and reappeared only when some
+   * unrelated change forced a redraw (found 2026-08-06).
+   */
+  function cyclesFor (
+    task: TimesheetTask, byKey: Map<string, TimesheetRejectCycle[]>
+  ): TimesheetRejectCycle[] {
+    return byKey.get(cycleKey(me, task.issue, task.date)) ?? []
   }
 
-  /** Who rejected the current open round, formatted for display. Empty when unattributed. */
-  function rejectedByName (task: TimesheetTask): string {
-    const open = openCycle(cyclesFor(task))
+  /**
+   * Who rejected the current open round, formatted for display. Empty when unattributed.
+   * Both maps are parameters for the same reactivity reason as cyclesFor above. The TEMPLATE does
+   * not call this: it derives the name from the already-reactive `open` const instead. This exists
+   * for the imperative call in onSubmit, which runs at click time and needs a one-shot value.
+   */
+  function rejectedByName (
+    task: TimesheetTask,
+    byKey: Map<string, TimesheetRejectCycle[]>,
+    names: Map<string, string>
+  ): string {
+    const open = openCycle(cyclesFor(task, byKey))
     if (open?.rejectedBy == null) return ''
-    return approverNames.get(open.rejectedBy) ?? ''
+    return names.get(open.rejectedBy) ?? ''
   }
 
   let expanded = new Set<string>()
@@ -271,7 +292,7 @@
           title: t.title,
           hours: formatHours(t.submittedHours),
           reason: t.rejectReason ?? '',
-          rejectedBy: rejectedByName(t)
+          rejectedBy: rejectedByName(t, cyclesByKey, approverNames)
         }))
       if (rows.length > 0) {
         const answered = await new Promise<Map<string, string> | undefined>((resolve) => {
@@ -384,9 +405,10 @@
           <div class="tasks">
             {#each day.issues as it (it.issueId)}
               {@const task = dayTasks.find((t) => t.issue === it.issueId)}
-              {@const rounds = task !== undefined ? cyclesFor(task) : []}
+              {@const rounds = task !== undefined ? cyclesFor(task, cyclesByKey) : []}
               {@const open = openCycle(rounds)}
               {@const past = closedCycles(rounds)}
+              {@const rejectedBy = open?.rejectedBy != null ? (approverNames.get(open.rejectedBy) ?? '') : ''}
               <div class="task">
                 <span class="yg-idbadge">{it.identifier}</span>
                 <a
@@ -410,7 +432,7 @@
                   <div class="reason__meta">
                     {#if open !== undefined}
                       <span>
-                        {#if rejectedByName(task) !== ''}{rejectedByName(task)}, {/if}{agoFmt.format(open.rejectedOn)}
+                        {#if rejectedBy !== ''}{rejectedBy}, {/if}{agoFmt.format(open.rejectedOn)}
                       </span>
                     {/if}
                     {#if past.length > 0}

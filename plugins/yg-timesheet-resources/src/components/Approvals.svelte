@@ -149,11 +149,22 @@
 
   $: cyclesByKey = groupCycles(cycles)
 
-  /** Completed rounds for a task, oldest first. Empty for a task that was never rejected. */
-  function historyFor (task: TimesheetTask): TimesheetRejectCycle[] {
+  /**
+   * Completed rounds for a task, oldest first. Empty for a task that was never rejected.
+   *
+   * `byKey` is a PARAMETER, not read from the closure, and callers in the template MUST pass
+   * `cyclesByKey` explicitly. Svelte derives a template expression's dependencies from the
+   * identifiers it REFERENCES; state read inside a function body is invisible to the compiler.
+   * When this read cyclesByKey from the closure, the {#each} never re-rendered as the cycles
+   * live-query resolved, so the history vanished on every cold load and reappeared only when some
+   * unrelated change forced a redraw (found 2026-08-06).
+   */
+  function historyFor (
+    task: TimesheetTask, byKey: Map<string, TimesheetRejectCycle[]>
+  ): TimesheetRejectCycle[] {
     const employee = employeeOf(task)
     if (employee === undefined) return []
-    return closedCycles(cyclesByKey.get(cycleKey(employee, task.issue, task.date)) ?? [])
+    return closedCycles(byKey.get(cycleKey(employee, task.issue, task.date)) ?? [])
   }
 
   // Which rows have their older rounds expanded. Component-local, nothing persisted.
@@ -249,7 +260,7 @@
             <span class="group__hrs">{formatHours(g.hours)}</span>
           </div>
           {#each g.tasks as task (task._id)}
-            {@const history = historyFor(task)}
+            {@const history = historyFor(task, cyclesByKey)}
             {@const latest = history[history.length - 1]}
             <div class="approw">
               <span class="approw__date">{dayFmt.format(task.date)}</span>
