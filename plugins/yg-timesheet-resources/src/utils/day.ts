@@ -24,6 +24,7 @@ import ygTimesheet, {
 import { weekRange } from './week'
 import { buildSnapshot, driftHours, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
 import { buildTaskUnits } from './task-approval'
+import { cyclesToClose } from './reject-cycle'
 
 export { buildSnapshot, driftHours, resolveApprovers }
 export type { DayReportLike, ProjectApproverLike }
@@ -78,6 +79,11 @@ export interface SubmitArgs {
   date: number
   reports: DayReportLike[]
   approversByProject: Map<string, ProjectApproverLike>
+  /**
+   * Employee replies keyed by issue, captured by ResubmitDayPopup on a resubmit. Optional: a plain
+   * Draft submit passes nothing and the cycle-closing loop below simply finds no open cycles.
+   */
+  resubmitNotes?: Map<Ref<Issue>, string>
 }
 
 /** Returned by submitDay when one or more of the day's projects have no PM/TL configured. */
@@ -96,7 +102,7 @@ export interface NoApproverResult {
  */
 export async function submitDay (
   client: TxOperations,
-  { employee, date, reports, approversByProject }: SubmitArgs
+  { employee, date, reports, approversByProject, resubmitNotes }: SubmitArgs
 ): Promise<Ref<TimesheetDay> | NoApproverResult> {
   const units = buildTaskUnits(reports, approversByProject, employee)
   // Every task must have somewhere to go. If ANY task's project has no PM/TL configured we do not
@@ -154,6 +160,26 @@ export async function submitDay (
     submittedOn,
     totalHours
   })
+
+  // Close any open reject cycles for the issues actually being resubmitted, stamping the employee's
+  // reply. Runs AFTER the task rows are written: if this fails, the resubmitted task still reaches
+  // the approver's queue and the stale-open cycle reads as "waiting on employee", which is visibly
+  // wrong rather than quietly wrong. Nothing here deletes; the remove-and-recreate above is untouched.
+  //
+  // resubmittedOn is stamped whether or not a note was given - the resubmit closes the round either
+  // way. resubmitNote is only written when the reply is non-blank.
+  const submittedIssues = new Set<string>(units.map((u) => u.issue))
+  // Filter open-ness in code rather than querying it: keeps the query to plain equality matches.
+  const dayCycles = await client.findAll(ygTimesheet.class.TimesheetRejectCycle, { employee, date })
+  const resubmittedOn = Date.now()
+  for (const cycle of cyclesToClose(dayCycles, submittedIssues)) {
+    const note = (resubmitNotes?.get(cycle.issue) ?? '').trim()
+    await client.updateDoc(ygTimesheet.class.TimesheetRejectCycle, core.space.Workspace, cycle._id, {
+      resubmittedOn,
+      ...(note !== '' ? { resubmitNote: note } : {})
+    })
+  }
+
   return dayId
 }
 
