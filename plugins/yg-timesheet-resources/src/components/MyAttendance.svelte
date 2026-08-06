@@ -154,7 +154,13 @@
   // Release the lock only once the live query is consistent with the write: an open session present
   // after a punch-in, or gone after a punch-out. This closes the query-lag window entirely.
   $: if (busy && pending === 'in' && openSession !== undefined) { busy = false; pending = null }
-  $: if (busy && pending === 'out' && openSession === undefined) { busy = false; pending = null; mode = undefined }
+  $: if (busy && pending === 'out' && openSession === undefined) { busy = false; pending = null }
+
+  // Clear the mode on any transition into punched-in, from any path (this page's button, the
+  // reminder banner, or another tab/device) - not just this page's own punch-out click - so a
+  // fresh choice is always required on the next punch-in. Harmless while punched in: the toggle
+  // is hidden then. The `const m = mode` capture in punchIn() still runs before punchedIn flips.
+  $: if (punchedIn) mode = undefined
 
   // The day log: one browsable full-width view. A native <input type="date"> (yyyy-mm-dd) picks the
   // day, defaulting to today; the timeline and the table below both follow it.

@@ -44,7 +44,7 @@
   .holcal__month { font-weight: 620; color: var(--theme-caption-color); }
   .holcal__nav { border: 1px solid var(--theme-divider-color); background: var(--theme-button-default); color: var(--theme-content-color); width: 26px; height: 26px; border-radius: 7px; cursor: pointer; line-height: 1; }
   .holcal__nav:hover { color: var(--theme-caption-color); }
-  .holcal__cell { position: relative; width: 100%; height: 100%; min-height: 40px; display: flex; flex-direction: column; align-items: flex-start; padding: 3px 5px; }
+  .holcal__cell { position: relative; width: 100%; height: 100%; min-height: 40px; display: flex; flex-direction: column; align-items: flex-start; padding: 3px 5px; cursor: default; }
   .holcal__cell.wrong { color: var(--theme-trans-color); }
   .holcal__cell.today .holcal__num { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; border-radius: 999px; background: var(--primary-color-skyblue); color: #fff; font-weight: 700; }
   .holcal__cell.is-hol { background: var(--theme-won-color, var(--theme-button-default)); }
