@@ -475,7 +475,9 @@ export async function configurePlatform() {
   // tryOpenInDesktopApp(config.APP_PROTOCOL ?? 'huly://')
 
   setMetadata(login.metadata.AccountsUrl, config.ACCOUNTS_URL)
-  setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP === 'true')
+  // YG fork: self-hosted single-workspace deployment has no public sign-up. Signup is disabled by
+  // default (hides the Sign Up tab on the login page); set DISABLE_SIGNUP=false to re-enable.
+  setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP !== 'false')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
 
   setMetadata(login.metadata.PasswordValidations, PASSWORD_REQUIREMENTS[config.PASSWORD_STRICTNESS ?? 'none'])

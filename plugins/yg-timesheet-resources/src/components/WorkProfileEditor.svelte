@@ -94,7 +94,7 @@
               <input
                 class="yg-input"
                 type="text"
-                placeholder="YGS0024"
+                placeholder="YGS0000"
                 value={mixin?.employeeId ?? ''}
                 on:change={(e) => onEmployeeIdChange(emp, e.currentTarget.value)}
               />
