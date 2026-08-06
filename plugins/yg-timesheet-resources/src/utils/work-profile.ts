@@ -1,11 +1,25 @@
-import { type WorkProfileCategory } from '@hcengineering/yg-timesheet'
+import { type WorkDesignation } from '@hcengineering/yg-timesheet'
 
-export const CATEGORY_ORDER: WorkProfileCategory[] = ['junior-dev', 'senior-dev', 'sales', 'salesforce', 'other']
+export const DESIGNATIONS: WorkDesignation[] = [
+  'Software Engineer Trainee', 'Associate Software Engineer', 'Senior Software Engineer',
+  'Team Leader', 'Project Manager', 'Software Test Engineer', 'Senior Software Tester',
+  'Web Designer', 'Front End Developer', 'Senior Front End Developer',
+  'SEO Analyst Trainee', 'SEO Analyst', 'Senior SEO Analyst',
+  'Business Development Executive', 'Senior Business Development Executive',
+  'Business Development Manager', 'Salesforce Developer', 'Senior Salesforce Developer',
+  'Lead Generation Executive', 'CEO', 'CTO', 'COO', 'HR Executive', 'Intern'
+]
 
-export const TRACKED_CATEGORIES = new Set<WorkProfileCategory>(['junior-dev', 'senior-dev'])
+// Titles that appear in the Performance report (dev/tester roles). All others are excluded.
+export const TRACKED_DESIGNATIONS = new Set<WorkDesignation>([
+  'Software Engineer Trainee', 'Associate Software Engineer', 'Senior Software Engineer',
+  'Team Leader', 'Software Test Engineer', 'Senior Software Tester', 'Web Designer',
+  'Front End Developer', 'Senior Front End Developer', 'Salesforce Developer',
+  'Senior Salesforce Developer'
+])
 
-export function isTracked (cat: WorkProfileCategory | undefined): boolean {
-  return cat !== undefined && TRACKED_CATEGORIES.has(cat)
+export function isTracked (d: WorkDesignation | undefined): boolean {
+  return d !== undefined && TRACKED_DESIGNATIONS.has(d)
 }
 
 export function minutesToHHMM (min: number): string {
