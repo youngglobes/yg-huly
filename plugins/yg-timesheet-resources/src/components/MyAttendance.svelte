@@ -31,6 +31,7 @@
   } from '../utils/attendance'
   import { createPunchIn, closePunchOut } from '../utils/attendance-write'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
+  import HolidayCalendarView from './HolidayCalendarView.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -232,7 +233,9 @@
         {/if}
       </div>
 
-      <div class="att-panel att-glance">
+      <div class="att-right">
+        <HolidayCalendarView />
+        <div class="att-panel att-glance">
         <span class="att-eyebrow"><Label label={ygTimesheet.string.Today} /></span>
         <div class="att-glance__total">{formatDuration(todayTotal)}</div>
         <div class="att-glance__grid">
@@ -248,6 +251,7 @@
             <span class="att-stat__k"><Label label={ygTimesheet.string.LastOut} /></span>
             <span class="att-stat__v">{stats.lastOut !== undefined ? timeFmt.format(stats.lastOut) : '--'}</span>
           </div>
+        </div>
         </div>
       </div>
     </section>
@@ -348,6 +352,7 @@
 
   // Hero band ---------------------------------------------------------------
   .att-hero { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: stretch; }
+  .att-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
   .att-punch { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
   .att-punch.is-on { border-color: var(--att-wfh-line); }
