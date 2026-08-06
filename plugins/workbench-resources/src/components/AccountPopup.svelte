@@ -137,8 +137,7 @@
   let actions: Action[] = []
   $: {
     actions = []
-    // YG fork: workspace Settings is owner-only (employees do not manage the workspace).
-    if (hasAccountRole(account, AccountRole.Owner)) {
+    if (hasAccountRole(account, AccountRole.DocGuest)) {
       actions.push({
         icon: view.icon.Setting,
         label: setting.string.Settings,
