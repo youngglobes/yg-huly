@@ -188,7 +188,7 @@
               <div class="perf-day__chips">
                 {#if d.offDay}<span class="perf-chip perf-chip--off">Off-day</span>{/if}
                 {#if d.overtimeHours > 0}<span class="perf-chip perf-chip--ot">OT +{formatHours(d.overtimeHours)}</span>{/if}
-                {#if d.lateNight}<span class="perf-chip perf-chip--late">Late</span>{/if}
+                {#if d.lateNight}<span class="perf-chip perf-chip--late">Late night</span>{/if}
               </div>
               <div class="perf-day__meta">
                 {#if d.workedHours > 0}<span class="perf-day__hrs">{formatHours(d.workedHours)}</span>{/if}
