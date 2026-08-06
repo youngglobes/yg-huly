@@ -20,7 +20,9 @@ export interface ProjectStat {
   // byStatus: count of OPEN issues per real status name (e.g. { 'Todo': 4, 'In Progress': 3 }).
   // Feeds the per-status columns; the coarse inProgress/done stay for KPIs/back-compat.
   byStatus: Record<string, number>
-  hours: number; members: number; estimated: number; spent: number
+  // hours = logged in the selected period; approvedHours = approved timesheet hours in that same
+  // period (both react to the dashboard's period filter). estimated/spent stay all-time.
+  hours: number; approvedHours: number; members: number; estimated: number; spent: number
 }
 export interface Kpis { inProgress: number; hoursThisWeek: number; overdue: number }
 
@@ -85,7 +87,15 @@ export function openStatusTotals (issues: DashIssue[]): Array<{ name: string; co
   return openStatusNames(issues).map((n) => ({ name: n, count: c.get(n) ?? 0 }))
 }
 
-export function projectStats (issues: DashIssue[], times: DashTime[], projects: DashProject[]): ProjectStat[] {
+// approvedByProject: project id -> approved hours in the selected period (built in the component from
+// TimesheetApproval + the approved tasks' project/date). Defaults to empty so callers that do not
+// track approvals still get approvedHours: 0.
+export function projectStats (
+  issues: DashIssue[],
+  times: DashTime[],
+  projects: DashProject[],
+  approvedByProject: Map<string, number> = new Map()
+): ProjectStat[] {
   return projects.map((p) => {
     const pi = issues.filter((i) => i.project === p.id)
     const pt = times.filter((t) => t.project === p.id)
@@ -99,6 +109,7 @@ export function projectStats (issues: DashIssue[], times: DashTime[], projects: 
       done: pi.filter((i) => i.cat === 'won').length,
       byStatus,
       hours: round2(pt.reduce((s, t) => s + t.hours, 0)),
+      approvedHours: round2(approvedByProject.get(p.id) ?? 0),
       members: new Set(pt.map((t) => t.employee)).size,
       estimated: round2(pi.reduce((s, i) => s + i.estimation, 0)),
       spent: round2(pi.reduce((s, i) => s + i.reportedTime, 0))

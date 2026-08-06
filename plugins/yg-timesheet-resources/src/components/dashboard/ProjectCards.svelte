@@ -19,8 +19,8 @@
   export let preset = 'thisWeek'
   export let fromStr = ''
   export let toStr = ''
-  // Most-active first: most open work desc, then spent desc, then name.
-  $: rows = [...stats].sort((a, b) => b.open - a.open || b.spent - a.spent || a.name.localeCompare(b.name))
+  // Most logged time first (period-scoped Logged column), then name.
+  $: rows = [...stats].sort((a, b) => b.hours - a.hours || a.name.localeCompare(b.name))
   // Org-wide logged time in the selected period (sum of the per-project Logged column) - "how much
   // work went into all projects this week". Replaces the less-actionable all-time Estimated/Spent totals.
   $: totalLogged = stats.reduce((s, r) => s + r.hours, 0)
@@ -53,6 +53,7 @@
             <th class="yg-num" title={c}>{c}</th>
           {/each}
           <th class="yg-num" title="Hours logged in the selected period">Logged</th>
+          <th class="yg-num" title="Approved timesheet hours in the selected period">Approved</th>
           <th class="yg-num"><Label label={ygTimesheet.string.Estimated} /></th>
           <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
           <th class="yg-num">Team</th>
@@ -66,12 +67,13 @@
               <td class="yg-num">{s.byStatus[c] ?? 0}</td>
             {/each}
             <td class="yg-num">{formatHours(s.hours)}</td>
+            <td class="yg-num">{formatHours(s.approvedHours)}</td>
             <td class="yg-num">{formatHours(s.estimated)}</td>
             <td class="yg-num" class:pc__over={s.estimated > 0 && s.spent > s.estimated}>{formatHours(s.spent)}</td>
             <td class="yg-num">{s.members}</td>
           </tr>
         {:else}
-          <tr><td colspan={statusColumns.length + 5} class="yg-empty">No projects assigned to you.</td></tr>
+          <tr><td colspan={statusColumns.length + 6} class="yg-empty">No projects assigned to you.</td></tr>
         {/each}
       </tbody>
     </table>

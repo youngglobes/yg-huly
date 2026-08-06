@@ -77,8 +77,12 @@ describe('projectStats', () => {
   ]
   it('rolls up counts, per-status breakdown, hours, members, estimated and spent', () => {
     expect(projectStats(issues, times, projects)).toEqual([
-      { project: 'p1', name: 'Alpha', open: 2, inProgress: 1, done: 1, byStatus: { 'In Progress': 1, Todo: 1 }, hours: 3, members: 2, estimated: 8, spent: 7 }
+      { project: 'p1', name: 'Alpha', open: 2, inProgress: 1, done: 1, byStatus: { 'In Progress': 1, Todo: 1 }, hours: 3, approvedHours: 0, members: 2, estimated: 8, spent: 7 }
     ])
+  })
+  it('applies approvedByProject as the period-scoped approved hours', () => {
+    expect(projectStats(issues, times, projects, new Map([['p1', 5.5]]))[0].approvedHours).toBe(5.5)
+    expect(projectStats(issues, times, projects)[0].approvedHours).toBe(0) // default: no approvals tracked
   })
 })
 
@@ -102,8 +106,8 @@ describe('open status breakdown (real status names, open only)', () => {
 describe('portfolioHours', () => {
   it('sums estimated and spent across projects', () => {
     const stats = [
-      { project: 'p1', name: 'A', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, members: 0, estimated: 8, spent: 7 },
-      { project: 'p2', name: 'B', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, members: 0, estimated: 4.5, spent: 2 }
+      { project: 'p1', name: 'A', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, approvedHours: 0, members: 0, estimated: 8, spent: 7 },
+      { project: 'p2', name: 'B', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, approvedHours: 0, members: 0, estimated: 4.5, spent: 2 }
     ]
     expect(portfolioHours(stats)).toEqual({ estimated: 12.5, spent: 9 })
   })

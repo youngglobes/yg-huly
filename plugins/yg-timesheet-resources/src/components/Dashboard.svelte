@@ -24,7 +24,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet, type TimesheetApproval } from '@hcengineering/yg-timesheet'
   import { canApproveView } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { type DropdownTextItem } from '@hcengineering/ui'
@@ -176,6 +176,30 @@
       employee: tsEmp.get(dayTs.get(t.attachedTo as string) ?? '') ?? ''
     }))
 
+  // --- Approved hours per project in the selected period (Approved column) -------------------
+  // Approved hours live on TimesheetApproval (one per approved task). Map each approval to its task's
+  // project + date via the Approved tasks, then sum by project within the same period range as Logged.
+  const apprQuery = createQuery()
+  const apprTaskQuery = createQuery()
+  let approvals: TimesheetApproval[] = []
+  let apprTaskInfo = new Map<string, { project: string, date: number }>()
+  apprQuery.query(ygTimesheet.class.TimesheetApproval, {}, (r: TimesheetApproval[]) => { approvals = r })
+  apprTaskQuery.query(ygTimesheet.class.TimesheetTask, { status: 'Approved' }, (r: TimesheetTask[]) => {
+    apprTaskInfo = new Map(r.map((t) => [t._id as string, { project: t.project as string, date: t.date }]))
+  })
+  $: apprByTask = new Map(approvals.map((a) => [a.task as string, a.approvedHours]))
+  $: approvedByProject = ((): Map<string, number> => {
+    const m = new Map<string, number>()
+    for (const [taskId, info] of apprTaskInfo) {
+      if (info.date < range.start || info.date >= range.end) continue // period scope, matches Logged
+      if (!myProjectIds.has(info.project)) continue
+      const hrs = apprByTask.get(taskId)
+      if (hrs === undefined) continue
+      m.set(info.project, (m.get(info.project) ?? 0) + hrs)
+    }
+    return m
+  })()
+
   // --- Employee names ------------------------------------------------------
   const empQuery = createQuery()
   let employeeNames = new Map<string, string>()
@@ -183,7 +207,7 @@
 
   // --- Derived (pure lib) --------------------------------------------------
   $: now = Date.now()
-  $: stats = projectStats(issues, times, myProjects)
+  $: stats = projectStats(issues, times, myProjects, approvedByProject)
   $: portfolio = portfolioHours(stats)
   $: statusColumns = openStatusNames(issues)
   $: statusSegments = openStatusTotals(issues).map((s, idx) => ({ ...s, color: STATUS_COLORS[idx % STATUS_COLORS.length] }))
