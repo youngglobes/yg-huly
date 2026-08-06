@@ -17,8 +17,8 @@
   import { Label, themeStore, getCurrentLocation, navigate } from '@hcengineering/ui'
   import ygTimesheet, { type AttendanceSession, type AttendanceReminderSettings } from '@hcengineering/yg-timesheet'
   import { evaluateReminder, DEFAULT_REMINDER_CONFIG, type ReminderConfig, type ReminderKind } from '../utils/reminder'
-  import { createPunchIn, closePunchOut } from '../utils/attendance-write'
-  import { findOpenSession, nextMode, localMidnight } from '../utils/attendance'
+  import { closePunchOut } from '../utils/attendance-write'
+  import { findOpenSession } from '../utils/attendance'
 
   const OPT_IN_KEY = 'yg-punch-reminders-optin'
   const optedIn = (): boolean => typeof localStorage !== 'undefined' && localStorage.getItem(OPT_IN_KEY) === 'on'
@@ -121,10 +121,9 @@
   }
 
   async function doPunch (): Promise<void> {
-    const todayMid = localMidnight(Date.now())
-    const todays = mySessions.filter((s) => s.date === todayMid)
+    // Punch-out has no mode -> keep the one-tap close. Punch-in must NOT auto-punch (it would skip the
+    // mandatory Office/WFH choice), so just open My Attendance and let them pick the mode + punch there.
     if (punchedIn && openSession !== undefined) await closePunchOut(client, openSession._id)
-    else if (!punchedIn) await createPunchIn(client, me, nextMode(todays))
     bannerKind = 'none'
     goToMyAttendance()
   }

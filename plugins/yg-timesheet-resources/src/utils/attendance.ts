@@ -43,16 +43,6 @@ export function dailyTotal (sessions: AttendanceLike[], now: number): number {
   return sessions.reduce((sum, s) => sum + sessionDuration(s, now), 0)
 }
 
-/**
- * Mode to pre-select for the next punch-in: the most recent session's mode today,
- * else 'office'. Sticky within the day, resets to office each new day (the caller
- * passes only today's sessions). Order-independent.
- */
-export function nextMode (todays: AttendanceLike[]): AttendanceMode {
-  if (todays.length === 0) return 'office'
-  return [...todays].sort((a, b) => b.punchIn - a.punchIn)[0].mode
-}
-
 /** Format an ms duration as "Hh MMm" (e.g. "2h 05m"); under a minute reads "0h 00m". */
 export function formatDuration (ms: number): string {
   const totalMin = Math.floor(ms / 60000)
