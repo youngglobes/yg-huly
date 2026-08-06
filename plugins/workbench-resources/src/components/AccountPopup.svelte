@@ -137,7 +137,8 @@
   let actions: Action[] = []
   $: {
     actions = []
-    if (hasAccountRole(account, AccountRole.DocGuest)) {
+    // YG fork: workspace Settings is owner-only (employees do not manage the workspace).
+    if (hasAccountRole(account, AccountRole.Owner)) {
       actions.push({
         icon: view.icon.Setting,
         label: setting.string.Settings,
@@ -157,7 +158,7 @@
       })
     }
     actions.push(...getMenu(items, ['main']))
-    if (hasAccountRole(account, AccountRole.User) && !isDisabled('invites') && canGenerateInviteLink) {
+    if (hasAccountRole(account, AccountRole.Owner) && !isDisabled('invites') && canGenerateInviteLink) {
       actions.push({
         icon: setting.icon.InviteWorkspace,
         label: setting.string.InviteWorkspace,
@@ -168,7 +169,8 @@
       })
     }
 
-    if (hasAccountRole(account, AccountRole.User)) {
+    // YG fork: switching/creating workspaces is owner-only in this single-workspace deployment.
+    if (hasAccountRole(account, AccountRole.Owner)) {
       actions.push({
         icon: setting.icon.Signout,
         label: setting.string.SelectWorkspace,
