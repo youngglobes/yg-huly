@@ -18,7 +18,7 @@
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { Label, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI } from '@hcengineering/ui'
+  import { Label, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI, showPopup } from '@hcengineering/ui'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
   import { weekRange, groupByDay, formatHours, localDayKey, type ReportLike, type DayGroup } from '../utils/week'
   import {
@@ -33,6 +33,7 @@
   import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
   import SubmitErrorNotification from './SubmitErrorNotification.svelte'
+  import ResubmitDayPopup from './ResubmitDayPopup.svelte'
 
   // Owner bootstrap (fallback to Dashboard's call): self-add an Owner to HrData so the server
   // un-hides the HR app for them and they can reach the roster editor. No-op for non-owners.
@@ -208,7 +209,50 @@
       )
       return
     }
-    const res = await submitDay(client, { employee: me, date: day.date, reports, approversByProject })
+    // Backlog item 4: a day whose derived status is Rejected collects one optional reply per
+    // rejected task before it goes back. deriveDayStatus returns 'Rejected' iff at least one task
+    // is rejected, and the Submit button only renders for Draft or Rejected, so this single check
+    // is sufficient. The Draft path is untouched: no dialog, zero added friction.
+    const dayTasksNow = tasksByKey.get(day.key) ?? []
+    const isResubmit = deriveDayStatus(dayTasksNow.map((t) => t.status)) === 'Rejected'
+    let resubmitNotes: Map<string, string> | undefined
+    if (isResubmit) {
+      const rows = dayTasksNow
+        .filter((t) => t.status === 'Rejected')
+        .filter((t) => reports.some((r) => r.issue === t.issue))
+        .map((t) => ({
+          issue: t.issue as string,
+          identifier: t.identifier,
+          title: t.title,
+          hours: formatHours(t.submittedHours),
+          reason: t.rejectReason ?? '',
+          // Filled in by Task 7, which adds the cycle query and rejectedByName().
+          rejectedBy: ''
+        }))
+      if (rows.length > 0) {
+        const answered = await new Promise<Map<string, string> | undefined>((resolve) => {
+          showPopup(
+            ResubmitDayPopup,
+            { dayLabel: weekdayLongFmt.format(day.date), rows },
+            undefined,
+            (out?: { notes: Map<string, string> }) => {
+              resolve(out?.notes)
+            }
+          )
+        })
+        // Cancel (undefined) aborts the resubmit entirely; an empty map means "no replies, proceed".
+        if (answered === undefined) return
+        resubmitNotes = answered
+      }
+    }
+
+    const res = await submitDay(client, {
+      employee: me,
+      date: day.date,
+      reports,
+      approversByProject,
+      resubmitNotes: resubmitNotes as Map<Ref<Issue>, string> | undefined
+    })
     if (typeof res === 'object' && 'kind' in res && res.kind === NO_APPROVER) {
       // No inline error element (#2): surface the block as a toast instead of breaking the day card.
       const projects = res.projects.map((p) => projectNames.get(p) ?? p).join(', ')
@@ -285,7 +329,7 @@
           <span class="day__hours" class:zero={day.total === 0}>{formatHours(day.total)}</span>
           {#if (status === 'Draft' || status === 'Rejected') && hasTasks}
             <button class="yg-btn yg-btn--primary" on:click={() => onSubmit(day)}>
-              <Label label={ygTimesheet.string.Submit} />
+              <Label label={status === 'Rejected' ? ygTimesheet.string.Resubmit : ygTimesheet.string.Submit} />
             </button>
           {:else if status === 'Submitted'}
             <button class="yg-btn yg-btn--ghost" on:click={() => onRecall(day)}>
