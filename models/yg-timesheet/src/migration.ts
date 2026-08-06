@@ -12,9 +12,9 @@ import core from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
 import tracker from '@hcengineering/tracker'
-import type { Employee } from '@hcengineering/contact'
+import contact, { type Employee } from '@hcengineering/contact'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { ygTimesheetId, type TimesheetDay, type WorkDesignation } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
@@ -244,6 +244,30 @@ async function backfillHrTimeEntries (client: MigrationUpgradeClient): Promise<v
   }
 }
 
+// Map the retired WorkProfile.category to the new designation so the Performance report keeps its
+// tracked roster after the Category -> Designation change. HR fine-tunes exact titles afterward.
+// junior-dev/senior-dev/salesforce map to tracked titles; sales maps to an untracked title; 'other'
+// (and any unknown) is left unset. Idempotent: skips any profile that already has a designation.
+const CATEGORY_TO_DESIGNATION: Record<string, WorkDesignation> = {
+  'junior-dev': 'Associate Software Engineer',
+  'senior-dev': 'Senior Software Engineer',
+  salesforce: 'Salesforce Developer',
+  sales: 'Business Development Executive'
+}
+
+async function migrateWorkProfileDesignation (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const profiles = await ops.findAll(ygTimesheet.mixin.WorkProfile, {})
+  for (const p of profiles) {
+    if (p.designation !== undefined) continue // idempotent
+    const oldCat = (p as unknown as { category?: string }).category
+    if (oldCat === undefined) continue
+    const designation = CATEGORY_TO_DESIGNATION[oldCat]
+    if (designation === undefined) continue // 'other' / unknown -> leave unset
+    await ops.updateMixin(p._id, contact.mixin.Employee, p.space, ygTimesheet.mixin.WorkProfile, { designation })
+  }
+}
+
 export const ygTimesheetOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await migrateDaysToTasks(client)
@@ -304,6 +328,12 @@ export const ygTimesheetOperation: MigrateOperation = {
           const ops = new TxOperations(client, core.account.System)
           await setHrAppIcon(ops)
         }
+      },
+      {
+        // Backfill WorkProfile.designation from the retired category so the Performance report stays
+        // populated after the Category -> Designation change. Idempotent (skips set designations).
+        state: 'workprofile-designation-0001',
+        func: migrateWorkProfileDesignation
       }
     ])
   }
