@@ -32,6 +32,8 @@
   // employee's spent-time notes for this task. Both optional so older callers still work.
   export let estimation: number | undefined = undefined
   export let notes: string[] = []
+  // True when this task has prior rejection rounds, so the title reads as a second pass.
+  export let isReapproval: boolean = false
 
   const dispatch = createEventDispatcher()
   let hours: number = submittedHours
@@ -45,7 +47,7 @@
 
 <div class="dialog">
   <div class="dialog__head">
-    <div class="dialog__title">Approve time</div>
+    <div class="dialog__title">{isReapproval ? 'Reapprove time' : 'Approve time'}</div>
     <div class="dialog__sub">{sub}</div>
   </div>
   <div class="dialog__body">
