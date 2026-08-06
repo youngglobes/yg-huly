@@ -98,7 +98,7 @@
             <td class="left bold">{formatName(emp.name)}</td>
             <td class="left">
               <input
-                class="yg-input"
+                class="yg-input wp-empid"
                 type="text"
                 placeholder="YGS0000"
                 value={mixin?.employeeId ?? ''}
@@ -156,4 +156,6 @@
     font-size: 13px;
     color: var(--yg-text-dim);
   }
+  // Employee ID is a short code (e.g. YGS0024); cap its width so Designation/Department get the room.
+  .wp-empid { max-width: 150px; }
 </style>

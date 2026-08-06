@@ -353,7 +353,10 @@ export function createModel (builder: Builder): void {
             label: ygTimesheet.string.TeamProfiles,
             icon: contact.icon.Person,
             component: ygTimesheet.component.WorkProfileEditor,
-            accessLevel: AccountRole.Owner,
+            // DocGuest like the other HR specials: HR-app visibility is already gated to HrData members
+            // + owners (the HiddenApplication trigger), so this shows team-profiles to HR staff too, not
+            // just owners. (Was Owner-only; HR users need to manage designations/departments/IDs.)
+            accessLevel: AccountRole.DocGuest,
             position: 'bottom'
           }
         ]

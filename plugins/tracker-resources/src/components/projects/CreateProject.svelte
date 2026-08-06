@@ -71,7 +71,8 @@
 
   let name: string = project?.name ?? namePlaceholder
   let description: string = project?.description ?? descriptionPlaceholder
-  let isPrivate: boolean = project?.private ?? false
+  // YG fork: new projects default to Private (existing projects keep their stored value).
+  let isPrivate: boolean = project?.private ?? true
   let icon: Asset | undefined = project?.icon ?? tracker.icon.Home
   let color = project?.color ?? getColorNumberByText(name)
   let isColorSelected = false
