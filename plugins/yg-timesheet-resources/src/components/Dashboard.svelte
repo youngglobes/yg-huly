@@ -24,7 +24,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet, type TimesheetApproval } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet } from '@hcengineering/yg-timesheet'
   import { canApproveView } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { type DropdownTextItem } from '@hcengineering/ui'
@@ -177,25 +177,20 @@
     }))
 
   // --- Approved hours per project in the selected period (Approved column) -------------------
-  // Approved hours live on TimesheetApproval (one per approved task). Map each approval to its task's
-  // project + date via the Approved tasks, then sum by project within the same period range as Logged.
-  const apprQuery = createQuery()
+  // Approved hours live directly on TimesheetTask (denormalized - the separate TimesheetApproval
+  // doc lives in ygTimesheet.space.Approvals, which is not readable by the client). Sum approved
+  // tasks by project within the same period range as Logged.
   const apprTaskQuery = createQuery()
-  let approvals: TimesheetApproval[] = []
-  let apprTaskInfo = new Map<string, { project: string, date: number }>()
-  apprQuery.query(ygTimesheet.class.TimesheetApproval, {}, (r: TimesheetApproval[]) => { approvals = r })
+  let apprTaskInfo = new Map<string, { project: string, date: number, approvedHours?: number }>()
   apprTaskQuery.query(ygTimesheet.class.TimesheetTask, { status: 'Approved' }, (r: TimesheetTask[]) => {
-    apprTaskInfo = new Map(r.map((t) => [t._id as string, { project: t.project as string, date: t.date }]))
+    apprTaskInfo = new Map(r.map((t) => [t._id as string, { project: t.project as string, date: t.date, approvedHours: t.approvedHours }]))
   })
-  $: apprByTask = new Map(approvals.map((a) => [a.task as string, a.approvedHours]))
   $: approvedByProject = ((): Map<string, number> => {
     const m = new Map<string, number>()
-    for (const [taskId, info] of apprTaskInfo) {
+    for (const info of apprTaskInfo.values()) {
       if (info.date < range.start || info.date >= range.end) continue // period scope, matches Logged
       if (!myProjectIds.has(info.project)) continue
-      const hrs = apprByTask.get(taskId)
-      if (hrs === undefined) continue
-      m.set(info.project, (m.get(info.project) ?? 0) + hrs)
+      m.set(info.project, (m.get(info.project) ?? 0) + (info.approvedHours ?? 0))
     }
     return m
   })()
