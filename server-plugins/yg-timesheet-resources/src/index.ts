@@ -62,7 +62,7 @@ import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengi
 import task from '@hcengineering/task'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
 import { estimateRequiredToActivate } from './estimate-gate'
-import { localMidnightOf, roundedHoursDiffer, sumHoursInDayWindow } from './approval-drift'
+import { inDayWindow, roundedHoursDiffer, sumHoursInDayWindow } from './approval-drift'
 
 // ---------------------------------------------------------------------------
 // Inbox notifications (2026-07-25). The approval workflow now pushes Huly inbox
@@ -832,13 +832,15 @@ async function reopenDriftedApprovedTask (control: TriggerControl, report: TimeS
   if (report.date == null) return
 
   const issue = report.attachedTo as Ref<Issue>
-  const day = localMidnightOf(report.date)
 
-  // Candidates: every Approved task on this issue for this day, across ALL employees - narrowed to
-  // this report's employee below via the day -> timesheet -> employee chain (TimesheetTask itself
-  // has no employee field), same resolution chain OnTimesheetTaskUpdate uses.
+  // Candidates: every Approved task on this issue, across ALL employees - narrowed to this report's
+  // employee AND day inside the loop. We deliberately do NOT filter by `date` in the query: task.date
+  // is stored as LOCAL (IST) midnight, but this trigger runs on the server in UTC, so a server-computed
+  // midnight would never equal the stored value (the previous bug: zero candidates, never reopened).
+  // Instead we match the task whose absolute 24h day-window contains the report instant (inDayWindow),
+  // which is timezone-independent.
   const candidates = await control.findAll(
-    control.ctx, ygTimesheet.class.TimesheetTask, { issue, date: day, status: 'Approved' }
+    control.ctx, ygTimesheet.class.TimesheetTask, { issue, status: 'Approved' }
   )
   if (candidates.length === 0) return
 
@@ -856,13 +858,15 @@ async function reopenDriftedApprovedTask (control: TriggerControl, report: TimeS
           )
         )[0]
     if (sheet?.employee !== employee) continue // a different employee's task on the same issue/day
+    if (!inDayWindow(candidate.date, report.date)) continue // an Approved task on a DIFFERENT day of this issue
 
-    // Live total: every TimeSpendReport this employee logged on this issue, cut to this day's window.
+    // Live total: every TimeSpendReport this employee logged on this issue, cut to this task's day
+    // window (absolute [task.date, task.date + 24h), timezone-independent - see inDayWindow above).
     const reports = await control.findAll(
       control.ctx, tracker.class.TimeSpendReport, { attachedTo: issue, employee }
     )
     // sumHoursInDayWindow already rounds its total to 2dp.
-    const liveHours = sumHoursInDayWindow(reports.map((r) => ({ date: r.date, value: r.value })), day)
+    const liveHours = sumHoursInDayWindow(reports.map((r) => ({ date: r.date, value: r.value })), candidate.date)
 
     // Drift baseline is submittedHours (the spent total the approver reviewed), NOT approvedHours.
     // The approver may deliberately approve LESS than submitted (e.g. submit 1h, approve 0.5h) - that is
