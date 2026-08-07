@@ -277,12 +277,26 @@
 
   $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
   // Newest work first; ties broken by employee then issue id — stable & predictable across pages.
-  $: rows = filterRows(allRows, filter).sort(
-    (a, b) =>
-      b.date - a.date ||
-      a.employeeName.localeCompare(b.employeeName) ||
-      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
-  )
+  $: rows = ((): ReportRow[] => {
+    const sorted = filterRows(allRows, filter).sort(
+      (a, b) =>
+        b.date - a.date ||
+        a.employeeName.localeCompare(b.employeeName) ||
+        a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+    )
+    // A task (employee+issue+day) has ONE approval but can span several TimeSpendReport rows (time
+    // logged in more than one sitting). Keep the approved hours/approver on the FIRST row of each task
+    // only and blank the rest, so the Approved column and its footer total sum the approval ONCE -
+    // matching the per-task figure the PM dashboard shows (this was double-counting split-logged tasks).
+    const seenTask = new Set<string>()
+    return sorted.map((r) => {
+      if (r.approvedHours == null) return r
+      const key = `${r.employee}|${r.issue}|${localDayKey(r.date)}`
+      if (seenTask.has(key)) return { ...r, approvedHours: undefined, approvedByName: undefined }
+      seenTask.add(key)
+      return r
+    })
+  })()
   $: totalSpent = rows.reduce((s, r) => s + r.hours, 0)
   $: totalApproved = rows.reduce((s, r) => s + (r.approvedHours ?? 0), 0)
 
