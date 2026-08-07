@@ -261,6 +261,20 @@
     }
   }
 
+  // Multi-click guard: day keys whose submit is currently in flight. A slow submitDay used to let a
+  // second click fire duplicate submissions/approvals; the button below is disabled + shows "Submitting"
+  // while its day is in this set.
+  let submitting = new Set<string>()
+  async function onSubmitGuarded (day: DayGroup): Promise<void> {
+    if (submitting.has(day.key)) return
+    submitting = new Set(submitting).add(day.key)
+    try {
+      await onSubmit(day)
+    } finally {
+      submitting = new Set([...submitting].filter((k) => k !== day.key))
+    }
+  }
+
   async function onSubmit (day: DayGroup): Promise<void> {
     const reports = reportsByKey.get(day.key) ?? []
     // Block the whole submit until every task's issue has an estimation (user decision 2026-07-29).
@@ -328,6 +342,14 @@
         undefined,
         NotificationSeverity.Error
       )
+    } else {
+      addNotification(
+        isResubmit ? 'Resubmitted for approval' : `Submitted ${weekdayLongFmt.format(day.date)}`,
+        isResubmit ? 'Your reply and hours were sent back for re-approval.' : 'Your timesheet was sent to the approver.',
+        SubmitErrorNotification,
+        undefined,
+        NotificationSeverity.Success
+      )
     }
   }
 
@@ -392,8 +414,12 @@
           <span class="yg-pill yg-pill--{status.toLowerCase()}"><Label label={statusString(status)} /></span>
           <span class="day__hours" class:zero={day.total === 0}>{formatHours(day.total)}</span>
           {#if (status === 'Draft' || status === 'Rejected') && hasTasks}
-            <button class="yg-btn yg-btn--primary" on:click={() => onSubmit(day)}>
-              <Label label={status === 'Rejected' ? ygTimesheet.string.Resubmit : ygTimesheet.string.Submit} />
+            <button class="yg-btn yg-btn--primary" on:click={() => onSubmitGuarded(day)} disabled={submitting.has(day.key)}>
+              {#if submitting.has(day.key)}
+                Submitting...
+              {:else}
+                <Label label={status === 'Rejected' ? ygTimesheet.string.Resubmit : ygTimesheet.string.Submit} />
+              {/if}
             </button>
           {:else if status === 'Submitted'}
             <button class="yg-btn yg-btn--ghost" on:click={() => onRecall(day)}>

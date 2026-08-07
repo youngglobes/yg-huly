@@ -17,7 +17,8 @@
   import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { Label, getPanelURI, showPopup } from '@hcengineering/ui'
+  import { Label, addNotification, getPanelURI, NotificationSeverity, showPopup } from '@hcengineering/ui'
+  import SubmitErrorNotification from './SubmitErrorNotification.svelte'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers, type TimesheetRejectCycle } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
   import { approveTask, rejectTask } from '../utils/day'
@@ -213,7 +214,11 @@
       },
       undefined,
       (res?: { approvedHours: number }) => {
-        if (res !== undefined) void approveTask(client, task._id, res.approvedHours)
+        if (res !== undefined) {
+          void approveTask(client, task._id, res.approvedHours).then(() => {
+            addNotification('Time approved', `${task.identifier} approved.`, SubmitErrorNotification, undefined, NotificationSeverity.Success)
+          })
+        }
       }
     )
   }
@@ -226,7 +231,11 @@
       { identifier: task.identifier, title: task.title },
       undefined,
       (res?: { reason: string }) => {
-        if (res !== undefined) void rejectTask(client, task._id, res.reason, employee)
+        if (res !== undefined) {
+          void rejectTask(client, task._id, res.reason, employee).then(() => {
+            addNotification('Time rejected', `${task.identifier} sent back to the employee.`, SubmitErrorNotification, undefined, NotificationSeverity.Info)
+          })
+        }
       }
     )
   }
