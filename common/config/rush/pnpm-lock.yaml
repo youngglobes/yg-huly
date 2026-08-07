@@ -29184,6 +29184,9 @@ importers:
 
   ../../plugins/tracker-resources:
     dependencies:
+      '@hcengineering/account-client':
+        specifier: workspace:^0.7.426
+        version: link:../../foundations/core/packages/account-client
       '@hcengineering/activity':
         specifier: workspace:^0.7.426
         version: link:../activity
@@ -29292,6 +29295,9 @@ importers:
       '@hcengineering/workbench-resources':
         specifier: workspace:^0.7.426
         version: link:../workbench-resources
+      '@hcengineering/yg-timesheet':
+        specifier: workspace:^0.7.426
+        version: link:../yg-timesheet
       fast-equals:
         specifier: ^5.2.2
         version: 5.3.2
@@ -30252,6 +30258,9 @@ importers:
       '@hcengineering/support-resources':
         specifier: workspace:^0.7.426
         version: link:../support-resources
+      '@hcengineering/tracker':
+        specifier: workspace:^0.7.426
+        version: link:../tracker
       '@hcengineering/ui':
         specifier: workspace:^0.7.426
         version: link:../../packages/ui
@@ -30264,6 +30273,9 @@ importers:
       '@hcengineering/workbench':
         specifier: workspace:^0.7.426
         version: link:../workbench
+      '@hcengineering/yg-timesheet':
+        specifier: workspace:^0.7.426
+        version: link:../yg-timesheet
       fast-copy:
         specifier: ^3.0.2
         version: 3.0.2

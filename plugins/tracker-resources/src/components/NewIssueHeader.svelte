@@ -15,10 +15,12 @@
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
   import core, { AccountRole, Ref, Space } from '@hcengineering/core'
+  import { getResource } from '@hcengineering/platform'
   import { MultipleDraftController, createQuery, getClient } from '@hcengineering/presentation'
   import { TrackerEvents } from '@hcengineering/tracker'
   import { HeaderButton, showPopup } from '@hcengineering/ui'
   import view from '@hcengineering/view'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
 
   import { onDestroy } from 'svelte'
   import tracker from '../plugin'
@@ -30,6 +32,12 @@
   let draftExists = false
   let projectExists = false
   let loading = true
+  // YG fork: hide "Create project" unless ygTimesheet.function.CanCreateProject allows it (#12).
+  // Default false-until-resolved so the button never flashes for a non-permitted user.
+  let canCreateProject = false
+  void getResource(ygTimesheet.function.CanCreateProject).then(async (fn) => {
+    canCreateProject = await fn()
+  })
 
   const query = createQuery()
   const client = getClient()
@@ -66,16 +74,17 @@
 
   let mainActionId: string | undefined = undefined
   let visibleActions: string[] = []
-  function updateActions (draft: boolean, project: boolean, closed: boolean): void {
+  function updateActions (draft: boolean, project: boolean, closed: boolean, canCreateProject: boolean): void {
     mainActionId = draft || !closed ? tracker.string.ResumeDraft : tracker.string.NewIssue
+    const createProjectActions = canCreateProject ? [tracker.string.CreateProject] : []
     if (project) {
-      visibleActions = [tracker.string.CreateProject, mainActionId, tracker.string.Import]
+      visibleActions = [...createProjectActions, mainActionId, tracker.string.Import]
     } else {
-      visibleActions = [tracker.string.CreateProject]
+      visibleActions = [...createProjectActions]
     }
   }
 
-  $: updateActions(draftExists, projectExists, closed)
+  $: updateActions(draftExists, projectExists, closed, canCreateProject)
 </script>
 
 <HeaderButton
