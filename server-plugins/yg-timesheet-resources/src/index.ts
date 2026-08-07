@@ -62,6 +62,7 @@ import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengi
 import task from '@hcengineering/task'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
 import { estimateRequiredToActivate } from './estimate-gate'
+import { localMidnightOf, roundedHoursDiffer, sumHoursInDayWindow } from './approval-drift'
 
 // ---------------------------------------------------------------------------
 // Inbox notifications (2026-07-25). The approval workflow now pushes Huly inbox
@@ -773,6 +774,15 @@ export async function OnProjectApproversMixinGuard (txes: Tx[], control: Trigger
 // `TxProcessor.extractTx` in this version of @hcengineering/core — only `TxProcessor.createDoc2Doc`
 // (and updateDoc2Doc/buildDoc2Doc), used below to materialize the created report.
 //
+// Approved-hours drift (payroll integrity, 2026-08-07): after a task is Approved, an employee could
+// add/edit a TimeSpendReport on that (employee, issue, day) and the extra time was silently included
+// with no re-approval - a known cheat. On every create/update of a report we now also check whether
+// it belongs to an Approved task whose live logged total no longer matches what was approved, and if
+// so auto-revert that task to Submitted (reopenDriftedApprovedTask, below) so it re-enters the
+// approver's queue. Remove is NOT handled in this v1 (we would need the pre-remove report's
+// employee/issue/date, which the trigger cannot see post-apply) - removing time is not the cheat
+// vector this closes (adding/editing is), so this is a documented limitation, not an oversight.
+//
 export async function OnTimeSpendReportChange (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     if (
@@ -788,16 +798,97 @@ export async function OnTimeSpendReportChange (txes: Tx[], control: TriggerContr
     if (cud._class === core.class.TxCreateDoc) {
       const report = TxProcessor.createDoc2Doc(cud as TxCreateDoc<TimeSpendReport>)
       await upsertMirror(control, report)
+      await reopenDriftedApprovedTask(control, report)
     } else if (cud._class === core.class.TxUpdateDoc) {
       const report = (
         await control.findAll(control.ctx, tracker.class.TimeSpendReport, { _id: cud.objectId }, { limit: 1 })
       )[0]
-      if (report !== undefined) await upsertMirror(control, report)
+      if (report !== undefined) {
+        await upsertMirror(control, report)
+        await reopenDriftedApprovedTask(control, report)
+      }
     } else if (cud._class === core.class.TxRemoveDoc) {
       await deleteMirror(control, cud.objectId)
     }
   }
   return []
+}
+
+/**
+ * Given a TimeSpendReport that was just created/edited, find the Approved TimesheetTask for its
+ * (employee, issue, day) - if any - and reopen it for re-approval when the live logged total no
+ * longer matches what was approved (or submitted, if never approved-then-re-approved). This is the
+ * server-side half of closing the approved-hours-drift cheat described at the top of this trigger.
+ *
+ * System-attributed (loop-safety): the compensating write is a TxUpdateDoc on a TimesheetTask, a
+ * different class from TimeSpendReport, so it structurally cannot re-enter THIS trigger - but it is
+ * still authored as core.account.System (matching the reopen-write idiom at lines ~257-263) so
+ * OnTimesheetTaskUpdate's own top-of-loop System guard skips it too, rather than mistaking it for an
+ * unauthorized status write to revert.
+ */
+async function reopenDriftedApprovedTask (control: TriggerControl, report: TimeSpendReport): Promise<void> {
+  const employee = report.employee
+  if (employee == null) return
+  if (report.date == null) return
+
+  const issue = report.attachedTo as Ref<Issue>
+  const day = localMidnightOf(report.date)
+
+  // Candidates: every Approved task on this issue for this day, across ALL employees - narrowed to
+  // this report's employee below via the day -> timesheet -> employee chain (TimesheetTask itself
+  // has no employee field), same resolution chain OnTimesheetTaskUpdate uses.
+  const candidates = await control.findAll(
+    control.ctx, ygTimesheet.class.TimesheetTask, { issue, date: day, status: 'Approved' }
+  )
+  if (candidates.length === 0) return
+
+  for (const candidate of candidates) {
+    const taskDay = (
+      await control.findAll(
+        control.ctx, ygTimesheet.class.TimesheetDay, { _id: candidate.attachedTo as Ref<TimesheetDay> }, { limit: 1 }
+      )
+    )[0]
+    const sheet = taskDay === undefined
+      ? undefined
+      : (
+          await control.findAll(
+            control.ctx, ygTimesheet.class.Timesheet, { _id: taskDay.attachedTo as Ref<Timesheet> }, { limit: 1 }
+          )
+        )[0]
+    if (sheet?.employee !== employee) continue // a different employee's task on the same issue/day
+
+    // Live total: every TimeSpendReport this employee logged on this issue, cut to this day's window.
+    const reports = await control.findAll(
+      control.ctx, tracker.class.TimeSpendReport, { attachedTo: issue, employee }
+    )
+    // sumHoursInDayWindow already rounds its total to 2dp.
+    const liveHours = sumHoursInDayWindow(reports.map((r) => ({ date: r.date, value: r.value })), day)
+
+    const approvedAmount = candidate.approvedHours ?? candidate.submittedHours
+    if (!roundedHoursDiffer(approvedAmount, liveHours)) continue // matches - idempotent, do nothing
+
+    control.ctx.warn('yg-timesheet: approved task auto-reopened for re-approval (logged hours drift)', {
+      task: candidate._id, issue, employee, approvedAmount, liveHours
+    })
+
+    const revert = control.txFactory.createTxUpdateDoc(
+      candidate._class,
+      candidate.space,
+      candidate._id,
+      {
+        status: 'Submitted',
+        submittedHours: liveHours,
+        approvedHours: null,
+        approvedBy: null,
+        approvedOn: null,
+        rejectReason: null
+      } as any,
+      false,
+      Date.now(),
+      core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+  }
 }
 
 // Remove any HrTimeEntry mirror(s) for a given TimeSpendReport (System-attributed). There should be
