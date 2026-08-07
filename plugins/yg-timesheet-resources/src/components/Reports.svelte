@@ -34,7 +34,7 @@
   } from '@hcengineering/yg-timesheet'
   import { filterRows, type ReportFilter, type ReportRow } from '../utils/reports'
   import { exportReportXlsx } from '../utils/report-xlsx'
-  import { formatHours, localDayKey, weekRange } from '../utils/week'
+  import { formatHours, localDayKey, weekRange, withinDay } from '../utils/week'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -208,15 +208,23 @@
   // Join the four maps: approval → task → day → timesheet → employee, keyed exactly like the row
   // lookup below. Fail SAFE: an unresolved chain yields no key, so the columns come out blank rather
   // than mis-attributed.
-  $: approvedByKey = ((): Map<string, TimesheetApproval> => {
-    const m = new Map<string, TimesheetApproval>()
+  // Index approvals by employee|issue, each carrying the task's day-start instant. The row lookup
+  // below matches a report to its approval with an ABSOLUTE 24h window (withinDay), NOT a localDayKey
+  // string: task.date is stored as local-midnight, an instant that a non-IST viewer's browser bins onto
+  // the previous day, which silently blanked the Approved/Approved-by columns. Fail safe: an unresolved
+  // approval->task->day->timesheet->employee chain contributes no entry (blank, not mis-attributed).
+  $: approvedByEmpIssue = ((): Map<string, Array<{ start: number, a: TimesheetApproval }>> => {
+    const m = new Map<string, Array<{ start: number, a: TimesheetApproval }>>()
     for (const [taskId, a] of approvalByTask) {
       const info = taskInfo.get(taskId)
       if (info === undefined) continue
       const tsId = dayTimesheet.get(info.day)
       const emp = tsId != null ? tsEmployee.get(tsId) : undefined
       if (emp == null) continue
-      m.set(`${emp}|${info.issue}|${localDayKey(info.date)}`, a)
+      const key = `${emp}|${info.issue}`
+      const arr = m.get(key) ?? []
+      arr.push({ start: info.date, a })
+      m.set(key, arr)
     }
     return m
   })()
@@ -230,7 +238,7 @@
     const date = r.date ?? 0
     const status = (issue?.status ?? '') as string
     const issueId = (issue?._id ?? r.attachedTo) as string
-    const approved = approvedByKey.get(`${employee}|${issueId}|${localDayKey(date)}`)
+    const approved = approvedByEmpIssue.get(`${employee}|${issueId}`)?.find((c) => withinDay(c.start, date))?.a
     return {
       date,
       employee,

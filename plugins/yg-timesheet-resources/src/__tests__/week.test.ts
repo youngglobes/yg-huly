@@ -1,4 +1,4 @@
-import { weekRange, groupByDay, formatHours, isOddSaturday, isWorkingDay, lastWorkingDay, type ReportLike } from '../utils/week'
+import { weekRange, groupByDay, formatHours, isOddSaturday, isWorkingDay, lastWorkingDay, withinDay, type ReportLike } from '../utils/week'
 
 // A fixed Wednesday: 2026-07-15 10:00 local
 const wed = new Date(2026, 6, 15, 10, 0, 0).getTime()
@@ -133,5 +133,19 @@ describe('lastWorkingDay (excludes today)', () => {
   })
   it('from Tuesday returns Monday', () => {
     expect(lastWorkingDay(D(2026, 7, 4))).toBe(D(2026, 7, 3))
+  })
+})
+
+describe('withinDay (absolute, timezone-independent approval match)', () => {
+  // task.date = IST local-midnight instant (Aug 2 18:30 UTC = Aug 3 00:00 IST); report = mid-day.
+  const taskDayStart = 1785695400000
+  const reportSameDay = 1785744106488 // Aug 3 13:31 IST, same working day
+  it('matches a mid-day report to its day-start regardless of process timezone', () => {
+    expect(withinDay(taskDayStart, reportSameDay)).toBe(true)
+  })
+  it('excludes an instant before the day and at/after the next day-start', () => {
+    expect(withinDay(taskDayStart, taskDayStart - 1)).toBe(false)
+    expect(withinDay(taskDayStart, taskDayStart + 86_400_000)).toBe(false)
+    expect(withinDay(taskDayStart, taskDayStart)).toBe(true) // inclusive start
   })
 })

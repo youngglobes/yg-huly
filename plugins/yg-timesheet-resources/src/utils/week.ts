@@ -33,6 +33,16 @@ export function localDayKey (ms: number): DayKey {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+// True if `instantMs` falls within the 24h window that starts at `dayStartMs`. Used to match a
+// TimeSpendReport (a mid-day instant) to a TimesheetTask/approval whose `date` is the day's
+// local-midnight instant. This is ABSOLUTE (timezone-independent): unlike comparing localDayKey
+// strings, it never mis-bins the local-midnight task instant onto the previous day for a viewer whose
+// browser timezone differs from where the data was authored (the "approved columns blank on non-IST
+// clients" bug). Assumes a 24h day, which holds for the IST workspace (no DST).
+export function withinDay (dayStartMs: number, instantMs: number): boolean {
+  return instantMs >= dayStartMs && instantMs < dayStartMs + 86_400_000
+}
+
 export function weekRange (dateMs: number): WeekRange {
   const d = new Date(dateMs)
   d.setHours(0, 0, 0, 0)
