@@ -124,6 +124,10 @@
     }
     return result
   }
+  // Reactive getter: reference canCreateProject so the `actions` prop reference (and thus the tree
+  // node) re-evaluates once CanCreateProject resolves async. getParentActions() alone is not tracked
+  // by Svelte because canCreateProject is read inside the function, not in this reactive statement.
+  $: reactiveParentActions = (canCreateProject, async (): Promise<Action[]> => getParentActions())
 
   let visibleIf: ((space: Space) => Promise<boolean>) | undefined
 
@@ -170,7 +174,7 @@
 <TreeNode
   _id={'tree-' + model.id}
   label={model.label}
-  actions={async () => getParentActions()}
+  actions={reactiveParentActions}
   highlighted={visible}
   isFold={!empty}
   {empty}
