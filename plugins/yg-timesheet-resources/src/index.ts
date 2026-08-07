@@ -1,10 +1,12 @@
 import { type Resources } from '@hcengineering/platform'
-import { AccountRole, getCurrentAccount, hasAccountRole, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
+import core, { AccountRole, getCurrentAccount, hasAccountRole, type Client, type Doc, type Ref, type Space } from '@hcengineering/core'
 import { getClient } from '@hcengineering/presentation'
-import { getCurrentEmployee } from '@hcengineering/contact'
+import contact, { getCurrentEmployee } from '@hcengineering/contact'
 import tracker from '@hcengineering/tracker'
 import type { Location, ResolvedLocation } from '@hcengineering/ui'
-import ygTimesheet, { ygTimesheetId, type ProjectApprovers, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, {
+  ygTimesheetId, type ProjectApprovers, type WorkDesignation, type WorkProfile, type TimesheetDay
+} from '@hcengineering/yg-timesheet'
 import { canApproveView } from './utils/task-approval'
 import Timesheet from './components/Timesheet.svelte'
 import ProjectApproversList from './components/ProjectApproversList.svelte'
@@ -41,6 +43,43 @@ async function CanApprove (_spaces: Space[]): Promise<boolean> {
       return { pm: a.pm, teamLead: a.teamLead }
     })
   return canApproveView(isAdmin, pairs, me)
+}
+
+// Leadership designations (ygTimesheet.mixin.WorkProfile) that may create a project even without
+// an Owner role, an HR-space membership, or a ProjectApprovers assignment.
+const PROJECT_CREATOR_DESIGNATIONS: WorkDesignation[] = [
+  'Project Manager', 'Team Leader', 'HR Executive', 'CEO', 'CTO', 'COO'
+]
+
+// May the current user create a project? Owner OR HR-space member OR PM/TeamLead on any project's
+// ProjectApprovers mixin OR a leadership WorkProfile designation. Client-side hide only - a
+// determined API caller can still create; not enforced server-side (see spec).
+async function CanCreateProject (): Promise<boolean> {
+  const acct = getCurrentAccount()
+  if (hasAccountRole(acct, AccountRole.Owner)) return true
+
+  const client = getClient()
+  const h = client.getHierarchy()
+
+  const hrSpace = await client.findOne(core.class.Space, { _id: ygTimesheet.space.HrData })
+  if (hrSpace !== undefined && hrSpace.members.includes(acct.uuid)) return true
+
+  const me = getCurrentEmployee()
+  const projects = await client.findAll(tracker.class.Project, {})
+  const isApprover = projects
+    .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
+    .some((p) => {
+      const a: ProjectApprovers = h.as(p, ygTimesheet.mixin.ProjectApprovers)
+      return a.pm === me || a.teamLead === me
+    })
+  if (isApprover) return true
+
+  const myEmployee = await client.findOne(contact.mixin.Employee, { _id: me })
+  const designation =
+    myEmployee !== undefined && h.hasMixin(myEmployee, ygTimesheet.mixin.WorkProfile)
+      ? (h.as(myEmployee, ygTimesheet.mixin.WorkProfile) as WorkProfile).designation
+      : undefined
+  return designation !== undefined && PROJECT_CREATOR_DESIGNATIONS.includes(designation)
 }
 
 // view.mixin.ObjectTitle provider for TimesheetDay: the Inbox card's subtitle line. The bold title
@@ -104,6 +143,6 @@ export default async (): Promise<Resources> => ({
     Performance,
     HrHolidays
   },
-  function: { CanApprove, TimesheetDayTitle: timesheetDayTitle },
+  function: { CanApprove, TimesheetDayTitle: timesheetDayTitle, CanCreateProject },
   resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }
 })

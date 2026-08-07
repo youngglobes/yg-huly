@@ -411,7 +411,12 @@ export default plugin(ygTimesheetId, {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
     // view.mixin.ObjectTitle provider for TimesheetDay - supplies the Inbox card's subtitle (the
     // sheet date), under the @UX class-label title ("Timesheet"). Signature per getDocTitle.
-    TimesheetDayTitle: '' as Resource<(client: Client, id: Ref<Doc>, doc?: Doc) => Promise<string>>
+    TimesheetDayTitle: '' as Resource<(client: Client, id: Ref<Doc>, doc?: Doc) => Promise<string>>,
+    // May the current user create a project? Owner OR HR-space member OR PM/TeamLead on any
+    // project OR leadership designation (WorkProfile). Consumed by core tracker-resources and
+    // workbench-resources to hide the "Create project" affordance - imported as this PLUGIN only
+    // (never yg-timesheet-resources) so those core packages stay free of a circular dependency.
+    CanCreateProject: '' as Resource<() => Promise<boolean>>
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,
