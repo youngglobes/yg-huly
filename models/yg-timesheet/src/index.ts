@@ -105,6 +105,9 @@ export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
   @Prop(ArrOf(TypeRef(contact.mixin.Employee)), core.string.Object) approvers!: Ref<Employee>[]
   @Prop(TypeDate(), core.string.Object) submittedOn?: Timestamp
   @Prop(TypeString(), core.string.Object) rejectReason?: string
+  @Prop(TypeNumber(), core.string.Object) approvedHours?: number
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
 }
 
 @Model(ygTimesheet.class.TimesheetApproval, core.class.Doc, DOMAIN_YG_TIMESHEET)

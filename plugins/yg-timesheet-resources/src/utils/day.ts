@@ -270,14 +270,14 @@ export async function loadProjectApprovers (
 /**
  * Approve ONE task with the approver's agreed hours.
  *
- * `approvedHours`, `approvedBy` and `approvedOn` do NOT live on TimesheetTask any more — they
- * live on the private `TimesheetApproval` doc (ygTimesheet.space.Approvals), which a non-member
- * (i.e. any employee) is refused write/read access to by the server. This function therefore:
- *  - sets ONLY `status: 'Approved'` (+ clears any stale rejectReason) on the shared, world-
- *    readable TimesheetTask — approvedHours must never be re-persisted there; and
- *  - creates (or, on re-approval after a change, updates) the TimesheetApproval row with
- *    `task` + `approvedHours` only. The server trigger stamps approvedBy / approvedOn
- *    authoritatively — do NOT set them here (same division of labour as the day-level flow).
+ * `approvedHours`, `approvedBy` and `approvedOn` are written DIRECTLY onto the shared, world-
+ * readable TimesheetTask (Reports and the PM dashboard read them from there - the private
+ * `TimesheetApproval` doc, in ygTimesheet.space.Approvals, is not readable by a non-member, i.e.
+ * any employee). This function therefore:
+ *  - sets `status: 'Approved'` plus the three approval fields (+ clears any stale rejectReason)
+ *    on the TimesheetTask; and
+ *  - ALSO creates (or, on re-approval after a change, updates) the TimesheetApproval row with
+ *    `task` + `approvedHours` as before, purely as an audit trail.
  * Never touches the employee's TimeSpendReport: their logged time stays their record.
  */
 export async function approveTask (
@@ -285,6 +285,9 @@ export async function approveTask (
 ): Promise<void> {
   await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
     status: 'Approved',
+    approvedHours,
+    approvedBy: getCurrentEmployee(),
+    approvedOn: Date.now(),
     $unset: { rejectReason: '' }
   })
 
@@ -326,8 +329,8 @@ async function resolveTaskEmployee (
 /**
  * Reject ONE task with a required reason; it returns to Draft for the employee to fix.
  * A rejected task must not keep an approval record, so any existing TimesheetApproval row for
- * this task (from a prior approval) is removed. approvedHours/approvedBy/approvedOn are not
- * referenced here at all — they no longer live on TimesheetTask.
+ * this task (from a prior approval) is removed. approvedHours/approvedBy/approvedOn DO live on
+ * TimesheetTask again (denormalized for Reports/dashboard) - they are cleared here on reject.
  *
  * Also records a TimesheetRejectCycle so the rejection survives the employee's resubmit (submitDay
  * deletes and recreates task rows, which is why the cycle is keyed by employee+issue+date and not
@@ -346,7 +349,8 @@ export async function rejectTask (
 
   await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
     status: 'Rejected',
-    rejectReason: reason
+    rejectReason: reason,
+    $unset: { approvedHours: '', approvedBy: '', approvedOn: '' }
   })
 
   const existing = await client.findOne(ygTimesheet.class.TimesheetApproval, { task: taskId })

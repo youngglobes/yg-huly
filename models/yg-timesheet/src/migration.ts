@@ -296,6 +296,23 @@ const CATEGORY_TO_DESIGNATION: Record<string, WorkDesignation> = {
   sales: 'Business Development Executive'
 }
 
+// Denormalize existing TimesheetApproval (approvedHours/approvedBy/approvedOn) onto their TimesheetTask
+// so Reports/dashboard read approval data off the task (the Approvals space is not client-readable).
+// Idempotent: skips tasks that already have approvedHours. Uses updateDoc via TxOperations.
+async function backfillTaskApproval (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const approvals = await ops.findAll(ygTimesheet.class.TimesheetApproval, {})
+  for (const a of approvals) {
+    const task = await ops.findOne(ygTimesheet.class.TimesheetTask, { _id: a.task })
+    if (task === undefined || task.approvedHours !== undefined) continue // idempotent
+    await ops.updateDoc(ygTimesheet.class.TimesheetTask, task.space, task._id, {
+      approvedHours: a.approvedHours,
+      approvedBy: a.approvedBy,
+      approvedOn: a.approvedOn
+    })
+  }
+}
+
 async function migrateWorkProfileDesignation (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   const profiles = await ops.findAll(ygTimesheet.mixin.WorkProfile, {})
@@ -382,6 +399,13 @@ export const ygTimesheetOperation: MigrateOperation = {
         // populated after the Category -> Designation change. Idempotent (skips set designations).
         state: 'workprofile-designation-0001',
         func: migrateWorkProfileDesignation
+      },
+      {
+        // Backfill approvedHours/approvedBy/approvedOn onto TimesheetTask from existing
+        // TimesheetApproval rows, so Reports/dashboard (which cannot read the Approvals space)
+        // show approval data for tasks approved before this denormalization shipped.
+        state: 'task-approval-denorm-0001',
+        func: backfillTaskApproval
       }
     ])
   }

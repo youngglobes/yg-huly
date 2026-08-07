@@ -57,6 +57,9 @@ export interface TimesheetTask extends AttachedDoc {
   approvers: Ref<Employee>[]
   submittedOn?: Timestamp
   rejectReason?: string
+  approvedHours?: number
+  approvedBy?: Ref<Employee>
+  approvedOn?: Timestamp
 }
 
 /**
