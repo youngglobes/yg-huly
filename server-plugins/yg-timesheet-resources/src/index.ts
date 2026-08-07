@@ -864,11 +864,15 @@ async function reopenDriftedApprovedTask (control: TriggerControl, report: TimeS
     // sumHoursInDayWindow already rounds its total to 2dp.
     const liveHours = sumHoursInDayWindow(reports.map((r) => ({ date: r.date, value: r.value })), day)
 
-    const approvedAmount = candidate.approvedHours ?? candidate.submittedHours
-    if (!roundedHoursDiffer(approvedAmount, liveHours)) continue // matches - idempotent, do nothing
+    // Drift baseline is submittedHours (the spent total the approver reviewed), NOT approvedHours.
+    // The approver may deliberately approve LESS than submitted (e.g. submit 1h, approve 0.5h) - that is
+    // correct and must not reopen. We only reopen when the employee changes the SPENT time after
+    // submission, i.e. live spent no longer equals what was submitted/reviewed.
+    const submittedBaseline = candidate.submittedHours
+    if (!roundedHoursDiffer(submittedBaseline, liveHours)) continue // spent unchanged since submit - do nothing
 
     control.ctx.warn('yg-timesheet: approved task auto-reopened for re-approval (logged hours drift)', {
-      task: candidate._id, issue, employee, approvedAmount, liveHours
+      task: candidate._id, issue, employee, submittedBaseline, liveHours
     })
 
     const revert = control.txFactory.createTxUpdateDoc(
