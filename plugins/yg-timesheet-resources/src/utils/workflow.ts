@@ -64,7 +64,3 @@ export function canApprove (approvers: string[], employee: string, actor: string
 export function canEditApproved (approvedBy: string | undefined, actor: string, isAdmin: boolean): boolean {
   return isAdmin || (approvedBy !== undefined && actor === approvedBy)
 }
-
-export function driftHours (snapshotTotal: number, liveTotal: number): number {
-  return Math.round((liveTotal - snapshotTotal) * 100) / 100
-}

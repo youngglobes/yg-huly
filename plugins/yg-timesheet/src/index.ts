@@ -249,7 +249,6 @@ export default plugin(ygTimesheetId, {
     Approvals: '' as IntlString,
     NothingToApprove: '' as IntlString,
     RejectReason: '' as IntlString,
-    Drift: '' as IntlString,
     PM: '' as IntlString,
     TeamLead: '' as IntlString,
     Days: '' as IntlString,

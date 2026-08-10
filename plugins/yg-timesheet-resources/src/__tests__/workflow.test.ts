@@ -1,5 +1,5 @@
 import {
-  legalTransition, resolveApprovers, buildSnapshot, canApprove, canEditApproved, driftHours,
+  legalTransition, resolveApprovers, buildSnapshot, canApprove, canEditApproved,
   type DayReportLike, type ProjectApproverLike
 } from '../utils/workflow'
 
@@ -56,8 +56,4 @@ describe('canEditApproved', () => {
     expect(canEditApproved('B', 'C', true)).toBe(true)
     expect(canEditApproved(undefined, 'C', false)).toBe(false)
   })
-})
-
-describe('driftHours', () => {
-  it('reports live-minus-snapshot rounded to 2dp', () => { expect(driftHours(8, 8.5)).toBe(0.5); expect(driftHours(8, 8)).toBe(0) })
 })

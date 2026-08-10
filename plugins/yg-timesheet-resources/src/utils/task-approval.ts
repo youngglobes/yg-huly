@@ -97,9 +97,9 @@ export function canApproveTask (
 }
 
 /**
- * Hours logged against this task since it was submitted, as a signed delta. FLAG ONLY — editing
- * time after approval is never blocked (the day-level `driftHours()` precedent, carried forward
- * per task). Rounded to 2dp so float noise never shows as spurious drift.
+ * Hours logged against this task since it was submitted, as a signed delta. Rounded to 2dp so float
+ * noise never shows as spurious drift. NOTE: drift is now enforced server-side by
+ * reopenDriftedApprovedTask (auto-reopen for re-approval); this pure helper is retained for tests.
  */
 export function taskDrift (submittedHours: number, liveHours: number): number {
   return Math.round((liveHours - submittedHours) * 100) / 100

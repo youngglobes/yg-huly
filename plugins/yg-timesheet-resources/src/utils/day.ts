@@ -3,7 +3,7 @@
 //
 // Lazy create-or-find of the persisted Timesheet / TimesheetDay docs (in the shared
 // Timesheets space) and the status transitions the UI drives. The pure decision logic
-// (resolveApprovers / buildSnapshot / driftHours) lives in ./workflow (Task 2) and is
+// (resolveApprovers / buildSnapshot) lives in ./workflow (Task 2) and is
 // re-exported for callers that only need one import site.
 //
 // Division of labour with the server trigger (server-yg-timesheet-resources): the CLIENT
@@ -22,11 +22,11 @@ import ygTimesheet, {
   type TimesheetTask
 } from '@hcengineering/yg-timesheet'
 import { weekRange } from './week'
-import { buildSnapshot, driftHours, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
+import { buildSnapshot, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
 import { buildTaskUnits } from './task-approval'
 import { cyclesToClose } from './reject-cycle'
 
-export { buildSnapshot, driftHours, resolveApprovers }
+export { buildSnapshot, resolveApprovers }
 export type { DayReportLike, ProjectApproverLike }
 
 /** Sentinel returned by submitDay when no approver resolves for the day's projects. */
