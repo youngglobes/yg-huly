@@ -19,7 +19,7 @@
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label, themeStore, showPopup } from '@hcengineering/ui'
-  import ygTimesheet, { type AttendanceSession, type AttendanceMode } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type AttendanceSession, type AttendanceMode, type LatePermission } from '@hcengineering/yg-timesheet'
   import { localDayKey } from '../utils/week'
   import {
     localMidnight,
@@ -30,7 +30,7 @@
     formatDuration
   } from '../utils/attendance'
   import { createPunchIn, closePunchOut, createLatePermission } from '../utils/attendance-write'
-  import { isLate, minutesLateOf } from '../utils/late'
+  import { isLate, minutesLateOf, dayLateStatus } from '../utils/late'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
   import HolidayCalendarView from './HolidayCalendarView.svelte'
   import LateReasonPopup from './LateReasonPopup.svelte'
@@ -42,6 +42,14 @@
   let shiftStart: number | undefined = undefined
   const profQuery = createQuery()
   $: profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => { shiftStart = res[0]?.shiftStart })
+
+  // This employee's late permissions, keyed by day (local midnight) - drives the Late/Excused/
+  // Pending chip next to the day-log date.
+  let lateByDay = new Map<number, LatePermission>()
+  const lateQuery = createQuery()
+  $: lateQuery.query(ygTimesheet.class.LatePermission, { employee: me }, (res) => {
+    lateByDay = new Map(res.map((p) => [p.date, p]))
+  })
 
   // Live clock: retick every second so the clock, running timer, totals and timeline are live.
   let nowMs = Date.now()
@@ -204,6 +212,7 @@
   $: logSessions = sessions.filter((s) => s.date === logMid).sort((a, b) => a.punchIn - b.punchIn)
   $: logTotal = dailyTotal(logSessions, nowMs)
   $: timeline = buildDayTimeline(logSessions, logMid, nowMs)
+  $: logLateStatus = dayLateStatus(lateByDay.get(logMid)?.status)
 </script>
 
 <div class="att-scroll">
@@ -302,6 +311,13 @@
         <span class="att-eyebrow"><Label label={ygTimesheet.string.YourDay} /></span>
         <div class="att-log__ctrls">
           <span class="att-log__total">{formatDuration(logTotal)}</span>
+          {#if logLateStatus === 'excused'}
+            <span class="att-latechip att-latechip--excused"><Label label={ygTimesheet.string.LateStatusExcused} /></span>
+          {:else if logLateStatus === 'pending'}
+            <span class="att-latechip att-latechip--pending"><Label label={ygTimesheet.string.LateStatusPending} /></span>
+          {:else if logLateStatus === 'late'}
+            <span class="att-latechip att-latechip--late"><Label label={ygTimesheet.string.LateStatusLate} /></span>
+          {/if}
           <input class="att-date" type="date" bind:value={logKey} />
         </div>
       </div>
@@ -464,6 +480,20 @@
   .att-log__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .att-log__ctrls { display: inline-flex; align-items: center; gap: 14px; }
   .att-log__total { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--yg-text); }
+
+  // Late/Excused/Pending chip for the selected day, next to the date picker. Uses the shared
+  // green/amber/red status tokens (yg-table.scss `:root`) so it reads consistently with the
+  // Approved/Pending/Rejected vocabulary used across the other HR/timesheet grids.
+  .att-latechip {
+    display: inline-flex; align-items: center;
+    font-size: 11px; font-weight: 650; letter-spacing: 0.01em;
+    padding: 4px 10px; border-radius: 999px; border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .att-latechip--excused { color: var(--yg-green); background: var(--yg-green-bg); border-color: var(--yg-green-line); }
+  .att-latechip--pending { color: var(--yg-amber); background: var(--yg-amber-bg); border-color: var(--yg-amber-line); }
+  .att-latechip--late { color: var(--yg-red); background: var(--yg-red-bg); border-color: var(--yg-red-line); }
+
   .att-date {
     appearance: none; font: inherit; font-size: 13px; color: var(--yg-text);
     background: var(--yg-panel-soft); border: 1px solid var(--yg-border); border-radius: 8px;
