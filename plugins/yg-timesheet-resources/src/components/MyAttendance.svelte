@@ -18,7 +18,7 @@
   import core from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label, themeStore } from '@hcengineering/ui'
+  import { Label, themeStore, showPopup } from '@hcengineering/ui'
   import ygTimesheet, { type AttendanceSession, type AttendanceMode } from '@hcengineering/yg-timesheet'
   import { localDayKey } from '../utils/week'
   import {
@@ -29,12 +29,19 @@
     buildDayTimeline,
     formatDuration
   } from '../utils/attendance'
-  import { createPunchIn, closePunchOut } from '../utils/attendance-write'
+  import { createPunchIn, closePunchOut, createLatePermission } from '../utils/attendance-write'
+  import { isLate, minutesLateOf } from '../utils/late'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
   import HolidayCalendarView from './HolidayCalendarView.svelte'
+  import LateReasonPopup from './LateReasonPopup.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
+
+  // Current employee's shift start (minutes since midnight), or undefined = exempt from late flow.
+  let shiftStart: number | undefined = undefined
+  const profQuery = createQuery()
+  $: profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => { shiftStart = res[0]?.shiftStart })
 
   // Live clock: retick every second so the clock, running timer, totals and timeline are live.
   let nowMs = Date.now()
@@ -124,10 +131,30 @@
     if (punchedIn || busy) return
     const m = mode
     if (m === undefined) return // must pick Office or WFH first
+    const at = Date.now()
+
+    // Late check only on the FIRST punch of the day, and only when a shiftStart is set.
+    let lateReason: string | undefined
+    if (shiftStart !== undefined && isLate(at, shiftStart)) {
+      const priorToday = await client.findAll(
+        ygTimesheet.class.AttendanceSession, { employee: me, date: localMidnight(at) }, { limit: 1 }
+      )
+      if (priorToday.length === 0) {
+        const res = await new Promise<{ reason: string } | undefined>((resolve) => {
+          showPopup(LateReasonPopup, { minutesLate: minutesLateOf(at, shiftStart as number) }, undefined, resolve)
+        })
+        if (res === undefined) return // cancelled: do not punch
+        lateReason = res.reason
+      }
+    }
+
     busy = true
     pending = 'in'
     try {
       await createPunchIn(client, me, m, note)
+      if (lateReason !== undefined) {
+        await createLatePermission(client, me, at, shiftStart as number, lateReason)
+      }
       note = ''
       // keep `busy` until openSession appears (released reactively below)
     } catch (err) {
