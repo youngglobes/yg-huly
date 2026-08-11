@@ -133,6 +133,11 @@
     if (m === undefined) return // must pick Office or WFH first
     const at = Date.now()
 
+    // Set the guard atomically before any await, including the late-detection popup below - a
+    // fast double-click during that async window must not re-enter and stack a second popup.
+    busy = true
+    pending = 'in'
+
     // Late check only on the FIRST punch of the day, and only when a shiftStart is set.
     let lateReason: string | undefined
     if (shiftStart !== undefined && isLate(at, shiftStart)) {
@@ -143,13 +148,15 @@
         const res = await new Promise<{ reason: string } | undefined>((resolve) => {
           showPopup(LateReasonPopup, { minutesLate: minutesLateOf(at, shiftStart as number) }, undefined, resolve)
         })
-        if (res === undefined) return // cancelled: do not punch
+        if (res === undefined) {
+          busy = false
+          pending = null
+          return // cancelled: do not punch
+        }
         lateReason = res.reason
       }
     }
 
-    busy = true
-    pending = 'in'
     try {
       await createPunchIn(client, me, m, note)
       if (lateReason !== undefined) {
