@@ -578,8 +578,14 @@ export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerContro
 
     const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
     const actor = await getEmployee(control, utx.modifiedBy)
-    const isSelf = actor !== undefined && actor._id === perm.employee
-    if (isAdmin && !isSelf) continue // authorized
+    // Fail closed: an unresolved actor can't be ruled out as self, so it is never authorized,
+    // admin included (mirrors OnTimesheetTaskUpdate's actorId !== undefined requirement).
+    const authorized = isAdmin && actor !== undefined && actor._id !== perm.employee
+    if (authorized) continue
+
+    control.ctx.warn('yg-timesheet: unauthorized LatePermission status write reverted', {
+      perm: perm._id, actor: utx.modifiedBy, isAdmin
+    })
 
     const revert = control.txFactory.createTxUpdateDoc(
       perm._class, perm.space, perm._id,
