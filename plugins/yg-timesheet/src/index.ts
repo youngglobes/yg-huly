@@ -165,6 +165,22 @@ export interface Holiday extends Doc {
   name: string    // e.g. "Diwali"
 }
 
+export type LatePermissionStatus = 'Pending' | 'Approved' | 'Rejected'
+
+/** One per late day: a punch-in after the employee's shiftStart, with a reason HR approves/rejects. */
+export interface LatePermission extends Doc {
+  employee: Ref<Employee>
+  date: Timestamp            // local midnight of the late day (same key as AttendanceSession.date)
+  punchIn: Timestamp         // full ms of the triggering first punch-in
+  shiftStartSnapshot: number // minutes since midnight, snapshot at creation
+  minutesLate: number        // snapshot: punch-in time-of-day minus shiftStartSnapshot
+  reason: string
+  status: LatePermissionStatus
+  approvedBy?: Ref<Employee>
+  approvedOn?: Timestamp
+  rejectReason?: string
+}
+
 /** Org-wide punch-reminder settings. Singleton (zero or one doc); code falls back to defaults when absent. */
 export interface AttendanceReminderSettings extends Doc {
   enabled: boolean
@@ -188,7 +204,8 @@ export default plugin(ygTimesheetId, {
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>,
     AttendanceSession: '' as Ref<Class<AttendanceSession>>,
     AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>,
-    Holiday: '' as Ref<Class<Holiday>>
+    Holiday: '' as Ref<Class<Holiday>>,
+    LatePermission: '' as Ref<Class<LatePermission>>
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>,
@@ -225,7 +242,8 @@ export default plugin(ygTimesheetId, {
     DashboardHome: '' as AnyComponent,
     WorkProfileEditor: '' as AnyComponent,
     Performance: '' as AnyComponent,
-    HrHolidays: '' as AnyComponent
+    HrHolidays: '' as AnyComponent,
+    HrLatePermissions: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -404,7 +422,19 @@ export default plugin(ygTimesheetId, {
     AddHoliday: '' as IntlString,
     HolidayName: '' as IntlString,
     RemoveHoliday: '' as IntlString,
-    EmptyHolidays: '' as IntlString
+    EmptyHolidays: '' as IntlString,
+    LatePermissions: '' as IntlString,
+    LateArrivals: '' as IntlString,
+    LateStatusLate: '' as IntlString,
+    LateStatusExcused: '' as IntlString,
+    LateStatusPending: '' as IntlString,
+    LateReasonLabel: '' as IntlString,
+    LateReasonPlaceholder: '' as IntlString,
+    ApproveLate: '' as IntlString,
+    RejectLate: '' as IntlString,
+    MinutesLate: '' as IntlString,
+    NoLatePermissions: '' as IntlString,
+    LatePermissionsIntro: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

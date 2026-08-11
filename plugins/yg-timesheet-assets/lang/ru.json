@@ -172,6 +172,18 @@
     "AddHoliday": "Add holiday",
     "HolidayName": "Holiday name",
     "RemoveHoliday": "Remove",
-    "EmptyHolidays": "No holidays yet. Click a day to add one."
+    "EmptyHolidays": "No holidays yet. Click a day to add one.",
+    "LatePermissions": "Late permissions",
+    "LateArrivals": "Late arrivals",
+    "LateStatusLate": "Late",
+    "LateStatusExcused": "Excused",
+    "LateStatusPending": "Pending",
+    "LateReasonLabel": "You are punching in late",
+    "LateReasonPlaceholder": "Reason for arriving late (required)",
+    "ApproveLate": "Approve",
+    "RejectLate": "Reject",
+    "MinutesLate": "min late",
+    "NoLatePermissions": "No late permissions in this view.",
+    "LatePermissionsIntro": "Late punch-ins awaiting HR review."
   }
 }

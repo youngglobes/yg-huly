@@ -34,6 +34,8 @@ import ygTimesheet, {
   type DayStatus,
   type Holiday,
   type HrTimeEntry,
+  type LatePermission,
+  type LatePermissionStatus,
   type ProjectApprovers,
   type TaskStatus,
   type Timesheet,
@@ -189,8 +191,22 @@ export class THoliday extends TDoc implements Holiday {
   @Prop(TypeString(), core.string.Object) name!: string
 }
 
+@Model(ygTimesheet.class.LatePermission, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TLatePermission extends TDoc implements LatePermission {
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) employee!: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeDate(), core.string.Object) punchIn!: Timestamp
+  @Prop(TypeNumber(), core.string.Object) shiftStartSnapshot!: number
+  @Prop(TypeNumber(), core.string.Object) minutesLate!: number
+  @Prop(TypeString(), core.string.Object) reason!: string
+  @Prop(TypeString(), core.string.Object) status!: LatePermissionStatus
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
+  @Prop(TypeString(), core.string.Object) rejectReason?: string
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TTimesheetRejectCycle, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TTimesheetRejectCycle, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday, TLatePermission)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.
