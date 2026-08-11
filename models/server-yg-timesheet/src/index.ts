@@ -44,6 +44,15 @@ export function createModel (builder: Builder): void {
     txMatch: { objectClass: ygTimesheet.class.TimesheetTask }
   })
 
+  // Late-permission integrity (task-6, backlog #9): reverts an unauthorized approve/reject of a
+  // LatePermission (only an HR admin/Maintainer, never the employee themselves, may set
+  // Approved/Rejected). See OnLatePermissionUpdate for the System-skip loop-safety idiom.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgTimesheet.trigger.OnLatePermissionUpdate,
+    isAsync: true,
+    txMatch: { _class: core.class.TxUpdateDoc, objectClass: ygTimesheet.class.LatePermission }
+  })
+
   // Keeps the private Approvals space's membership in sync with every project's PM/TeamLead
   // assignment, so a newly assigned lead can immediately read (and be attributed on) approvals.
   // Matches any tx touching a Project (create/update/remove/mixin) — see OnProjectApproversChange

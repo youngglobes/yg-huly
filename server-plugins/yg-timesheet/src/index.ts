@@ -18,6 +18,7 @@ export default plugin(serverYgTimesheetId, {
     OnTimesheetDayUpdate: '' as Resource<TriggerFunc>,
     OnTimesheetDaySubmitNotify: '' as Resource<TriggerFunc>,
     OnTimesheetTaskUpdate: '' as Resource<TriggerFunc>,
+    OnLatePermissionUpdate: '' as Resource<TriggerFunc>,
     OnProjectApproversChange: '' as Resource<TriggerFunc>,
     OnApprovalsMembershipGuard: '' as Resource<TriggerFunc>,
     OnProjectApproversMixinGuard: '' as Resource<TriggerFunc>,

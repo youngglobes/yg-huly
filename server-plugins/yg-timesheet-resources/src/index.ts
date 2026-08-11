@@ -53,6 +53,7 @@ import { jsonToMarkup, nodeDoc, nodeParagraph, nodeText } from '@hcengineering/t
 import ygTimesheet, {
   type DayStatus,
   type HrTimeEntry,
+  type LatePermission,
   type ProjectApprovers,
   type Timesheet,
   type TimesheetDay,
@@ -554,6 +555,38 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
     }
 
     await control.apply(control.ctx, revertTxes)
+  }
+  return []
+}
+
+// Late-permission integrity: only an HR admin (Maintainer), and never the employee themselves, may
+// move a LatePermission to Approved/Rejected. An unauthorized status write is reverted to Pending
+// with stamps cleared. System-authored writes (this revert) are skipped so it cannot loop.
+export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const utx = tx as TxUpdateDoc<LatePermission>
+    if (utx.objectClass !== ygTimesheet.class.LatePermission) continue
+    const next = utx.operations.status
+    if (next !== 'Approved' && next !== 'Rejected') continue
+
+    const perm = (
+      await control.findAll(control.ctx, ygTimesheet.class.LatePermission, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (perm === undefined) continue
+
+    const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
+    const actor = await getEmployee(control, utx.modifiedBy)
+    const isSelf = actor !== undefined && actor._id === perm.employee
+    if (isAdmin && !isSelf) continue // authorized
+
+    const revert = control.txFactory.createTxUpdateDoc(
+      perm._class, perm.space, perm._id,
+      { status: 'Pending', $unset: { approvedBy: '', approvedOn: '', rejectReason: '' } } as any,
+      false, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [revert])
   }
   return []
 }
@@ -1322,6 +1355,7 @@ export default async () => ({
     OnTimesheetDayUpdate,
     OnTimesheetDaySubmitNotify,
     OnTimesheetTaskUpdate,
+    OnLatePermissionUpdate,
     OnProjectApproversChange,
     OnApprovalsMembershipGuard,
     OnProjectApproversMixinGuard,
