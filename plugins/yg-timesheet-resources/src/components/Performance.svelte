@@ -26,7 +26,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet, {
-    type AttendanceSession, type HrTimeEntry, type WorkProfile
+    type AttendanceSession, type HrTimeEntry, type LatePermission, type WorkProfile
   } from '@hcengineering/yg-timesheet'
   import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours, type PerfLate } from '../utils/performance'
   import { exportPerformanceXlsx } from '../utils/performance-xlsx'
@@ -84,12 +84,15 @@
   holQuery.query(ygTimesheet.class.Holiday, {}, (res) => { holidayDates = res.map((h) => h.date) })
   $: holidays = new Set<number>(holidayDates)
 
-  // Late arrivals - no date filter, same idiom as holidays; performanceRows filters per employee.
-  let lates: PerfLate[] = []
+  // Late arrivals in the window - filtered on `date`, same idiom as attQuery/hoursQuery.
   const lateQuery = createQuery()
-  lateQuery.query(ygTimesheet.class.LatePermission, {}, (res) => {
-    lates = res.map((p): PerfLate => ({ employee: p.employee, date: p.date, status: p.status }))
-  })
+  let lateDocs: LatePermission[] = []
+  $: lateQuery.query(
+    ygTimesheet.class.LatePermission,
+    { date: { $gte: fromMid, $lt: toExcl } },
+    (res: LatePermission[]) => { lateDocs = res }
+  )
+  $: lates = lateDocs.map((p): PerfLate => ({ employee: p.employee, date: p.date, status: p.status }))
 
   $: now = Date.now()
   $: rows = performanceRows(emps, hours, atts, now, holidays, lates)

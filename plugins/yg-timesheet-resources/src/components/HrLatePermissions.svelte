@@ -66,6 +66,7 @@
 <div class="dash yg-page">
   <div class="yg-head">
     <h1 class="yg-title"><Label label={ygTimesheet.string.LatePermissions} /></h1>
+    <p class="lp-note"><Label label={ygTimesheet.string.LatePermissionsIntro} /></p>
   </div>
 
   <div class="yg-scroll">
@@ -75,7 +76,7 @@
           <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
           <th class="left"><Label label={ygTimesheet.string.Date} /></th>
           <th class="yg-num"><Label label={ygTimesheet.string.MinutesLate} /></th>
-          <th class="left"><Label label={ygTimesheet.string.RejectReason} /></th>
+          <th class="left"><Label label={ygTimesheet.string.Reason} /></th>
           <th class="left"><Label label={ygTimesheet.string.Status} /></th>
           {#if isHr}<th class="left" />{/if}
         </tr>
@@ -120,5 +121,10 @@
   // See HrDashboard.svelte: this special has no navigator, so the page needs flex:1 to fill
   // the app pane instead of shrinking to content width.
   .dash { flex: 1; min-width: 0; }
+  .lp-note {
+    margin: 0 0 18px;
+    font-size: 13px;
+    color: var(--yg-text-dim);
+  }
   .lp-actions { display: inline-flex; gap: 8px; }
 </style>

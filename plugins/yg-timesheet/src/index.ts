@@ -434,7 +434,8 @@ export default plugin(ygTimesheetId, {
     RejectLate: '' as IntlString,
     MinutesLate: '' as IntlString,
     NoLatePermissions: '' as IntlString,
-    LatePermissionsIntro: '' as IntlString
+    LatePermissionsIntro: '' as IntlString,
+    Reason: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
