@@ -39,6 +39,7 @@ export async function exportPerformanceXlsx (rows: PerfRow[], from: number, to: 
     { value: 'Overtime hours', type: String, fontWeight: 'bold' },
     { value: 'Overtime days', type: String, fontWeight: 'bold' },
     { value: 'Late-night days', type: String, fontWeight: 'bold' },
+    { value: 'Late arrivals', type: String, fontWeight: 'bold' },
     { value: 'Total extra hours', type: String, fontWeight: 'bold' }
   ]
   const body = rows.map((r) => [
@@ -49,6 +50,7 @@ export async function exportPerformanceXlsx (rows: PerfRow[], from: number, to: 
     num(r.overtimeHours),
     num(r.overtimeDays, 0),
     num(r.lateNightDays, 0),
+    num(r.lateArrivals, 0),
     num(r.totalExtraHours)
   ])
   const data = [header, ...body] as unknown as SheetData

@@ -28,7 +28,7 @@
   import ygTimesheet, {
     type AttendanceSession, type HrTimeEntry, type WorkProfile
   } from '@hcengineering/yg-timesheet'
-  import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours } from '../utils/performance'
+  import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours, type PerfLate } from '../utils/performance'
   import { exportPerformanceXlsx } from '../utils/performance-xlsx'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { formatHours, localDayKey } from '../utils/week'
@@ -84,8 +84,15 @@
   holQuery.query(ygTimesheet.class.Holiday, {}, (res) => { holidayDates = res.map((h) => h.date) })
   $: holidays = new Set<number>(holidayDates)
 
+  // Late arrivals - no date filter, same idiom as holidays; performanceRows filters per employee.
+  let lates: PerfLate[] = []
+  const lateQuery = createQuery()
+  lateQuery.query(ygTimesheet.class.LatePermission, {}, (res) => {
+    lates = res.map((p): PerfLate => ({ employee: p.employee, date: p.date, status: p.status }))
+  })
+
   $: now = Date.now()
-  $: rows = performanceRows(emps, hours, atts, now, holidays)
+  $: rows = performanceRows(emps, hours, atts, now, holidays, lates)
 
   // Drill-down: the row whose flagged days are shown in the slide-in panel. Tracked by id so it
   // survives a rows recompute (date-range change) and auto-closes if the person drops out.
@@ -139,6 +146,7 @@
           <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
           <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Days} />)</th>
           <th class="yg-num"><Label label={ygTimesheet.string.LateNightCol} /></th>
+          <th class="yg-num"><Label label={ygTimesheet.string.LateArrivals} /></th>
           <th class="yg-num"><Label label={ygTimesheet.string.TotalExtraHours} /></th>
         </tr>
       </thead>
@@ -152,10 +160,11 @@
             <td class="yg-num">{formatHours(r.overtimeHours)}</td>
             <td class="yg-num">{r.overtimeDays}</td>
             <td class="yg-num">{r.lateNightDays}</td>
+            <td class="yg-num">{r.lateArrivals}</td>
             <td class="yg-num bold">{formatHours(r.totalExtraHours)}</td>
           </tr>
         {:else}
-          <tr><td colspan={8} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+          <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
         {/each}
       </tbody>
     </table>

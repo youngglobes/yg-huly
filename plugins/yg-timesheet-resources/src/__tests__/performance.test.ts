@@ -166,4 +166,14 @@ describe('performanceRows', () => {
     expect(r.overtimeHours).toBe(0)     // not overtime (it is not a working day)
     expect(r.days[0].offDay).toBe(true)
   })
+
+  it('counts un-excused late arrivals per employee (Approved excluded)', () => {
+    const lates = [
+      { employee: 'e1', date: 0, status: 'Pending' as const },
+      { employee: 'e1', date: 0, status: 'Rejected' as const },
+      { employee: 'e1', date: 0, status: 'Approved' as const }
+    ]
+    const r = performanceRows(emps, [], [], NOW, undefined, lates).find((x) => x.employee === 'e1')!
+    expect(r.lateArrivals).toBe(2)
+  })
 })

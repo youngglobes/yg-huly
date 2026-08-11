@@ -1,11 +1,13 @@
-import { type WorkDesignation } from '@hcengineering/yg-timesheet'
+import { type WorkDesignation, type LatePermissionStatus } from '@hcengineering/yg-timesheet'
 import { isTracked } from './work-profile'
 import { isWorkingDay } from './week'
 import { localMidnight } from './attendance'
+import { countUnexcusedLate } from './late'
 
 export interface PerfEmp { id: string; name: string; designation?: WorkDesignation }
 export interface PerfHours { employee: string; hours: number; date: number }
 export interface PerfAtt { employee: string; punchIn: number; punchOut?: number }
+export interface PerfLate { employee: string, date: number, status: LatePermissionStatus }
 
 /** One flagged day in an employee's drill-down (only days that fired a signal are kept). */
 export interface FlaggedDay {
@@ -23,6 +25,7 @@ export interface PerfRow {
   offDayDays: number; offDayHours: number
   overtimeHours: number; overtimeDays: number
   lateNightDays: number; totalExtraHours: number
+  lateArrivals: number
   days: FlaggedDay[] // flagged days only, newest first
 }
 
@@ -41,7 +44,7 @@ interface DayAcc {
   latestEnd: number   // max sessionEnd across the day's sessions; 0 if no session
 }
 
-export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number, holidays?: ReadonlySet<number>): PerfRow[] {
+export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: PerfAtt[], now: number, holidays?: ReadonlySet<number>, lates: PerfLate[] = []): PerfRow[] {
   const included = emps.filter((e) => isTracked(e.designation))
   const ids = new Set(included.map((e) => e.id))
   const todayMid = localMidnight(now)
@@ -111,11 +114,13 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
     }
 
     days.sort((a, b) => b.date - a.date) // newest first
+    const lateArrivals = countUnexcusedLate(lates.filter((l) => l.employee === e.id).map((l) => l.status))
     return {
       employee: e.id, name: e.name, designation: e.designation,
       offDayDays, offDayHours, overtimeHours, overtimeDays,
       lateNightDays: days.filter((x) => x.lateNight).length,
       totalExtraHours: round2(offDayHours + overtimeHours),
+      lateArrivals,
       days
     }
   })
