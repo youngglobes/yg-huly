@@ -360,6 +360,14 @@ export function createModel (builder: Builder): void {
             position: 'top'
           },
           {
+            id: 'late-permissions',
+            label: ygTimesheet.string.LatePermissions,
+            icon: hr.icon.PTO,
+            component: ygTimesheet.component.HrLatePermissions,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
             id: 'roster',
             label: ygTimesheet.string.HrRoster,
             icon: hr.icon.Members,
