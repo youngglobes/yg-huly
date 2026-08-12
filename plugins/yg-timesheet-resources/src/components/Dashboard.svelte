@@ -13,10 +13,9 @@
 // limitations under the License.
 -->
 <!--
-  PM dashboard: role-gated overview of the projects a PM/Team Lead (or admin) handles, covering
-  KPIs, per-project stats, in-progress work, pending approvals, overdue/due-soon issues, and two
-  charts. All queries live here; normalization to plain shapes is delegated to utils/dashboard.ts
-  (pure, unit-tested) so the widgets below only ever receive plain data, never live Huly docs.
+  Scope-parameterized dashboard (scope="pm" | "teamLead") rendering project overviews,
+  KPIs, per-project stats, work items, pending approvals, and charts. Gating happens in
+  DashboardHome; this component displays the dashboard for the specified scope only.
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'

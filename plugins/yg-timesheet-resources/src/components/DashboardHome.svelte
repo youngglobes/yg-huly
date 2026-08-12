@@ -13,9 +13,9 @@
 // limitations under the License.
 -->
 <!--
-  Thin role router for the top-level Dashboard app: renders the existing PM Dashboard for
-  approvers/admins, and the new EmployeeDashboard for everyone else. No aggregation lives here -
-  role detection is copied verbatim from Dashboard.svelte so behavior is identical.
+  Thin role router that reads the current user's WorkProfile designation and pm/teamLead
+  approver roles, resolves a role via resolveDashboardRole, and renders the PM dashboard
+  (scope="pm"), TL dashboard (scope="teamLead"), HR dashboard, or Employee dashboard.
 -->
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
