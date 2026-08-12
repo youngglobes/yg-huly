@@ -1,6 +1,8 @@
 // Pure aggregation for the PM dashboard. No platform deps -> unit-testable. Dashboard.svelte maps
 // live query results to these plain shapes (mapping Huly status.category -> Cat, TimeSpendReport ->
 // DashTime, etc.) and feeds them in, so all math is tested in isolation from queries/rendering.
+import type { WorkDesignation } from '@hcengineering/yg-timesheet'
+
 export type Cat = 'unstarted' | 'todo' | 'active' | 'won' | 'lost'
 
 export interface DashIssue {
@@ -165,4 +167,28 @@ export function computeKpis (issues: DashIssue[], times: DashTime[], now: number
 
 function round2 (n: number): number {
   return Math.round(n * 100) / 100
+}
+
+export type DashboardRole = 'pm' | 'teamLead' | 'hr' | 'employee'
+
+export interface DashboardRoleInput {
+  designation: WorkDesignation | undefined
+  isAdmin: boolean
+  isPmApprover: boolean
+  isTlApprover: boolean
+  isHr: boolean
+}
+
+// Which dashboard a user lands on. Designation is the primary signal (a single value on the user's
+// WorkProfile); only the two manager designations force a manager dashboard. Everything else falls
+// back to the approver config, then HR, then the plain employee view. Admins always see the PM
+// dashboard (all projects). Pure so the router stays a thin shell - same idiom as canApproveView.
+export function resolveDashboardRole (input: DashboardRoleInput): DashboardRole {
+  if (input.isAdmin) return 'pm'
+  if (input.designation === 'Team Leader') return 'teamLead'
+  if (input.designation === 'Project Manager') return 'pm'
+  if (input.isPmApprover) return 'pm'
+  if (input.isTlApprover) return 'teamLead'
+  if (input.isHr) return 'hr'
+  return 'employee'
 }

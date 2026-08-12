@@ -1,6 +1,7 @@
 import {
   greetingFor, isOpen, inProgressIssues, overdueIssues, dueSoonIssues,
   statusBuckets, openStatusNames, openStatusTotals, hoursByProject, projectStats, portfolioHours, teamWorkload, priorityWatch, computeKpis, todayStart, assignedTo,
+  resolveDashboardRole,
   type DashIssue, type DashTime, type DashProject
 } from '../utils/dashboard'
 
@@ -167,5 +168,40 @@ describe('assignedTo', () => {
   })
   it('empty when none match', () => {
     expect(assignedTo(issues, 'zzz')).toEqual([])
+  })
+})
+
+describe('resolveDashboardRole', () => {
+  const base = { designation: undefined, isAdmin: false, isPmApprover: false, isTlApprover: false, isHr: false }
+
+  it('admin is always pm (all projects), even with a TL designation', () => {
+    expect(resolveDashboardRole({ ...base, isAdmin: true })).toBe('pm')
+    expect(resolveDashboardRole({ ...base, isAdmin: true, designation: 'Team Leader' })).toBe('pm')
+  })
+
+  it('designation Team Leader -> teamLead, even without a teamLead assignment', () => {
+    expect(resolveDashboardRole({ ...base, designation: 'Team Leader' })).toBe('teamLead')
+    expect(resolveDashboardRole({ ...base, designation: 'Team Leader', isPmApprover: true })).toBe('teamLead')
+  })
+
+  it('designation Project Manager -> pm, even when configured as a teamLead', () => {
+    expect(resolveDashboardRole({ ...base, designation: 'Project Manager' })).toBe('pm')
+    expect(resolveDashboardRole({ ...base, designation: 'Project Manager', isTlApprover: true })).toBe('pm')
+  })
+
+  it('non-manager designation falls through to the approver check', () => {
+    expect(resolveDashboardRole({ ...base, designation: 'Software Test Engineer', isTlApprover: true })).toBe('teamLead')
+    expect(resolveDashboardRole({ ...base, designation: 'Software Test Engineer' })).toBe('employee')
+  })
+
+  it('fallback: pm-approver -> pm; teamLead-approver -> teamLead; both -> pm (pm wins)', () => {
+    expect(resolveDashboardRole({ ...base, isPmApprover: true })).toBe('pm')
+    expect(resolveDashboardRole({ ...base, isTlApprover: true })).toBe('teamLead')
+    expect(resolveDashboardRole({ ...base, isPmApprover: true, isTlApprover: true })).toBe('pm')
+  })
+
+  it('no manager role: hr -> hr, otherwise employee', () => {
+    expect(resolveDashboardRole({ ...base, isHr: true })).toBe('hr')
+    expect(resolveDashboardRole({ ...base })).toBe('employee')
   })
 })
