@@ -132,6 +132,11 @@ describe('teamWorkload', () => {
       { employee: 'e2', hours: 1.5, open: 0 }
     ])
   })
+  it('excludes members in the excludePms set (project PMs), even with issues/time', () => {
+    expect(teamWorkload(issues, times, new Set(['e2']))).toEqual([
+      { employee: 'e1', hours: 3, open: 2 }
+    ])
+  })
 })
 
 describe('priorityWatch', () => {

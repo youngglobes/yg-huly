@@ -202,7 +202,16 @@
   // In-progress table shows ONLY the literal "In Progress" status (not every active-category status
   // such as In Testing / In Review, which the coarse category would lump together).
   $: inProg = issues.filter((i) => i.status.trim().toLowerCase() === 'in progress')
-  $: team = teamWorkload(issues, times)
+  // The pm approvers of the projects in scope - excluded from "Team this week" so a lead sees the
+  // people working under them, not the project's PM (who is usually assigned issues on their project).
+  $: pmSet = new Set(
+    myProjectDocs.flatMap((p): string[] => {
+      if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return []
+      const pm = (h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers).pm
+      return pm != null ? [pm] : []
+    })
+  )
+  $: team = teamWorkload(issues, times, pmSet)
   $: priority = priorityWatch(issues)
   $: hoursByIssue = (() => {
     const m = new Map<string, number>()
