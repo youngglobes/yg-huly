@@ -189,7 +189,14 @@
   // --- Employee names ------------------------------------------------------
   const empQuery = createQuery()
   let employeeNames = new Map<string, string>()
-  empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => { employeeNames = new Map(res.map((e) => [e._id as string, formatName(e.name)])) })
+  // Deactivated/archived employees (active === false) are excluded from "Team this week".
+  let inactiveEmps = new Set<string>()
+  empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
+    employeeNames = new Map(res.map((e) => [e._id as string, formatName(e.name)]))
+    const inactive = new Set<string>()
+    for (const e of res) if (e.active === false) inactive.add(e._id)
+    inactiveEmps = inactive
+  })
 
   // --- Derived (pure lib) --------------------------------------------------
   $: now = Date.now()
@@ -211,7 +218,9 @@
       return pm != null ? [pm] : []
     })
   )
-  $: team = teamWorkload(issues, times, pmSet)
+  // Omit the projects' PMs and any deactivated employees from "Team this week".
+  $: excludeFromTeam = new Set([...pmSet, ...inactiveEmps])
+  $: team = teamWorkload(issues, times, excludeFromTeam)
   $: priority = priorityWatch(issues)
   $: hoursByIssue = (() => {
     const m = new Map<string, number>()

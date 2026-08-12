@@ -134,10 +134,10 @@ export interface TeamMember { employee: string; hours: number; open: number }
 // PM's projects, their hours logged this week + count of open issues assigned. Sorted busiest first,
 // so a PM can spot who is overloaded vs idle.
 // Team this week: hours logged + open issues assigned, per member on the scoped projects. Members
-// in `excludePms` (the scoped projects' pm approvers) are omitted so a lead sees the people working
-// under them, not the project's PM - the PM is usually assigned issues on their own projects.
+// in `exclude` are omitted - the caller passes the scoped projects' pm approvers (a lead should see
+// the people working under them, not the project's PM) plus deactivated/archived employees.
 export function teamWorkload (
-  issues: DashIssue[], times: DashTime[], excludePms: ReadonlySet<string> = new Set()
+  issues: DashIssue[], times: DashTime[], exclude: ReadonlySet<string> = new Set()
 ): TeamMember[] {
   const hours = new Map<string, number>()
   for (const t of times) if (t.employee !== '') hours.set(t.employee, (hours.get(t.employee) ?? 0) + t.hours)
@@ -145,7 +145,7 @@ export function teamWorkload (
   for (const i of issues) if (i.assignee != null && isOpen(i.cat)) open.set(i.assignee, (open.get(i.assignee) ?? 0) + 1)
   const emps = new Set<string>([...hours.keys(), ...open.keys()])
   return [...emps]
-    .filter((e) => !excludePms.has(e))
+    .filter((e) => !exclude.has(e))
     .map((e) => ({ employee: e, hours: round2(hours.get(e) ?? 0), open: open.get(e) ?? 0 }))
     .sort((a, b) => b.hours - a.hours || b.open - a.open)
 }
