@@ -25,7 +25,6 @@
   import task from '@hcengineering/task'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet } from '@hcengineering/yg-timesheet'
-  import { canApproveView } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { type DropdownTextItem } from '@hcengineering/ui'
   import { periodRange } from '../utils/week'
@@ -54,6 +53,9 @@
   void ensureHrMembership()
 
   const me = getCurrentEmployee()
+  // Which project set this dashboard shows. 'pm' = projects where pm === me (admins: all);
+  // 'teamLead' = projects where teamLead === me. Default 'pm' keeps existing behavior.
+  export let scope: 'pm' | 'teamLead' = 'pm'
   const client = getClient()
   const h = client.getHierarchy()
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -72,25 +74,15 @@
   // --- My projects (pm/teamLead == me, or admin => all) --------------------
   const projectQuery = createQuery()
   let allProjects: Project[] = []
-  // isApprover is derived from the query; isAdmin is synchronous. Gating on isAdmin alone (not
-  // waiting on isApprover) gives admins a fast path so they never sit behind "Restricted to
-  // approvers." while the query is still in flight - mirrors Reports.svelte's isHRAdmin/isApprover
-  // split exactly.
-  let isApprover = false
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     allProjects = res
-    const pairs = res
-      .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
-      .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: a.pm, teamLead: a.teamLead } })
-    isApprover = canApproveView(false, pairs, me)
   })
-  $: canView = isAdmin || isApprover
-  $: myProjectDocs = isAdmin
+  $: myProjectDocs = scope === 'pm' && isAdmin
     ? allProjects
     : allProjects.filter((p) => {
       if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
       const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return a.pm === me || a.teamLead === me
+      return scope === 'teamLead' ? a.teamLead === me : a.pm === me
     })
   $: myProjectIds = new Set(myProjectDocs.map((p) => p._id))
   $: myProjects = myProjectDocs.map((p): DashProject => ({ id: p._id, name: p.name }))
@@ -230,37 +222,33 @@
   ] as Kpi[]
 </script>
 
-{#if !canView}
-  <div class="yg-empty">Restricted to approvers.</div>
-{:else}
-  <div class="dash yg-page">
-    <div class="yg-scroll">
-      <GreetingCard name={employeeNames.get(me) ?? ''} />
+<div class="dash yg-page">
+  <div class="yg-scroll">
+    <GreetingCard name={employeeNames.get(me) ?? ''} />
 
-      <!-- Headline KPIs: state-of-play + attention counters, right under the greeting. -->
-      <KpiStrip tiles={kpis} />
+    <!-- Headline KPIs: state-of-play + attention counters, right under the greeting. -->
+    <KpiStrip tiles={kpis} />
 
-      <!-- Attention band: the "act now" items, at the top. -->
-      <div class="dash-attention">
-        <InboxWidget />
-        <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
-        <PriorityWatch issues={priority} {employeeNames} />
-        <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
-      </div>
-
-      <!-- Overview: status mix + team workload this week (Hours-by-project dropped; the same
-           per-project totals live in the "Projects you handle" Logged column). -->
-      <div class="dash-two">
-        <Donut segments={statusSegments} />
-        <TeamWorkload {team} {employeeNames} />
-      </div>
-
-      <!-- Detail tables. -->
-      <ProjectCards {stats} {portfolio} {statusColumns} {presetItems} bind:preset bind:fromStr bind:toStr />
-      <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
+    <!-- Attention band: the "act now" items, at the top. -->
+    <div class="dash-attention">
+      <InboxWidget />
+      <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
+      <PriorityWatch issues={priority} {employeeNames} />
+      <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
     </div>
+
+    <!-- Overview: status mix + team workload this week (Hours-by-project dropped; the same
+         per-project totals live in the "Projects you handle" Logged column). -->
+    <div class="dash-two">
+      <Donut segments={statusSegments} />
+      <TeamWorkload {team} {employeeNames} />
+    </div>
+
+    <!-- Detail tables. -->
+    <ProjectCards {stats} {portfolio} {statusColumns} {presetItems} bind:preset bind:fromStr bind:toStr />
+    <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
   </div>
-{/if}
+</div>
 
 <style lang="scss">
   @use './yg-table' as *;
