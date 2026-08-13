@@ -31,7 +31,7 @@ export interface DayReportLike {
   note: string
 }
 
-export interface ProjectApproverLike { pm?: string | null, teamLead?: string | null }
+export interface ProjectApproverLike { pm?: string | string[] | null, teamLead?: string | string[] | null }
 
 export function resolveApprovers (
   reports: DayReportLike[], byProject: Map<string, ProjectApproverLike>, employee: string
@@ -39,8 +39,8 @@ export function resolveApprovers (
   const set = new Set<string>()
   for (const r of reports) {
     const pa = byProject.get(r.project)
-    if (pa?.pm != null && pa.pm !== '') set.add(pa.pm)
-    if (pa?.teamLead != null && pa.teamLead !== '') set.add(pa.teamLead)
+    for (const id of asRefArray(pa?.pm)) set.add(id)
+    for (const id of asRefArray(pa?.teamLead)) set.add(id)
   }
   set.delete(employee) // no self-approve
   return [...set]

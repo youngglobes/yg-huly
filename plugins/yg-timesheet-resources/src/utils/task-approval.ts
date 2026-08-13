@@ -9,7 +9,7 @@
 // approve ANY task — covering for an absent lead is the motivating case. Each task still carries
 // only its own project's approvers for NOTIFICATION routing; that field is no longer authorization.
 //
-import type { DayReportLike, ProjectApproverLike } from './workflow'
+import { asRefArray, type DayReportLike, type ProjectApproverLike } from './workflow'
 // Single source of truth for the per-task status values — declared in the plugin package
 // (plugins/yg-timesheet/src/index.ts) and re-exported here so the model and this lib cannot drift.
 import type { TaskStatus } from '@hcengineering/yg-timesheet'
@@ -45,8 +45,8 @@ export function buildTaskUnits (
     if (unit === undefined) {
       const pa = byProject.get(r.project)
       const set = new Set<string>()
-      if (pa?.pm != null && pa.pm !== '') set.add(pa.pm)
-      if (pa?.teamLead != null && pa.teamLead !== '') set.add(pa.teamLead)
+      for (const id of asRefArray(pa?.pm)) set.add(id)
+      for (const id of asRefArray(pa?.teamLead)) set.add(id)
       set.delete(employee) // no self-approve
       unit = {
         issue: r.issue,
@@ -112,9 +112,9 @@ export function taskDrift (submittedHours: number, liveHours: number): number {
  */
 export function canApproveView (
   isAdmin: boolean,
-  approverPairs: Array<{ pm?: string, teamLead?: string }>,
+  approverPairs: ProjectApproverLike[],
   me: string
 ): boolean {
   if (isAdmin) return true
-  return approverPairs.some((a) => a.pm === me || a.teamLead === me)
+  return approverPairs.some((a) => asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me))
 }
