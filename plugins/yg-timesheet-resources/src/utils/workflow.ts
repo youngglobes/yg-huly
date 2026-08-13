@@ -11,6 +11,16 @@ export function legalTransition (from: DayStatus, to: DayStatus): boolean {
   return LEGAL[from]?.includes(to) ?? false
 }
 
+// Normalize a possibly-scalar (legacy single value), possibly-null approver field to a clean
+// array with empties removed. Generic so the string-typed pure helpers and the Ref<Employee>-typed
+// Svelte reads share one implementation. Belt-and-suspenders with the scalar->array migration:
+// any doc that slips through un-migrated still reads correctly.
+export function asRefArray<T> (v: T | T[] | null | undefined): T[] {
+  if (v == null) return []
+  const arr = Array.isArray(v) ? v : [v]
+  return arr.filter((x): x is T => x != null && (x as unknown) !== '')
+}
+
 export interface DayReportLike {
   project: string
   employee: string | null
