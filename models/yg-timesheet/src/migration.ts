@@ -80,18 +80,24 @@ async function openApprovalsSpaceRaw (client: MigrationClient): Promise<void> {
 // the `migrate` phase (raw domain write, like migrateDaysToTasks). Idempotent: only rewrites a
 // field that is still a scalar/null, leaves already-array values untouched. Projects with no
 // approver mixin have neither field, so they are skipped.
+//
+// Mixin data lives NESTED under the mixin's own key in the domain doc (same precedent as
+// models/contact/src/migration.ts), not flat on the document, so both the read and the write
+// go through ygTimesheet.mixin.ProjectApprovers.
 async function migrateApproversToArrays (client: MigrationClient): Promise<void> {
+  const mixinKey = ygTimesheet.mixin.ProjectApprovers
   const projects = await client.find<Project>(DOMAIN_SPACE, { _class: tracker.class.Project })
   for (const p of projects) {
-    const raw = p as unknown as { pm?: unknown, teamLead?: unknown }
+    const m = (p as unknown as Record<string, { pm?: unknown, teamLead?: unknown }>)[mixinKey]
+    if (m == null) continue // no approvers mixin on this project
     const upd: Record<string, Ref<Employee>[]> = {}
     for (const key of ['pm', 'teamLead'] as const) {
-      const v = raw[key]
+      const v = m[key]
       if (v === undefined || Array.isArray(v)) continue // absent or already migrated
       upd[key] = v == null || v === '' ? [] : [v as Ref<Employee>]
     }
     if (Object.keys(upd).length > 0) {
-      await client.update(DOMAIN_SPACE, { _id: p._id }, upd)
+      await client.update(DOMAIN_SPACE, { _id: p._id }, { [mixinKey]: { ...m, ...upd } })
     }
   }
 }
