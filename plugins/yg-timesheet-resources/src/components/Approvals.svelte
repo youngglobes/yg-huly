@@ -22,6 +22,7 @@
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers, type TimesheetRejectCycle } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
   import { approveTask, rejectTask } from '../utils/day'
+  import { asRefArray } from '../utils/workflow'
   import { cycleKey, groupCycles, closedCycles } from '../utils/reject-cycle'
   import ApproveTaskPopup from './ApproveTaskPopup.svelte'
   import RejectTaskPopup from './RejectTaskPopup.svelte'
@@ -40,7 +41,7 @@
     isApprover = projects.some((p) => {
       if (!hierarchy.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
       const a = hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return a.pm === me || a.teamLead === me
+      return asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me)
     })
   })
   $: canApprove = isHRAdmin || isApprover

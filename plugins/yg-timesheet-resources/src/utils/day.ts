@@ -22,7 +22,7 @@ import ygTimesheet, {
   type TimesheetTask
 } from '@hcengineering/yg-timesheet'
 import { weekRange } from './week'
-import { buildSnapshot, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
+import { asRefArray, buildSnapshot, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
 import { buildTaskUnits } from './task-approval'
 import { cyclesToClose } from './reject-cycle'
 
@@ -259,9 +259,9 @@ export async function loadProjectApprovers (
   for (const project of projects) {
     if (hierarchy.hasMixin(project, ygTimesheet.mixin.ProjectApprovers)) {
       const m = hierarchy.as(project, ygTimesheet.mixin.ProjectApprovers)
-      out.set(project._id, { pm: m.pm ?? null, teamLead: m.teamLead ?? null })
+      out.set(project._id, { pm: asRefArray(m.pm), teamLead: asRefArray(m.teamLead) })
     } else {
-      out.set(project._id, { pm: null, teamLead: null })
+      out.set(project._id, { pm: [], teamLead: [] })
     }
   }
   return out

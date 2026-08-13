@@ -35,6 +35,7 @@
   } from '../utils/hr-dashboard'
   import { localMidnight } from '../utils/attendance'
   import { formatHours, lastWorkingDay, weekRange } from '../utils/week'
+  import { asRefArray } from '../utils/workflow'
   import Donut from './dashboard/Donut.svelte'
   import GreetingCard from './dashboard/GreetingCard.svelte'
   import HrAttendanceTodayCard from './dashboard/HrAttendanceTodayCard.svelte'
@@ -71,7 +72,7 @@
       .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
       .flatMap((p) => {
         const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-        return [a.pm, a.teamLead]
+        return [...asRefArray(a.pm), ...asRefArray(a.teamLead)]
       })
       .filter((r): r is Ref<Employee> => r != null)
   )

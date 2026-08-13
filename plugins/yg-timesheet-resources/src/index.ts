@@ -8,6 +8,7 @@ import ygTimesheet, {
   ygTimesheetId, type ProjectApprovers, type WorkDesignation, type WorkProfile, type TimesheetDay
 } from '@hcengineering/yg-timesheet'
 import { canApproveView } from './utils/task-approval'
+import { asRefArray } from './utils/workflow'
 import Timesheet from './components/Timesheet.svelte'
 import ProjectApproversList from './components/ProjectApproversList.svelte'
 import Approvals from './components/Approvals.svelte'
@@ -41,7 +42,7 @@ async function CanApprove (_spaces: Space[]): Promise<boolean> {
     .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
     .map((p) => {
       const a: ProjectApprovers = h.as(p, ygTimesheet.mixin.ProjectApprovers)
-      return { pm: a.pm, teamLead: a.teamLead }
+      return { pm: asRefArray(a.pm), teamLead: asRefArray(a.teamLead) }
     })
   return canApproveView(isAdmin, pairs, me)
 }
@@ -71,7 +72,7 @@ async function CanCreateProject (): Promise<boolean> {
     .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
     .some((p) => {
       const a: ProjectApprovers = h.as(p, ygTimesheet.mixin.ProjectApprovers)
-      return a.pm === me || a.teamLead === me
+      return asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me)
     })
   if (isApprover) return true
 

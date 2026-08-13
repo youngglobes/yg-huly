@@ -34,6 +34,7 @@
   import { filterRows, type ReportFilter, type ReportRow } from '../utils/reports'
   import { exportReportXlsx } from '../utils/report-xlsx'
   import { formatHours, localDayKey, weekRange, withinDay } from '../utils/week'
+  import { asRefArray } from '../utils/workflow'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -49,7 +50,7 @@
     isApprover = projects.some((p) => {
       if (!hierarchy.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
       const a = hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return a.pm === me || a.teamLead === me
+      return asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me)
     })
   })
   $: canApprove = isHRAdmin || isApprover

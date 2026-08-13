@@ -24,6 +24,7 @@
   import tracker, { type Project } from '@hcengineering/tracker'
   import ygTimesheet, { type ProjectApprovers, type WorkDesignation } from '@hcengineering/yg-timesheet'
   import { resolveDashboardRole } from '../utils/dashboard'
+  import { asRefArray } from '../utils/workflow'
   import Dashboard from './Dashboard.svelte'
   import EmployeeDashboard from './EmployeeDashboard.svelte'
   import HrDashboard from './HrDashboard.svelte'
@@ -50,9 +51,9 @@
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     const pairs = res
       .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
-      .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: a.pm, teamLead: a.teamLead } })
-    isPmApprover = pairs.some((a) => a.pm === me)
-    isTlApprover = pairs.some((a) => a.teamLead === me)
+      .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: asRefArray(a.pm), teamLead: asRefArray(a.teamLead) } })
+    isPmApprover = pairs.some((a) => a.pm.includes(me))
+    isTlApprover = pairs.some((a) => a.teamLead.includes(me))
     projReady = true
   })
 

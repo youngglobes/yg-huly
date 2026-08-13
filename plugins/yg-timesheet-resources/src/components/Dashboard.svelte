@@ -27,6 +27,7 @@
   import { ensureHrMembership } from '../utils/hrMembership'
   import { type DropdownTextItem } from '@hcengineering/ui'
   import { periodRange } from '../utils/week'
+  import { asRefArray } from '../utils/workflow'
   import {
     projectStats, portfolioHours, overdueIssues, dueSoonIssues,
     teamWorkload, priorityWatch, openStatusNames, openStatusTotals, isOpen, type Cat, type DashIssue, type DashTime, type DashProject
@@ -83,7 +84,7 @@
       : allProjects.filter((p) => {
         if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
         const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-        return scope === 'teamLead' ? a.teamLead === me : a.pm === me
+        return scope === 'teamLead' ? asRefArray(a.teamLead).includes(me) : asRefArray(a.pm).includes(me)
       })
   $: myProjectIds = new Set(myProjectDocs.map((p) => p._id))
   $: myProjects = myProjectDocs.map((p): DashProject => ({ id: p._id, name: p.name }))
@@ -216,8 +217,7 @@
   $: pmSet = new Set(
     myProjectDocs.flatMap((p): string[] => {
       if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return []
-      const pm = (h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers).pm
-      return pm != null ? [pm] : []
+      return asRefArray((h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers).pm)
     })
   )
   // Omit the projects' PMs and any deactivated employees from "Team this week".
