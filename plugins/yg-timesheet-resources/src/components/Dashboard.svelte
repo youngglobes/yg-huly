@@ -54,7 +54,7 @@
   const me = getCurrentEmployee()
   // Which project set this dashboard shows. 'pm' = projects where pm === me (admins: all);
   // 'teamLead' = projects where teamLead === me. Default 'pm' keeps existing behavior.
-  export let scope: 'pm' | 'teamLead' = 'pm'
+  export let scope: 'pm' | 'teamLead' | 'org' = 'pm'
   const client = getClient()
   const h = client.getHierarchy()
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -76,13 +76,15 @@
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     allProjects = res
   })
-  $: myProjectDocs = scope === 'pm' && isAdmin
-    ? allProjects
-    : allProjects.filter((p) => {
-      if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
-      const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return scope === 'teamLead' ? a.teamLead === me : a.pm === me
-    })
+  $: myProjectDocs = scope === 'org'
+    ? allProjects.filter((p) => !p.archived)
+    : scope === 'pm' && isAdmin
+      ? allProjects
+      : allProjects.filter((p) => {
+        if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
+        const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
+        return scope === 'teamLead' ? a.teamLead === me : a.pm === me
+      })
   $: myProjectIds = new Set(myProjectDocs.map((p) => p._id))
   $: myProjects = myProjectDocs.map((p): DashProject => ({ id: p._id, name: p.name }))
 
@@ -219,7 +221,8 @@
     })
   )
   // Omit the projects' PMs and any deactivated employees from "Team this week".
-  $: excludeFromTeam = new Set([...pmSet, ...inactiveEmps])
+  // Org view keeps PMs visible (owner wants full workload visibility); scoped PM/TL views drop the PM.
+  $: excludeFromTeam = scope === 'org' ? inactiveEmps : new Set([...pmSet, ...inactiveEmps])
   $: team = teamWorkload(issues, times, excludeFromTeam)
   $: priority = priorityWatch(issues)
   $: hoursByIssue = (() => {
