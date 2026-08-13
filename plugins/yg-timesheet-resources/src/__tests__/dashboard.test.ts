@@ -179,9 +179,10 @@ describe('assignedTo', () => {
 describe('resolveDashboardRole', () => {
   const base = { designation: undefined, isAdmin: false, isPmApprover: false, isTlApprover: false, isHr: false }
 
-  it('admin is always pm (all projects), even with a TL designation', () => {
-    expect(resolveDashboardRole({ ...base, isAdmin: true })).toBe('pm')
-    expect(resolveDashboardRole({ ...base, isAdmin: true, designation: 'Team Leader' })).toBe('pm')
+  it('admin is always org (all projects + HR), even with a manager designation', () => {
+    expect(resolveDashboardRole({ ...base, isAdmin: true })).toBe('org')
+    expect(resolveDashboardRole({ ...base, isAdmin: true, designation: 'Team Leader' })).toBe('org')
+    expect(resolveDashboardRole({ ...base, isAdmin: true, designation: 'Project Manager' })).toBe('org')
   })
 
   it('designation Team Leader -> teamLead, even without a teamLead assignment', () => {

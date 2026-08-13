@@ -175,7 +175,7 @@ function round2 (n: number): number {
   return Math.round(n * 100) / 100
 }
 
-export type DashboardRole = 'pm' | 'teamLead' | 'hr' | 'employee'
+export type DashboardRole = 'org' | 'pm' | 'teamLead' | 'hr' | 'employee'
 
 export interface DashboardRoleInput {
   designation: WorkDesignation | undefined
@@ -187,10 +187,10 @@ export interface DashboardRoleInput {
 
 // Which dashboard a user lands on. Designation is the primary signal (a single value on the user's
 // WorkProfile); only the two manager designations force a manager dashboard. Everything else falls
-// back to the approver config, then HR, then the plain employee view. Admins always see the PM
-// dashboard (all projects). Pure so the router stays a thin shell - same idiom as canApproveView.
+// back to the approver config, then HR, then the plain employee view. Admins always see the org
+// dashboard (all projects + HR). Pure so the router stays a thin shell - same idiom as canApproveView.
 export function resolveDashboardRole (input: DashboardRoleInput): DashboardRole {
-  if (input.isAdmin) return 'pm'
+  if (input.isAdmin) return 'org'
   if (input.designation === 'Team Leader') return 'teamLead'
   if (input.designation === 'Project Manager') return 'pm'
   if (input.isPmApprover) return 'pm'
