@@ -13,7 +13,7 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { EmployeeBox } from '@hcengineering/contact-resources'
+  import { UserBoxList } from '@hcengineering/contact-resources'
   import { getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
   import { Label } from '@hcengineering/ui'
@@ -54,26 +54,22 @@
   <div class="pa-row__fields">
     <div class="pa-field">
       <span class="pa-field__label"><Label label={ygTimesheet.string.PM} /></span>
-      <EmployeeBox
+      <UserBoxList
         label={ygTimesheet.string.PM}
         kind="regular"
         size="large"
-        value={mixin?.pm}
-        allowDeselect
-        showNavigate={false}
-        on:change={(e) => set({ pm: e.detail ?? undefined })}
+        items={mixin?.pm ?? []}
+        on:update={(e) => set({ pm: e.detail })}
       />
     </div>
     <div class="pa-field">
       <span class="pa-field__label"><Label label={ygTimesheet.string.TeamLead} /></span>
-      <EmployeeBox
+      <UserBoxList
         label={ygTimesheet.string.TeamLead}
         kind="regular"
         size="large"
-        value={mixin?.teamLead}
-        allowDeselect
-        showNavigate={false}
-        on:change={(e) => set({ teamLead: e.detail ?? undefined })}
+        items={mixin?.teamLead ?? []}
+        on:update={(e) => set({ teamLead: e.detail })}
       />
     </div>
   </div>
