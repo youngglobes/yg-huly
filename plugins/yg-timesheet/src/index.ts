@@ -105,8 +105,8 @@ export interface TimesheetRejectCycle extends Doc {
 }
 
 export interface ProjectApprovers extends Project {
-  pm?: Ref<Employee>
-  teamLead?: Ref<Employee>
+  pm?: Ref<Employee>[]
+  teamLead?: Ref<Employee>[]
 }
 
 export type WorkDesignation =

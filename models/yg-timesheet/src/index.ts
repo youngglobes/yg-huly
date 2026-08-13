@@ -134,11 +134,11 @@ export class TTimesheetRejectCycle extends TDoc implements TimesheetRejectCycle 
 
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
 export class TProjectApprovers extends TProject implements ProjectApprovers {
-  @Prop(TypeRef(contact.mixin.Employee), ygTimesheet.string.PM)
-    pm?: Ref<Employee>
+  @Prop(ArrOf(TypeRef(contact.mixin.Employee)), ygTimesheet.string.PM)
+    pm?: Ref<Employee>[]
 
-  @Prop(TypeRef(contact.mixin.Employee), ygTimesheet.string.TeamLead)
-    teamLead?: Ref<Employee>
+  @Prop(ArrOf(TypeRef(contact.mixin.Employee)), ygTimesheet.string.TeamLead)
+    teamLead?: Ref<Employee>[]
 }
 
 @Mixin(ygTimesheet.mixin.WorkProfile, contact.mixin.Employee)

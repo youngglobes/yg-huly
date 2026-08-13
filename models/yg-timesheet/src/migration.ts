@@ -76,6 +76,26 @@ async function openApprovalsSpaceRaw (client: MigrationClient): Promise<void> {
   await client.update(DOMAIN_SPACE, { _id: ygTimesheet.space.Approvals, private: true }, { private: false })
 }
 
+// Convert the ProjectApprovers mixin's pm/teamLead from the legacy single Ref to Ref[]. Runs in
+// the `migrate` phase (raw domain write, like migrateDaysToTasks). Idempotent: only rewrites a
+// field that is still a scalar/null, leaves already-array values untouched. Projects with no
+// approver mixin have neither field, so they are skipped.
+async function migrateApproversToArrays (client: MigrationClient): Promise<void> {
+  const projects = await client.find<Project>(DOMAIN_SPACE, { _class: tracker.class.Project })
+  for (const p of projects) {
+    const raw = p as unknown as { pm?: unknown, teamLead?: unknown }
+    const upd: Record<string, Ref<Employee>[]> = {}
+    for (const key of ['pm', 'teamLead'] as const) {
+      const v = raw[key]
+      if (v === undefined || Array.isArray(v)) continue // absent or already migrated
+      upd[key] = v == null || v === '' ? [] : [v as Ref<Employee>]
+    }
+    if (Object.keys(upd).length > 0) {
+      await client.update(DOMAIN_SPACE, { _id: p._id }, upd)
+    }
+  }
+}
+
 // Hide Huly's built-in HR app so there is one HR menu (ours). Best-effort: an existing app doc can
 // only be updated by a TxOperations client (not the model Builder), and updating a model-space doc
 // is not guaranteed on every backend — so never let this fail the workspace provision.
@@ -332,6 +352,7 @@ export const ygTimesheetOperation: MigrateOperation = {
     // Raw flip of an existing private Approvals space -> public (see openApprovalsSpaceRaw for why
     // this is here and not an upgrade-phase updateDoc). Cheap + idempotent, safe every run.
     await openApprovalsSpaceRaw(client)
+    await migrateApproversToArrays(client)
   },
   async upgrade (state: Map<string, Set<string>>, client: () => Promise<MigrationUpgradeClient>, mode): Promise<void> {
     await tryUpgrade(mode, state, client, ygTimesheetId, [
