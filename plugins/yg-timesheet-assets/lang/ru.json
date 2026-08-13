@@ -185,6 +185,7 @@
     "MinutesLate": "min late",
     "NoLatePermissions": "No late permissions in this view.",
     "LatePermissionsIntro": "Late punch-ins awaiting HR review.",
-    "Reason": "Причина"
+    "Reason": "Причина",
+    "Details": "Details"
   }
 }

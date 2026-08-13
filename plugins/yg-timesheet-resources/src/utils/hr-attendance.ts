@@ -7,8 +7,9 @@ import type { Ref } from '@hcengineering/core'
 import type { Employee } from '@hcengineering/contact'
 import { sessionDuration, type AttendanceMode } from './attendance'
 
-/** Minimal shape the aggregators need from an AttendanceSession doc. Notes are carried (unused by
- *  the math) so the Individual log can render them. */
+/** Minimal shape the aggregators need from an AttendanceSession doc. Notes and the capture
+ *  fields (device/browser/ip/geo) are carried (unused by the math) so the Individual log can
+ *  render them - HR + owners only, per-session passthrough, no aggregation. */
 export interface SessionLike {
   employee: Ref<Employee>
   date: number // local midnight of the punch-in day
@@ -17,6 +18,12 @@ export interface SessionLike {
   mode: AttendanceMode
   punchInNote?: string
   punchOutNote?: string
+  device?: string
+  browser?: string
+  ip?: string
+  ipCity?: string
+  geoLat?: number
+  geoLng?: number
 }
 
 /** An employee row source (ref + display name). */
