@@ -11,6 +11,7 @@ import ygTimesheet, {
 } from '@hcengineering/yg-timesheet'
 import { localMidnight } from './attendance'
 import { minutesLateOf } from './late'
+import { capturePunchContext, readDeviceFields } from './capture'
 
 export async function createPunchIn (
   client: TxOperations, employee: Ref<Employee>, mode: AttendanceMode, note?: string
@@ -26,13 +27,15 @@ export async function createPunchIn (
   if (open.length > 0) return
   const at = Date.now()
   const trimmed = (note ?? '').trim()
-  await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
+  const id = await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
     employee,
     date: localMidnight(at),
     punchIn: at,
     mode,
+    ...readDeviceFields(),
     ...(trimmed !== '' ? { punchInNote: trimmed } : {})
   })
+  void capturePunchContext(client, id)
 }
 
 export async function closePunchOut (
