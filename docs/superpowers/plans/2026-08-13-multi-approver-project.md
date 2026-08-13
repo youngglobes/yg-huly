@@ -239,21 +239,24 @@ In `models/yg-timesheet/src/migration.ts`, add near the other migrate-phase help
 
 ```ts
 // Convert the ProjectApprovers mixin's pm/teamLead from the legacy single Ref to Ref[]. Runs in
-// the `migrate` phase (raw domain write, like migrateDaysToTasks). Idempotent: only rewrites a
-// field that is still a scalar/null, leaves already-array values untouched. Projects with no
-// approver mixin have neither field, so they are skipped.
+// the `migrate` phase (raw domain write, like migrateDaysToTasks). Huly stores mixin data NESTED
+// under the mixin's key in the doc's `data` JSONB (NOT flat) - so read and write via that key,
+// matching models/contact/src/migration.ts. Idempotent: only rewrites a field still scalar/null,
+// leaves already-array values untouched. Projects with no approver mixin are skipped.
 async function migrateApproversToArrays (client: MigrationClient): Promise<void> {
+  const mixinKey = ygTimesheet.mixin.ProjectApprovers
   const projects = await client.find<Project>(DOMAIN_SPACE, { _class: tracker.class.Project })
   for (const p of projects) {
-    const raw = p as unknown as { pm?: unknown, teamLead?: unknown }
+    const m = (p as unknown as Record<string, { pm?: unknown, teamLead?: unknown }>)[mixinKey]
+    if (m == null) continue // no approvers mixin on this project
     const upd: Record<string, Ref<Employee>[]> = {}
     for (const key of ['pm', 'teamLead'] as const) {
-      const v = raw[key]
+      const v = m[key]
       if (v === undefined || Array.isArray(v)) continue // absent or already migrated
       upd[key] = v == null || v === '' ? [] : [v as Ref<Employee>]
     }
     if (Object.keys(upd).length > 0) {
-      await client.update(DOMAIN_SPACE, { _id: p._id }, upd)
+      await client.update(DOMAIN_SPACE, { _id: p._id }, { [mixinKey]: { ...m, ...upd } })
     }
   }
 }
@@ -536,16 +539,17 @@ Expected: `200`.
 
 - [ ] **Step 6: DB spot-check the migration**
 
-From `huly-selfhost`, using the CR_DB_URL pattern, confirm a known approver project now stores arrays:
+From `huly-selfhost`, using the CR_DB_URL pattern, confirm a known approver project now stores arrays. Mixin data is nested under `data->'yg-timesheet:mixin:ProjectApprovers'`, NOT a flat column:
 
 ```bash
 URL="$(grep -E '^CR_DB_URL=' huly_v7.conf | cut -d= -f2-)?sslmode=require"
-docker compose -p huly_v7 exec -T cockroach cockroach sql --url "$URL" -e "
-SELECT _id, pm, \"teamLead\" FROM space
-WHERE pm IS NOT NULL LIMIT 5;"
+docker compose -p huly_v7 -f compose.yml -f compose.override.beta.yml exec -T cockroach cockroach sql --url "$URL" --format=records -e "
+SELECT _id, data->'yg-timesheet:mixin:ProjectApprovers' AS approvers
+FROM space
+WHERE data ? 'yg-timesheet:mixin:ProjectApprovers' LIMIT 5;"
 ```
 
-Expected: `pm` / `teamLead` render as JSON arrays (e.g. `["emp-..."]`), not bare strings.
+Expected: `pm` / `teamLead` inside the nested object render as JSON arrays (e.g. `{"pm": ["6696..."], "teamLead": ["6696..."]}`), not bare strings. This actively inspects a previously-scalar project's post-migration value - a silent no-op migration would still show bare strings here, so this is the real gate.
 
 - [ ] **Step 7: Manual functional check on beta (report results back)**
 
