@@ -65,6 +65,14 @@ import workbench, { type Application, type HiddenApplication } from '@hcengineer
 import { estimateRequiredToActivate } from './estimate-gate'
 import { inDayWindow, roundedHoursDiffer, sumHoursInDayWindow } from './approval-drift'
 
+// Local copy of the client-side normalizer (server-plugins cannot import client resources).
+// Legacy scalar or new array -> clean array; null/undefined/empty -> [].
+function asRefArray<T> (v: T | T[] | null | undefined): T[] {
+  if (v == null) return []
+  const arr = Array.isArray(v) ? v : [v]
+  return arr.filter((x): x is T => x != null && (x as unknown) !== '')
+}
+
 // ---------------------------------------------------------------------------
 // Inbox notifications (2026-07-25). The approval workflow now pushes Huly inbox
 // notifications: the PM/TL approvers on submit, and the employee on approve/reject.
@@ -345,8 +353,8 @@ async function approverRoleSet (control: TriggerControl): Promise<Set<Ref<Employ
   const set = new Set<Ref<Employee>>()
   for (const p of projects) {
     const pa = control.hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers)
-    if (pa.pm != null) set.add(pa.pm)
-    if (pa.teamLead != null) set.add(pa.teamLead)
+    for (const id of asRefArray(pa.pm)) set.add(id)
+    for (const id of asRefArray(pa.teamLead)) set.add(id)
   }
   return set
 }
@@ -772,10 +780,10 @@ export async function OnProjectApproversMixinGuard (txes: Tx[], control: Trigger
         ? control.hierarchy.as(prevDoc, ygTimesheet.mixin.ProjectApprovers)
         : undefined
 
-    const revertAttrs: Record<string, any> =
-      prevMixin !== undefined
-        ? { pm: prevMixin.pm ?? null, teamLead: prevMixin.teamLead ?? null }
-        : { pm: null, teamLead: null }
+    const revertAttrs: Record<string, any> = {
+      pm: asRefArray(prevMixin?.pm),
+      teamLead: asRefArray(prevMixin?.teamLead)
+    }
 
     control.ctx.warn('yg-timesheet: unauthorized ProjectApprovers mixin write reverted', {
       project: mtx.objectId,
