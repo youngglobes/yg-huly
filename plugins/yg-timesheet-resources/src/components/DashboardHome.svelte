@@ -27,6 +27,7 @@
   import Dashboard from './Dashboard.svelte'
   import EmployeeDashboard from './EmployeeDashboard.svelte'
   import HrDashboard from './HrDashboard.svelte'
+  import OrgDashboard from './OrgDashboard.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -72,6 +73,8 @@
 
 {#if !ready}
   <!-- queries still resolving; render nothing to avoid a role flash -->
+{:else if role === 'org'}
+  <OrgDashboard />
 {:else if role === 'pm'}
   <Dashboard scope="pm" />
 {:else if role === 'teamLead'}
