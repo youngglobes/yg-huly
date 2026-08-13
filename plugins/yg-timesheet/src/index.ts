@@ -247,6 +247,7 @@ export default plugin(ygTimesheetId, {
     HrAttendance: '' as AnyComponent,
     AttendanceReminder: '' as AnyComponent,
     AttendanceReminderSettings: '' as AnyComponent,
+    LocationPermissionBanner: '' as AnyComponent,
     DashboardHome: '' as AnyComponent,
     WorkProfileEditor: '' as AnyComponent,
     Performance: '' as AnyComponent,

@@ -474,4 +474,11 @@ export function createModel (builder: Builder): void {
     extension: workbench.extensions.WorkbenchExtensions,
     component: ygTimesheet.component.AttendanceReminder
   })
+
+  // Global location-permission banner (same slot, purpose-agnostic copy). Reads permission
+  // state without prompting; see LocationPermissionBanner.svelte for the Permissions API usage.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WorkbenchExtensions,
+    component: ygTimesheet.component.LocationPermissionBanner
+  })
 }

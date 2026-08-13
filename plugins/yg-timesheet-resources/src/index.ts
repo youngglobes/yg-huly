@@ -26,6 +26,7 @@ import MyAttendance from './components/MyAttendance.svelte'
 import HrAttendance from './components/HrAttendance.svelte'
 import AttendanceReminderSettings from './components/AttendanceReminderSettings.svelte'
 import AttendanceReminder from './components/AttendanceReminder.svelte'
+import LocationPermissionBanner from './components/LocationPermissionBanner.svelte'
 import WorkProfileEditor from './components/WorkProfileEditor.svelte'
 import Performance from './components/Performance.svelte'
 import HrHolidays from './components/HrHolidays.svelte'
@@ -141,6 +142,7 @@ export default async (): Promise<Resources> => ({
     HrAttendance,
     AttendanceReminderSettings,
     AttendanceReminder,
+    LocationPermissionBanner,
     WorkProfileEditor,
     Performance,
     HrHolidays,
