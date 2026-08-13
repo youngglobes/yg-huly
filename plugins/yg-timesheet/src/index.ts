@@ -157,6 +157,14 @@ export interface AttendanceSession extends Doc {
   mode: AttendanceMode // set at punch-in; immutable
   punchOut?: Timestamp // full ms timestamp of punch-out; absent while the session is open
   punchOutNote?: string // optional note captured at punch-out
+  device?: string      // parsed from userAgent at punch-in
+  browser?: string
+  userAgent?: string   // raw, for audit
+  ip?: string          // self-reported public IP
+  ipCity?: string      // coarse "City, Region, Country" from the geo-IP call
+  geoLat?: number      // GPS (when granted on a secure context)
+  geoLng?: number
+  geoAccuracy?: number // metres
 }
 
 /** An org-wide holiday (one per day). Non-working everywhere via isWorkingDay. */

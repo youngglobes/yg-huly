@@ -172,6 +172,14 @@ export class TAttendanceSession extends TDoc implements AttendanceSession {
   @Prop(TypeString(), core.string.Object) mode!: AttendanceMode
   @Prop(TypeDate(), core.string.Object) punchOut?: Timestamp
   @Prop(TypeString(), core.string.Object) punchOutNote?: string
+  @Prop(TypeString(), core.string.Object) device?: string
+  @Prop(TypeString(), core.string.Object) browser?: string
+  @Prop(TypeString(), core.string.Object) userAgent?: string
+  @Prop(TypeString(), core.string.Object) ip?: string
+  @Prop(TypeString(), core.string.Object) ipCity?: string
+  @Prop(TypeNumber(), core.string.Object) geoLat?: number
+  @Prop(TypeNumber(), core.string.Object) geoLng?: number
+  @Prop(TypeNumber(), core.string.Object) geoAccuracy?: number
 }
 
 @Model(ygTimesheet.class.AttendanceReminderSettings, core.class.Doc, DOMAIN_YG_TIMESHEET)
