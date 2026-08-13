@@ -18,6 +18,7 @@
   import tracker, { type Project } from '@hcengineering/tracker'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet, { type ProjectApprovers } from '@hcengineering/yg-timesheet'
+  import { asRefArray } from '../utils/workflow'
 
   export let project: Project
 
@@ -58,7 +59,7 @@
         label={ygTimesheet.string.PM}
         kind="regular"
         size="large"
-        items={mixin?.pm ?? []}
+        items={asRefArray(mixin?.pm)}
         on:update={(e) => set({ pm: e.detail })}
       />
     </div>
@@ -68,7 +69,7 @@
         label={ygTimesheet.string.TeamLead}
         kind="regular"
         size="large"
-        items={mixin?.teamLead ?? []}
+        items={asRefArray(mixin?.teamLead)}
         on:update={(e) => set({ teamLead: e.detail })}
       />
     </div>
