@@ -42,11 +42,14 @@
 
 <style lang="scss">
   .yg-loc-banner {
+    /* Anchored to the BOTTOM, not the top: a top:0 strip renders behind the workbench top bar and
+       is never seen. The sibling AttendanceReminder banner is visible at bottom/z-index:1000, so
+       match that. */
     position: fixed;
-    top: 0;
+    bottom: 0;
     left: 0;
     right: 0;
-    z-index: 500;
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -43,7 +43,9 @@ async function getGeo (): Promise<{ geoLat?: number, geoLng?: number, geoAccurac
 export async function capturePunchContext (client: TxOperations, sessionId: Ref<AttendanceSession>): Promise<void> {
   try {
     const ctrl = new AbortController()
-    const t = setTimeout(() => ctrl.abort(), 3000)
+    // 8s so a slow ipwho.is still lands the IP + IP-city (this is detached/best-effort and never
+    // blocks the punch). The GPS read has its own 5s getCurrentPosition timeout, independent of this.
+    const t = setTimeout(() => ctrl.abort(), 8000)
     const [geoIp, geo] = await Promise.all([fetchGeoIp(ctrl.signal), getGeo()])
     clearTimeout(t)
     const merged: Record<string, unknown> = { ...geoIp, ...geo }
