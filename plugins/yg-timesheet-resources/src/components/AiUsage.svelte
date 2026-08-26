@@ -24,7 +24,11 @@
     loading = true
     error = undefined
     try {
-      report = await usageGet(`/report?days=${days}`)
+      const r = await usageGet(`/report?days=${days}`)
+      // Loud on drift: a future sidecar change to the envelope shape must fail here, not render
+      // silent undefined values further down the page.
+      if (r?.report_schema !== 1) throw new Error(`Unsupported report schema: ${String(r?.report_schema)}`)
+      report = r
     } catch (e: any) {
       error = e?.message ?? 'Could not reach the usage service.'
       report = undefined

@@ -22,7 +22,7 @@
     : `of ${money(prorated)} this period`
 
   $: tiles = [
-    { k: 'Active', v: `${fmtH(secs)} h`, s: `idle gaps over ${report.idle_sec}s excluded` },
+    { k: 'Active', v: `${fmtH(secs)} h`, s: 'idle gaps excluded' },
     { k: 'Tokens', v: fmtM(tot.tok), s: 'deduplicated' },
     { k: 'Weighted', v: Math.round(tot.wt).toLocaleString(), s: 'list-price units' },
     { k: 'Allocated', v: money(allocated), s: allocatedSub },

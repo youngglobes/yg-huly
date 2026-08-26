@@ -15,7 +15,7 @@ function report (over: Partial<UsageReport> = {}): UsageReport {
     accounts: [{ uuid: 'a1', label: 'Karthi', employee_name: 'Karthikeyan', plan_cents: 20000 }],
     devices: [{ id: 1, label: 'WSL', os: 'wsl', last_seen: H }],
     idle_sec: 300,
-    stats: { dup_dropped: 5, stale_devices: [] },
+    stats: { dup_dropped_7d: 5, stale_devices: [] },
     tokens: [
       [H, 'a1', 'WSL', 'Portal', '~/p', 'terminal', 'opus-5', 2, 1_000_000, 0, 0, 0],
       [H, 'a1', 'WSL', 'Other', '~/o', 'vscode', 'sonnet-5', 1, 1_000_000, 0, 0, 0]
