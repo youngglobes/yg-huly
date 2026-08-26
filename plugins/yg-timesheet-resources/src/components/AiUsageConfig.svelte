@@ -63,16 +63,18 @@
   // attempt, not on a timer, so it stays visible until the admin either fixes it or retries.
   let actionError: string | undefined
 
-  // A non-401 failure from usageGet/usagePost/usageDelete arrives as `Usage service returned
-  // <status>`. The contract requires 503 (account service down) never read as a permission
-  // problem, and 400/404/409 to read distinctly from each other, so classify by the status
-  // number rather than showing the raw string everywhere.
+  // A non-401 failure from usageGet/usagePost/usageDelete carries its HTTP status on `.status`
+  // (see ai-usage-api.ts), not just in the message prose, so classification never depends on
+  // parsing text that could change shape later. The contract requires 503 (account service
+  // down) never read as a permission problem, and 400/404/409 to read distinctly from each
+  // other.
   function friendlyError (e: unknown, fallback: string): string {
+    const status = e instanceof Error ? (e as Error & { status?: number }).status : undefined
+    if (status === 503) return 'The Huly account service is unreachable right now. This is not a permissions problem, try again shortly.'
+    if (status === 409) return 'That label is already in use.'
+    if (status === 404) return 'Not found. It may already have been removed.'
+    if (status === 400) return 'That request was rejected as invalid.'
     const msg = e instanceof Error ? e.message : String(e)
-    if (msg.includes('503')) return 'The Huly account service is unreachable right now. This is not a permissions problem, try again shortly.'
-    if (msg.includes('409')) return 'That label is already in use.'
-    if (msg.includes('404')) return 'Not found. It may already have been removed.'
-    if (msg.includes('400')) return 'That request was rejected as invalid.'
     return msg !== '' ? msg : fallback
   }
 
@@ -148,6 +150,7 @@
   }
 
   async function addRule (): Promise<void> {
+    actionError = undefined
     addError = undefined
     const prefix = addPrefix.trim()
     if (prefix === '') { addError = 'A prefix is required.'; return }
@@ -190,7 +193,7 @@
   // =========================================================================================
   // Accounts
   // =========================================================================================
-  interface AccountDraft { employee: Ref<Person> | null, fee: string, error?: string }
+  interface AccountDraft { employee: Ref<Person> | null, fee: number, error?: string }
   let accountDrafts: Record<string, AccountDraft> = {}
 
   // Reset to the committed snapshot on every load, including after this row's own save. An
@@ -200,16 +203,20 @@
   function resetAccountDrafts (): void {
     const next: Record<string, AccountDraft> = {}
     for (const a of snap?.accounts ?? []) {
-      next[a.uuid] = { employee: (a.employee_ref as Ref<Person> | null) ?? null, fee: (a.plan_cents / 100).toFixed(2) }
+      // Same computation as before (plan_cents / 100); only the declared type changed. A
+      // number type input already turns this into a real number the instant it round-trips
+      // through the DOM (bind:value on type="number" reads back via `+input.value`), so typing
+      // it as a string here was never true past the first edit.
+      next[a.uuid] = { employee: (a.employee_ref as Ref<Person> | null) ?? null, fee: a.plan_cents / 100 }
     }
     accountDrafts = next
   }
 
   async function saveAccount (a: ConfigAccount): Promise<void> {
+    actionError = undefined
     const d = accountDrafts[a.uuid]
     d.error = undefined
-    const fee = Number(d.fee)
-    if (!Number.isFinite(fee) || fee < 0) {
+    if (!Number.isFinite(d.fee) || d.fee < 0) {
       d.error = 'Enter a fee of 0 or more.'
       accountDrafts = { ...accountDrafts }
       return
@@ -220,7 +227,7 @@
       await usagePost(`/config/account/${encodeURIComponent(a.uuid)}`, {
         employee_ref: d.employee,
         employee_name,
-        plan_cents: Math.round(fee * 100)
+        plan_cents: Math.round(d.fee * 100)
       })
       await load()
     } catch (e) {
@@ -242,6 +249,7 @@
   let copied = false
 
   async function addDevice (): Promise<void> {
+    actionError = undefined
     addDeviceError = undefined
     const label = addDeviceLabel.trim()
     if (label === '') { addDeviceError = 'A label is required.'; return }

@@ -26,9 +26,15 @@ async function call (method: string, path: string, body?: unknown): Promise<any>
     body: body === undefined ? undefined : JSON.stringify(body)
   })
   if (!res.ok) {
-    throw new Error(res.status === 401
+    const err = new Error(res.status === 401
       ? 'Not authorised. AI Usage needs a Maintainer or Owner role.'
       : `Usage service returned ${res.status}`)
+    // The status travels as data, not prose to parse back out of the message. The 503 case
+    // matters: it means the Huly account service is unreachable, NOT that the caller lacks
+    // permission, and that distinction is engineered all the way down through the sidecar's
+    // auth layer, so callers that need to branch on it should read `.status`, not the message.
+    ;(err as Error & { status?: number }).status = res.status
+    throw err
   }
   return await res.json()
 }
