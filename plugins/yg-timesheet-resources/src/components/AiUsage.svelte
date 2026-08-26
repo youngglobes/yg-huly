@@ -9,13 +9,13 @@
   import Surfaces from './aiusage/Surfaces.svelte'
   import Models from './aiusage/Models.svelte'
 
-  let filters: Filters = { account: '*', device: '*', project: '*', model: '*', days: 14 }
+  let filters: Filters = { account: '*', device: '*', project: '*', person: '*', model: '*', days: 14 }
   let report: UsageReport | undefined
   let error: string | undefined
   let loading = true
   let loadedDays = -1
 
-  // Only `days` hits the network. Account, device, project and model are applied in
+  // Only `days` hits the network. Account, device, project, person and model are applied in
   // filterReport over the rows already in hand, so changing a filter is instant.
   $: if (filters.days !== loadedDays) { void load(filters.days) }
 

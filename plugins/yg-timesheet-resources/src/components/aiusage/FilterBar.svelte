@@ -1,7 +1,8 @@
 <script lang="ts">
-  // Six controls: Account, Device, Project, Model, Period, Reset. Option lists are derived
-  // from the whole report (never the current filters), so a filter never narrows what you can
-  // pick next. Only `days` triggers a refetch; the rest are applied client-side by the parent.
+  // Seven controls: Account, Device, Project, Person, Model, Period, Reset. Option lists are
+  // derived from the whole report (never the current filters), so a filter never narrows what
+  // you can pick next. Only `days` triggers a refetch; the rest are applied client-side by the
+  // parent.
   import { T, TIER, weight, type Filters, type UsageReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
@@ -14,7 +15,7 @@
     { d: 30, label: '30d' }
   ]
 
-  $: accountOptions = report.accounts.map((a) => ({ value: a.uuid, label: a.employee_name ?? a.label }))
+  $: accountOptions = report.accounts.map((a) => ({ value: a.uuid, label: a.label }))
 
   $: deviceOptions = report.devices.map((d) => ({
     id: d.id,
@@ -31,12 +32,22 @@
     return [...byW.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)
   })()
 
+  // Same shape as projectOptions: derived from the rows (the PERSON dimension, resolved from
+  // the device at report-build time), sorted by weight descending.
+  $: personOptions = (() => {
+    const byW = new Map<string, number>()
+    for (const r of report.tokens) {
+      byW.set(r[T.person], (byW.get(r[T.person]) ?? 0) + weight(r[T.model], r[T.in], r[T.out], r[T.cw], r[T.cr]))
+    }
+    return [...byW.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p)
+  })()
+
   // Models ordered by tier, most expensive first, matching the ramp used for their swatches.
   $: modelOptions = [...new Set(report.tokens.map((r) => r[T.model]))]
     .sort((a, b) => TIER.indexOf(a) - TIER.indexOf(b))
 
   function reset (): void {
-    filters = { account: '*', device: '*', project: '*', model: '*', days: 14 }
+    filters = { account: '*', device: '*', project: '*', person: '*', model: '*', days: 14 }
   }
 </script>
 
@@ -64,6 +75,15 @@
     <select id="ai-usage-f-project" bind:value={filters.project}>
       <option value="*">All projects</option>
       {#each projectOptions as p (p)}
+        <option value={p}>{p}</option>
+      {/each}
+    </select>
+  </div>
+  <div class="fld">
+    <label for="ai-usage-f-person">Person</label>
+    <select id="ai-usage-f-person" bind:value={filters.person}>
+      <option value="*">All people</option>
+      {#each personOptions as p (p)}
         <option value={p}>{p}</option>
       {/each}
     </select>

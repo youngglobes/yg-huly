@@ -5,15 +5,21 @@
 // implementation: the portal render must match a build-dashboard.sh render of the same facts
 // number for number.
 
-export type TokenRow = [number, string, string, string, string, string, string, number, number, number, number, number]
-export type ActivityRow = [number, string, string, string, string, string, number]
-export type SessionRow = [string, string, string, string, string, string, number, number, number]
+// The trailing element is the PERSON dimension (the employee assigned to the reporting device,
+// or 'Unassigned'), appended at the END by the sidecar's report.js so pre-existing indices below
+// do not shift.
+export type TokenRow = [number, string, string, string, string, string, string, number, number, number, number, number, string]
+export type ActivityRow = [number, string, string, string, string, string, number, string]
+export type SessionRow = [string, string, string, string, string, string, number, number, number, string]
 
-export const T = { hour: 0, acct: 1, dev: 2, project: 3, cwd: 4, surface: 5, model: 6, req: 7, in: 8, out: 9, cw: 10, cr: 11 } as const
-export const A = { hour: 0, acct: 1, dev: 2, project: 3, cwd: 4, surface: 5, sec: 6 } as const
-export const S = { id: 0, acct: 1, dev: 2, project: 3, cwd: 4, surface: 5, first: 6, last: 7, tok: 8 } as const
+export const T = { hour: 0, acct: 1, dev: 2, project: 3, cwd: 4, surface: 5, model: 6, req: 7, in: 8, out: 9, cw: 10, cr: 11, person: 12 } as const
+export const A = { hour: 0, acct: 1, dev: 2, project: 3, cwd: 4, surface: 5, sec: 6, person: 7 } as const
+export const S = { id: 0, acct: 1, dev: 2, project: 3, cwd: 4, surface: 5, first: 6, last: 7, tok: 8, person: 9 } as const
 
-export interface UsageAccount { uuid: string, label: string, employee_name?: string | null, plan_cents: number }
+// No employee link here any more: one Claude account is shared by several people, and the fee
+// belongs to the subscription, not to a person. Person-attribution lives on the PERSON dimension
+// of each row instead (see T/A/S.person above), resolved from the reporting device.
+export interface UsageAccount { uuid: string, label: string, plan_cents: number }
 export interface UsageDevice { id: number, label: string, os: string | null, last_seen: number | null }
 export interface UsageReport {
   report_schema: number
@@ -28,7 +34,7 @@ export interface UsageReport {
   activity: ActivityRow[]
   sessions: SessionRow[]
 }
-export interface Filters { account: string, device: string, project: string, model: string, days: number }
+export interface Filters { account: string, device: string, project: string, person: string, model: string, days: number }
 export interface Agg { key: string, req: number, tok: number, wt: number }
 export interface UsageWindow { start: number, last: number, tok: number, sec: number, models: Map<string, number>, sess: Set<string> }
 
@@ -94,6 +100,7 @@ export function filterReport (r: UsageReport, f: Filters): {
   const tok = r.tokens.filter((x) =>
     x[T.hour] >= cut && inAcct(x[T.acct]) && inDev(x[T.dev]) &&
     (f.project === '*' || x[T.project] === f.project) &&
+    (f.person === '*' || x[T.person] === f.person) &&
     (f.model === '*' || x[T.model] === f.model))
 
   // Active time carries no model dimension in the logs. Under a model filter we keep only the
@@ -104,15 +111,18 @@ export function filterReport (r: UsageReport, f: Filters): {
   const act = r.activity.filter((x) =>
     x[A.hour] >= cut && inAcct(x[A.acct]) && inDev(x[A.dev]) &&
     (f.project === '*' || x[A.project] === f.project) &&
+    (f.person === '*' || x[A.person] === f.person) &&
     (keep == null || keep.has(`${x[A.hour]}|${x[A.project]}`)))
 
   const sess = r.sessions.filter((x) =>
     x[S.first] >= cut && inAcct(x[S.acct]) && inDev(x[S.dev]) &&
-    (f.project === '*' || x[S.project] === f.project))
+    (f.project === '*' || x[S.project] === f.project) &&
+    (f.person === '*' || x[S.person] === f.person))
 
   // The denominator for share and cost is the selected ACCOUNT's whole period, never the
-  // filtered subset. Renormalising inside a filter makes any single project look like it
-  // consumed the entire plan fee, which is backwards for an invoice.
+  // filtered subset. Renormalising inside a filter makes any single project (or, now, any
+  // single person sharing the account) look like it consumed the entire plan fee, which is
+  // backwards for an invoice. A person filter must NOT narrow this, exactly like project.
   let baseW = 0
   for (const x of r.tokens) {
     if (x[T.hour] >= cut && inAcct(x[T.acct])) baseW += weight(x[T.model], x[T.in], x[T.out], x[T.cw], x[T.cr])

@@ -34,20 +34,24 @@
     uuid: string
     label: string | null
     email: string | null
-    employee_ref: string | null
-    employee_name: string | null
     plan_cents: number
     last_seen: number | null
   }
+  interface DeviceAccountRef { uuid: string, label: string | null }
   interface ConfigDevice {
     id: number
     label: string
     os: string | null
     reported_name: string | null
+    employee_ref: string | null
+    employee_name: string | null
     created: number
     last_seen: number | null
     revoked_at: number | null
     stale: boolean
+    // Which Claude accounts this device has reported under, derived from the facts. Never
+    // stored: a device can genuinely show more than one when a shared login moves machines.
+    accounts: DeviceAccountRef[]
   }
   interface UnmappedEntry { cwd: string, cwd_norm: string, tokens: number }
   interface ConfigSnapshot {
@@ -85,6 +89,7 @@
     try {
       snap = await usageGet('/config')
       resetAccountDrafts()
+      resetDeviceDrafts()
     } catch (e) {
       loadError = friendlyError(e, 'Could not reach the usage service.')
       snap = undefined
@@ -100,7 +105,7 @@
   let projects: Project[] = []
   projectQuery.query(tracker.class.Project, {}, (res) => { projects = res })
 
-  // --- Employees, for resolving the name snapshot sent with an account link ----------------
+  // --- Employees, for resolving the name snapshot sent with a device's employee link -------
   const employeeQuery = createQuery()
   let employeeName = new Map<Ref<Employee>, string>()
   employeeQuery.query(contact.mixin.Employee, { active: true }, (res: Employee[]) => {
@@ -194,7 +199,10 @@
   // =========================================================================================
   // Accounts
   // =========================================================================================
-  interface AccountDraft { employee: Ref<Person> | null, fee: number, error?: string }
+  // The account carries only the fee now: one Claude account is shared by several people, and
+  // the monthly fee belongs to the subscription, not to a person. Person-attribution lives on
+  // the device instead (see Devices below).
+  interface AccountDraft { fee: number, error?: string }
   let accountDrafts: Record<string, AccountDraft> = {}
 
   // Reset to the committed snapshot on every load, including after this row's own save. An
@@ -204,11 +212,9 @@
   function resetAccountDrafts (): void {
     const next: Record<string, AccountDraft> = {}
     for (const a of snap?.accounts ?? []) {
-      // Same computation as before (plan_cents / 100); only the declared type changed. A
-      // number type input already turns this into a real number the instant it round-trips
-      // through the DOM (bind:value on type="number" reads back via `+input.value`), so typing
-      // it as a string here was never true past the first edit.
-      next[a.uuid] = { employee: (a.employee_ref as Ref<Person> | null) ?? null, fee: a.plan_cents / 100 }
+      // A number type input already turns this into a real number the instant it round-trips
+      // through the DOM (bind:value on type="number" reads back via `+input.value`).
+      next[a.uuid] = { fee: a.plan_cents / 100 }
     }
     accountDrafts = next
   }
@@ -224,10 +230,7 @@
     }
     setBusy(`account:${a.uuid}`, true)
     try {
-      const employee_name = await nameForEmployee(d.employee)
       await usagePost(`/config/account/${encodeURIComponent(a.uuid)}`, {
-        employee_ref: d.employee,
-        employee_name,
         plan_cents: Math.round(d.fee * 100)
       })
       await load()
@@ -242,6 +245,39 @@
   // =========================================================================================
   // Devices
   // =========================================================================================
+  // THIS is where a person is assigned: a device is one person's machine, so the employee link
+  // lives here rather than on the shared account. Same draft-and-Save shape as accounts above.
+  interface DeviceDraft { employee: Ref<Person> | null, error?: string }
+  let deviceDrafts: Record<number, DeviceDraft> = {}
+
+  function resetDeviceDrafts (): void {
+    const next: Record<number, DeviceDraft> = {}
+    for (const d of snap?.devices ?? []) {
+      next[d.id] = { employee: (d.employee_ref as Ref<Person> | null) ?? null }
+    }
+    deviceDrafts = next
+  }
+
+  async function saveDeviceEmployee (device: ConfigDevice): Promise<void> {
+    actionError = undefined
+    const d = deviceDrafts[device.id]
+    d.error = undefined
+    setBusy(`device-employee:${device.id}`, true)
+    try {
+      const employee_name = await nameForEmployee(d.employee)
+      await usagePost(`/config/device/${device.id}/employee`, {
+        employee_ref: d.employee,
+        employee_name
+      })
+      await load()
+    } catch (e) {
+      d.error = friendlyError(e, 'Could not save that device.')
+      deviceDrafts = { ...deviceDrafts }
+    } finally {
+      setBusy(`device-employee:${device.id}`, false)
+    }
+  }
+
   let addDeviceLabel = ''
   let addDeviceError: string | undefined
   // The token is shown exactly once, right after creation, and never again after this banner
@@ -295,9 +331,9 @@
 <Scroller>
   <div class="ai-usage-config">
     <h1>AI Usage configuration</h1>
-    <p class="lede">Map working directories to projects or labels, link Claude accounts to
-      employees for billing, and issue device tokens. Changes here reshape past reports
-      immediately: nothing is re-ingested.</p>
+    <p class="lede">Map working directories to projects or labels, set each Claude account's
+      monthly fee, assign each device to the person who uses it, and issue device tokens.
+      Changes here reshape past reports immediately: nothing is re-ingested.</p>
 
     {#if loading}
       <div class="state">Loading configuration...</div>
@@ -394,13 +430,15 @@
       <!-- Accounts =========================================================================== -->
       <section class="panel">
         <div class="head"><h2>Accounts</h2><span class="tag">Billing</span></div>
-        <p class="note">Link each Claude account to an employee and set its monthly plan fee, in
-          whole currency units. The fee is stored in cents and prorated on the usage dashboard.</p>
+        <p class="note">Set each Claude account's monthly plan fee, in whole currency units. The
+          fee is a property of the subscription, not of a person, so it is set here; who uses
+          the account is assigned per device, in the Devices panel below. The fee is stored in
+          cents and prorated on the usage dashboard.</p>
 
         <div class="scroll">
           <table>
             <thead>
-              <tr><th>Account</th><th>Employee</th><th class="n">Monthly fee</th><th class="act" /></tr>
+              <tr><th>Account</th><th class="n">Monthly fee</th><th class="act" /></tr>
             </thead>
             <tbody>
               {#each snap.accounts as a (a.uuid)}
@@ -408,17 +446,6 @@
                   <td>
                     <div class="acct-name">{a.label ?? a.uuid}</div>
                     {#if a.email != null && a.email !== ''}<div class="acct-email">{a.email}</div>{/if}
-                  </td>
-                  <td>
-                    {#if accountDrafts[a.uuid] !== undefined}
-                      <EmployeeBox
-                        label={ygTimesheet.string.Employee}
-                        bind:value={accountDrafts[a.uuid].employee}
-                        allowDeselect={true}
-                        kind="regular"
-                        size="medium"
-                      />
-                    {/if}
                   </td>
                   <td class="n">
                     {#if accountDrafts[a.uuid] !== undefined}
@@ -434,11 +461,11 @@
                   </td>
                 </tr>
                 {#if accountDrafts[a.uuid]?.error !== undefined}
-                  <tr><td colspan="4" class="inline-err">{accountDrafts[a.uuid].error}</td></tr>
+                  <tr><td colspan="3" class="inline-err">{accountDrafts[a.uuid].error}</td></tr>
                 {/if}
               {/each}
               {#if snap.accounts.length === 0}
-                <tr><td colspan="4" class="empty">No accounts have reported usage yet.</td></tr>
+                <tr><td colspan="3" class="empty">No accounts have reported usage yet.</td></tr>
               {/if}
             </tbody>
           </table>
@@ -448,28 +475,44 @@
       <!-- Devices ============================================================================ -->
       <section class="panel">
         <div class="head"><h2>Devices</h2><span class="tag">Tokens</span></div>
-        <p class="note">Each device authenticates with its own token. A revoked device can no
-          longer send usage.</p>
+        <p class="note">Each device authenticates with its own token and belongs to one person.
+          The account column shows which Claude account(s) the device has actually reported
+          usage under; it is read-only here because it comes from the facts, not from a setting.
+          A revoked device can no longer send usage.</p>
 
         <div class="scroll">
           <table>
             <thead>
-              <tr><th>System</th><th>OS</th><th>Last seen</th><th class="act" /></tr>
+              <tr><th>Device</th><th>User</th><th>Account</th><th>Last seen</th><th class="act" /></tr>
             </thead>
             <tbody>
               {#each snap.devices as device (device.id)}
                 <tr>
                   <td>
-                    {#if device.reported_name != null && device.reported_name !== ''}
-                      <div class="dev-name">{device.reported_name}</div>
-                      <div class="dev-label">{device.label}</div>
-                    {:else}
-                      {device.label}
-                    {/if}
+                    <div class="dev-name">{device.reported_name ?? device.label}</div>
                     {#if device.stale}<span class="badge warn">no payload in over 24 hours</span>{/if}
                     {#if device.revoked_at != null}<span class="badge">revoked</span>{/if}
                   </td>
-                  <td>{device.os ?? '-'}</td>
+                  <td>
+                    {#if deviceDrafts[device.id] !== undefined}
+                      <EmployeeBox
+                        label={ygTimesheet.string.Employee}
+                        bind:value={deviceDrafts[device.id].employee}
+                        allowDeselect={true}
+                        kind="regular"
+                        size="medium"
+                      />
+                    {/if}
+                  </td>
+                  <td>
+                    {#if device.accounts.length === 0}
+                      <span class="muted">-</span>
+                    {:else}
+                      {#each device.accounts as acc (acc.uuid)}
+                        <span class="chip chip-account">{acc.label ?? acc.uuid}</span>
+                      {/each}
+                    {/if}
+                  </td>
                   <td>
                     {#if device.last_seen != null}
                       <TimeSince value={device.last_seen * 1000} />
@@ -478,6 +521,11 @@
                     {/if}
                   </td>
                   <td class="act">
+                    <button
+                      type="button" class="link-btn"
+                      disabled={deviceDrafts[device.id] === undefined || busy.has(`device-employee:${device.id}`)}
+                      on:click={() => saveDeviceEmployee(device)}
+                    >Save</button>
                     {#if device.revoked_at == null}
                       <button
                         type="button" class="link-btn danger"
@@ -487,9 +535,12 @@
                     {/if}
                   </td>
                 </tr>
+                {#if deviceDrafts[device.id]?.error !== undefined}
+                  <tr><td colspan="5" class="inline-err">{deviceDrafts[device.id].error}</td></tr>
+                {/if}
               {/each}
               {#if snap.devices.length === 0}
-                <tr><td colspan="4" class="empty">No devices enrolled yet.</td></tr>
+                <tr><td colspan="5" class="empty">No devices enrolled yet.</td></tr>
               {/if}
             </tbody>
           </table>
@@ -557,12 +608,13 @@
   }
   .chip-project { background: var(--theme-navpanel-selected, var(--theme-comp-header-color)); color: var(--theme-caption-color); font-weight: 600; }
   .chip-label { color: var(--theme-dark-color); font-style: italic; }
+  .chip-account { background: var(--theme-comp-header-color); color: var(--theme-caption-color); font-weight: 500; margin: 0 .25rem .25rem 0; }
+  .muted { color: var(--theme-dark-color); }
 
   .acct-name { font-weight: 500; color: var(--theme-caption-color); }
   .acct-email { font-size: .6875rem; color: var(--theme-dark-color); }
 
   .dev-name { font-weight: 500; color: var(--theme-caption-color); }
-  .dev-label { font-size: .6875rem; color: var(--theme-dark-color); }
 
   .badge {
     display: inline-block; margin-left: .5rem; font-size: .625rem; text-transform: uppercase;
