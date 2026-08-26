@@ -149,6 +149,9 @@ CREATE INDEX IF NOT EXISTS ix_session_first ON fact_session(first);
 ```js
 const test = require('node:test')
 const assert = require('node:assert')
+const { mkdtempSync, rmSync } = require('node:fs')
+const { tmpdir } = require('node:os')
+const { join } = require('node:path')
 const { open } = require('../db.js')
 
 test('open applies the schema and every table exists', () => {
@@ -160,10 +163,20 @@ test('open applies the schema and every table exists', () => {
   ])
 })
 
-test('open is idempotent', () => {
-  const db = open(':memory:')
-  assert.doesNotThrow(() => { open(':memory:') })
-  assert.ok(db)
+// Two open(':memory:') calls would make two INDEPENDENT databases, so they cannot test this.
+// The container re-opens an existing /data/usage.db on every restart, so the schema must apply
+// twice to the SAME file. Verified by removing IF NOT EXISTS and watching this test fail.
+test('open re-applies the schema to an existing database without error', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'usage-db-'))
+  const path = join(dir, 'usage.db')
+  try {
+    const first = open(path)
+    first.prepare('INSERT INTO map_rule (prefix, target_kind, label) VALUES (?,?,?)').run('~/x', 'label', 'X')
+    const second = open(path)
+    assert.strictEqual(second.prepare('SELECT count(*) c FROM map_rule').get().c, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('map_rule rejects an unknown target_kind', () => {
