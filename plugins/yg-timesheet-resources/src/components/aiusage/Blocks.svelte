@@ -5,15 +5,12 @@
   // Deliberate difference from the reference: the 5-hour limit is per Anthropic account, so a
   // block table that merges accounts would not describe any real limit window. When more than
   // one account is in the report and none is singled out, this renders a sentence instead.
-  import { buildWindows, modelVar, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
+  import { buildWindows, fmtH, fmtM, fmtPct, modelVar, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let view: ReturnType<typeof filterReport>
   export let filters: Filters
 
-  const fmtM = (n: number): string => (n / 1e6 >= 100 ? (n / 1e6).toFixed(0) : (n / 1e6).toFixed(1)) + 'M'
-  const fmtH = (s: number): string => (s / 3600).toFixed(2)
-  const fmtPct = (p: number): string => (p >= 9.95 ? p.toFixed(0) : p.toFixed(1)) + '%'
   const D2 = (n: number): string => String(n).padStart(2, '0')
   const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']

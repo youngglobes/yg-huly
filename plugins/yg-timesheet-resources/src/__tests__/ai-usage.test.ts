@@ -1,5 +1,6 @@
 import {
   weight, modelVar, filterReport, rollup, sumBy, buildWindows,
+  fmtM, fmtH, fmtPct, money,
   type UsageReport, type TokenRow, type ActivityRow, type SessionRow
 } from '../utils/ai-usage'
 
@@ -126,5 +127,26 @@ describe('5-hour windows', () => {
 
   it('returns nothing for an empty period', () => {
     expect(buildWindows([], [], [])).toHaveLength(0)
+  })
+})
+
+describe('formatters', () => {
+  it('fmtPct rounds to a whole number at and above the 9.95 boundary, one decimal below it', () => {
+    expect(fmtPct(9.95)).toBe('10%')
+    expect(fmtPct(9.94)).toBe('9.9%')
+  })
+
+  it('money drops decimals at and above the 100 boundary, keeps two decimals below it', () => {
+    expect(money(100)).toBe('$100')
+    expect(money(99)).toBe('$99.00')
+  })
+
+  it('fmtM switches from one decimal to zero decimals at the 100M boundary', () => {
+    expect(fmtM(100_000_000)).toBe('100M')
+    expect(fmtM(5_000_000)).toBe('5.0M')
+  })
+
+  it('fmtH renders seconds as hours to two decimals', () => {
+    expect(fmtH(3600)).toBe('1.00')
   })
 })

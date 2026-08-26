@@ -17,6 +17,7 @@
   $: accountOptions = report.accounts.map((a) => ({ value: a.uuid, label: a.employee_name ?? a.label }))
 
   $: deviceOptions = report.devices.map((d) => ({
+    id: d.id,
     value: d.label,
     label: d.os != null && d.os !== '' ? `${d.label} · ${d.os}` : d.label
   }))
@@ -53,7 +54,7 @@
     <label for="ai-usage-f-device">Device</label>
     <select id="ai-usage-f-device" bind:value={filters.device}>
       <option value="*">All devices</option>
-      {#each deviceOptions as opt (opt.value)}
+      {#each deviceOptions as opt (opt.id)}
         <option value={opt.value}>{opt.label}</option>
       {/each}
     </select>

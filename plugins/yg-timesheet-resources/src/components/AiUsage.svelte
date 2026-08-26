@@ -58,7 +58,7 @@
 
       <FilterBar {report} bind:filters />
 
-      {#if view.tok.length === 0}
+      {#if view.tok.length === 0 && view.act.length === 0}
         <div class="state">No usage matches these filters.</div>
       {:else}
         <Tiles {report} {view} {filters} />

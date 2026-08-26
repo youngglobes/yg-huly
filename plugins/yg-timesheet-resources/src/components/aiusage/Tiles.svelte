@@ -1,15 +1,11 @@
 <script lang="ts">
   // Six headline numbers. Ported from the reference's renderTiles. Allocated always divides by
   // view.baseW (the selected account's whole period), never by a filtered subtotal.
-  import { A, rollup, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
+  import { A, fmtH, fmtM, money, rollup, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let view: ReturnType<typeof filterReport>
   export let filters: Filters
-
-  const fmtM = (n: number): string => (n / 1e6 >= 100 ? (n / 1e6).toFixed(0) : (n / 1e6).toFixed(1)) + 'M'
-  const fmtH = (s: number): string => (s / 3600).toFixed(2)
-  const money = (n: number): string => '$' + (n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(2))
 
   // The plan fee lives on the account, not the page. Sum it over the accounts currently
   // selected: '*' means every account in the report.

@@ -1,13 +1,9 @@
 <script lang="ts">
   // Terminal vs VS Code vs SDK. Ported from the reference's renderSurface. No cost or account
   // context here, so this component takes only `view`.
-  import { A, T, rollup, sumBy, type filterReport } from '../../utils/ai-usage'
+  import { A, T, fmtH, fmtM, fmtPct, rollup, sumBy, type filterReport } from '../../utils/ai-usage'
 
   export let view: ReturnType<typeof filterReport>
-
-  const fmtM = (n: number): string => (n / 1e6 >= 100 ? (n / 1e6).toFixed(0) : (n / 1e6).toFixed(1)) + 'M'
-  const fmtH = (s: number): string => (s / 3600).toFixed(2)
-  const fmtPct = (p: number): string => (p >= 9.95 ? p.toFixed(0) : p.toFixed(1)) + '%'
 
   const LABEL: Record<string, string> = { terminal: 'Terminal', vscode: 'VS Code', sdk: 'SDK / scripted' }
   const CV: Record<string, string> = { terminal: '--s1', vscode: '--s3', sdk: '--s4' }

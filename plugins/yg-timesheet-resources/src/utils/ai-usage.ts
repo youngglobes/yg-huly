@@ -57,6 +57,26 @@ export function modelVar (model: string): string {
   return i < 0 ? '--m5' : MVAR[i]
 }
 
+// Presentation formatters, shared by every report component so the acceptance-task's
+// number-for-number comparison against the reference can never see a rounding drift from one
+// component quietly diverging from another. Byte-identical to the reference's own fmtM / fmtH
+// / fmtPct / money.
+export function fmtM (n: number): string {
+  return (n / 1e6 >= 100 ? (n / 1e6).toFixed(0) : (n / 1e6).toFixed(1)) + 'M'
+}
+
+export function fmtH (s: number): string {
+  return (s / 3600).toFixed(2)
+}
+
+export function fmtPct (p: number): string {
+  return (p >= 9.95 ? p.toFixed(0) : p.toFixed(1)) + '%'
+}
+
+export function money (n: number): string {
+  return '$' + (n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(2))
+}
+
 function maxHour (r: UsageReport): number {
   let mx = 0
   for (const row of r.tokens) if (row[T.hour] > mx) mx = row[T.hour]

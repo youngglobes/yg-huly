@@ -3,18 +3,13 @@
   // reference's renderProjects. Cost divides the prorated plan fee by view.baseW, never by the
   // filtered subtotal, so a single-project filter can't read as "consumed the whole plan".
   import {
-    A, S, T, modelVar, rollup, sumBy, weight,
+    A, S, T, fmtH, fmtM, fmtPct, modelVar, money, rollup, sumBy, weight,
     type Filters, type UsageReport, type filterReport
   } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let view: ReturnType<typeof filterReport>
   export let filters: Filters
-
-  const fmtM = (n: number): string => (n / 1e6 >= 100 ? (n / 1e6).toFixed(0) : (n / 1e6).toFixed(1)) + 'M'
-  const fmtH = (s: number): string => (s / 3600).toFixed(2)
-  const fmtPct = (p: number): string => (p >= 9.95 ? p.toFixed(0) : p.toFixed(1)) + '%'
-  const money = (n: number): string => '$' + (n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(2))
 
   $: planCents = report.accounts
     .filter((a) => filters.account === '*' || a.uuid === filters.account)

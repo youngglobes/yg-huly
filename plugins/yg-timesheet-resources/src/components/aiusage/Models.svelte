@@ -1,15 +1,11 @@
 <script lang="ts">
   // Models used, ranked by share of weighted usage. Ported from the reference's renderModels.
   // Cost divides by view.baseW, never by the filtered subtotal.
-  import { T, modelVar, rollup, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
+  import { T, fmtM, fmtPct, modelVar, money, rollup, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let view: ReturnType<typeof filterReport>
   export let filters: Filters
-
-  const fmtM = (n: number): string => (n / 1e6 >= 100 ? (n / 1e6).toFixed(0) : (n / 1e6).toFixed(1)) + 'M'
-  const fmtPct = (p: number): string => (p >= 9.95 ? p.toFixed(0) : p.toFixed(1)) + '%'
-  const money = (n: number): string => '$' + (n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(2))
 
   $: planCents = report.accounts
     .filter((a) => filters.account === '*' || a.uuid === filters.account)
