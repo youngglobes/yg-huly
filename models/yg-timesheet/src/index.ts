@@ -450,6 +450,48 @@ export function createModel (builder: Builder): void {
     ygTimesheet.app.Dashboard
   )
 
+  // Admin-only "AI Usage" app. Registered as its own top-level Application rather than as a
+  // branch of DashboardHome, because DashboardHome is a role ROUTER: resolveDashboardRole picks
+  // exactly one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard
+  // beside PM and HR without changing who sees the other two.
+  //
+  // accessLevel is the right nav gate here (unlike the HR app, where "is HR staff" is space
+  // membership and cannot be expressed as a rung on the AccountRole ladder). It is also
+  // client-side ONLY: it hides the icon. The real gate is the sidecar, which verifies the
+  // caller's Huly token and asks the account service for their workspace role before answering.
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.AiUsage,
+      icon: tracker.icon.TimeReport,
+      alias: 'yg-ai-usage',
+      hidden: false,
+      position: 'top',
+      accessLevel: AccountRole.Maintainer,
+      navigatorModel: {
+        spaces: [],
+        specials: [
+          {
+            id: 'usage',
+            label: ygTimesheet.string.AiUsageDashboard,
+            icon: tracker.icon.TimeReport,
+            component: ygTimesheet.component.AiUsage,
+            position: 'top'
+          },
+          {
+            id: 'config',
+            label: ygTimesheet.string.AiUsageConfiguration,
+            icon: setting.icon.Setting,
+            component: ygTimesheet.component.AiUsageConfig,
+            position: 'bottom'
+          }
+        ]
+      }
+    },
+    ygTimesheet.app.AiUsage
+  )
+
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
   // (rendered embedded in the Inbox — see plugins/notification-resources). Our approval notifications
   // attach to a TimesheetDay (submit) or TimesheetTask (approve/reject); registering

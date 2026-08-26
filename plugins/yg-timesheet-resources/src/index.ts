@@ -31,6 +31,8 @@ import WorkProfileEditor from './components/WorkProfileEditor.svelte'
 import Performance from './components/Performance.svelte'
 import HrHolidays from './components/HrHolidays.svelte'
 import HrLatePermissions from './components/HrLatePermissions.svelte'
+import AiUsage from './components/AiUsage.svelte'
+import AiUsageConfig from './components/AiUsageConfig.svelte'
 
 async function CanApprove (_spaces: Space[]): Promise<boolean> {
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -146,7 +148,9 @@ export default async (): Promise<Resources> => ({
     WorkProfileEditor,
     Performance,
     HrHolidays,
-    HrLatePermissions
+    HrLatePermissions,
+    AiUsage,
+    AiUsageConfig
   },
   function: { CanApprove, TimesheetDayTitle: timesheetDayTitle, CanCreateProject },
   resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }

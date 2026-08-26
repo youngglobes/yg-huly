@@ -228,7 +228,8 @@ export default plugin(ygTimesheetId, {
     Timesheet: '' as Ref<Doc>,
     HumanResource: '' as Ref<Doc>,
     Attendance: '' as Ref<Doc>,
-    Dashboard: '' as Ref<Doc>
+    Dashboard: '' as Ref<Doc>,
+    AiUsage: '' as Ref<Doc>
   },
   component: {
     Timesheet: '' as AnyComponent,
@@ -252,7 +253,9 @@ export default plugin(ygTimesheetId, {
     WorkProfileEditor: '' as AnyComponent,
     Performance: '' as AnyComponent,
     HrHolidays: '' as AnyComponent,
-    HrLatePermissions: '' as AnyComponent
+    HrLatePermissions: '' as AnyComponent,
+    AiUsage: '' as AnyComponent,
+    AiUsageConfig: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -445,7 +448,10 @@ export default plugin(ygTimesheetId, {
     NoLatePermissions: '' as IntlString,
     LatePermissionsIntro: '' as IntlString,
     Reason: '' as IntlString,
-    Details: '' as IntlString
+    Details: '' as IntlString,
+    AiUsage: '' as IntlString,
+    AiUsageDashboard: '' as IntlString,
+    AiUsageConfiguration: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

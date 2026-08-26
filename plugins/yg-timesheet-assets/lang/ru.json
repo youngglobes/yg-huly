@@ -186,6 +186,9 @@
     "NoLatePermissions": "No late permissions in this view.",
     "LatePermissionsIntro": "Late punch-ins awaiting HR review.",
     "Reason": "Причина",
-    "Details": "Details"
+    "Details": "Details",
+    "AiUsage": "AI Usage",
+    "AiUsageDashboard": "Usage",
+    "AiUsageConfiguration": "Configuration"
   }
 }
