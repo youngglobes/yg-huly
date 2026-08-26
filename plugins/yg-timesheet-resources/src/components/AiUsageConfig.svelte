@@ -16,7 +16,7 @@
   import type { Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
-  import { TimeSince } from '@hcengineering/ui'
+  import { Scroller, TimeSince } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import { fmtM } from '../utils/ai-usage'
   import { usageGet, usagePost, usageDelete } from '../utils/ai-usage-api'
@@ -43,6 +43,7 @@
     id: number
     label: string
     os: string | null
+    reported_name: string | null
     created: number
     last_seen: number | null
     revoked_at: number | null
@@ -291,225 +292,232 @@
   }
 </script>
 
-<div class="ai-usage-config">
-  <h1>AI Usage configuration</h1>
-  <p class="lede">Map working directories to projects or labels, link Claude accounts to
-    employees for billing, and issue device tokens. Changes here reshape past reports
-    immediately: nothing is re-ingested.</p>
+<Scroller>
+  <div class="ai-usage-config">
+    <h1>AI Usage configuration</h1>
+    <p class="lede">Map working directories to projects or labels, link Claude accounts to
+      employees for billing, and issue device tokens. Changes here reshape past reports
+      immediately: nothing is re-ingested.</p>
 
-  {#if loading}
-    <div class="state">Loading configuration...</div>
-  {:else if loadError !== undefined}
-    <div class="state err">{loadError}</div>
-  {:else if snap !== undefined}
-    {#if actionError !== undefined}
-      <div class="state err">{actionError}</div>
-    {/if}
-
-    <!-- Mapping ============================================================================ -->
-    <section class="panel">
-      <div class="head"><h2>Mapping</h2><span class="tag">Rules</span></div>
-      <p class="note">A working-directory prefix maps to either a tracker project or a free-text
-        label. The longest matching prefix wins. A project rule stores the project's name
-        alongside its id, so a later rename or deletion still renders correctly in old reports.</p>
-
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr><th>Prefix</th><th>Target</th><th class="act" /></tr>
-          </thead>
-          <tbody>
-            {#each snap.rules as rule (rule.id)}
-              <tr>
-                <td class="mono">{rule.prefix}</td>
-                <td>
-                  {#if rule.target_kind === 'project'}
-                    <span class="chip chip-project">{rule.project_name ?? '(unnamed project)'}</span>
-                  {:else}
-                    <span class="chip chip-label">{rule.label ?? '(no label)'}</span>
-                  {/if}
-                </td>
-                <td class="act">
-                  <button
-                    type="button" class="link-btn danger"
-                    disabled={busy.has(`rule:${rule.id}`)}
-                    on:click={() => removeRule(rule)}
-                  >Remove</button>
-                </td>
-              </tr>
-            {/each}
-            {#if snap.rules.length === 0}
-              <tr><td colspan="3" class="empty">No mapping rules yet.</td></tr>
-            {/if}
-          </tbody>
-        </table>
-      </div>
-
-      <form class="add-row" on:submit|preventDefault={addRule}>
-        <input
-          bind:this={prefixInput}
-          class="txt prefix"
-          type="text"
-          placeholder="~/dev/some-project"
-          bind:value={addPrefix}
-        />
-        <div class="seg" role="group" aria-label="Target kind">
-          <button type="button" aria-pressed={addKind === 'project'} on:click={() => { addKind = 'project' }}>Project</button>
-          <button type="button" aria-pressed={addKind === 'label'} on:click={() => { addKind = 'label' }}>Label</button>
-        </div>
-        {#if addKind === 'project'}
-          <select class="txt" bind:value={addProjectId}>
-            <option value="">Pick a project...</option>
-            {#each projects as p (p._id)}
-              <option value={p._id}>{p.name}</option>
-            {/each}
-          </select>
-        {:else}
-          <input class="txt" type="text" placeholder="Label" bind:value={addLabel} />
-        {/if}
-        <button class="primary-btn" type="submit" disabled={busy.has('rule-add')}>Add rule</button>
-      </form>
-      {#if addError !== undefined}
-        <div class="inline-err">{addError}</div>
+    {#if loading}
+      <div class="state">Loading configuration...</div>
+    {:else if loadError !== undefined}
+      <div class="state err">{loadError}</div>
+    {:else if snap !== undefined}
+      {#if actionError !== undefined}
+        <div class="state err">{actionError}</div>
       {/if}
 
-      <h3 class="sub">Unmapped</h3>
-      {#if snap.unmapped.length === 0}
-        <p class="note">Every working directory seen in the last 30 days is mapped.</p>
-      {:else}
-        <ul class="unmapped">
-          {#each snap.unmapped as entry (entry.cwd_norm)}
-            <li>
-              <span class="mono path">{entry.cwd}</span>
-              <span class="tok">{fmtM(entry.tokens)} tokens</span>
-              <button type="button" class="link-btn" on:click={() => mapThis(entry)}>Map this</button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </section>
+      <!-- Mapping ============================================================================ -->
+      <section class="panel">
+        <div class="head"><h2>Mapping</h2><span class="tag">Rules</span></div>
+        <p class="note">A working-directory prefix maps to either a tracker project or a free-text
+          label. The longest matching prefix wins. A project rule stores the project's name
+          alongside its id, so a later rename or deletion still renders correctly in old reports.</p>
 
-    <!-- Accounts =========================================================================== -->
-    <section class="panel">
-      <div class="head"><h2>Accounts</h2><span class="tag">Billing</span></div>
-      <p class="note">Link each Claude account to an employee and set its monthly plan fee, in
-        whole currency units. The fee is stored in cents and prorated on the usage dashboard.</p>
-
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr><th>Account</th><th>Employee</th><th class="n">Monthly fee</th><th class="act" /></tr>
-          </thead>
-          <tbody>
-            {#each snap.accounts as a (a.uuid)}
-              <tr>
-                <td>
-                  <div class="acct-name">{a.label ?? a.uuid}</div>
-                  {#if a.email != null && a.email !== ''}<div class="acct-email">{a.email}</div>{/if}
-                </td>
-                <td>
-                  {#if accountDrafts[a.uuid] !== undefined}
-                    <EmployeeBox
-                      label={ygTimesheet.string.Employee}
-                      bind:value={accountDrafts[a.uuid].employee}
-                      allowDeselect={true}
-                      kind="regular"
-                      size="medium"
-                    />
-                  {/if}
-                </td>
-                <td class="n">
-                  {#if accountDrafts[a.uuid] !== undefined}
-                    <input class="txt fee" type="number" min="0" step="0.01" bind:value={accountDrafts[a.uuid].fee} />
-                  {/if}
-                </td>
-                <td class="act">
-                  <button
-                    type="button" class="link-btn"
-                    disabled={accountDrafts[a.uuid] === undefined || busy.has(`account:${a.uuid}`)}
-                    on:click={() => saveAccount(a)}
-                  >Save</button>
-                </td>
-              </tr>
-              {#if accountDrafts[a.uuid]?.error !== undefined}
-                <tr><td colspan="4" class="inline-err">{accountDrafts[a.uuid].error}</td></tr>
-              {/if}
-            {/each}
-            {#if snap.accounts.length === 0}
-              <tr><td colspan="4" class="empty">No accounts have reported usage yet.</td></tr>
-            {/if}
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- Devices ============================================================================ -->
-    <section class="panel">
-      <div class="head"><h2>Devices</h2><span class="tag">Tokens</span></div>
-      <p class="note">Each device authenticates with its own token. A revoked device can no
-        longer send usage.</p>
-
-      <div class="scroll">
-        <table>
-          <thead>
-            <tr><th>Label</th><th>OS</th><th>Last seen</th><th class="act" /></tr>
-          </thead>
-          <tbody>
-            {#each snap.devices as device (device.id)}
-              <tr>
-                <td>
-                  {device.label}
-                  {#if device.stale}<span class="badge warn">no payload in over 24 hours</span>{/if}
-                  {#if device.revoked_at != null}<span class="badge">revoked</span>{/if}
-                </td>
-                <td>{device.os ?? '-'}</td>
-                <td>
-                  {#if device.last_seen != null}
-                    <TimeSince value={device.last_seen * 1000} />
-                  {:else}
-                    Never
-                  {/if}
-                </td>
-                <td class="act">
-                  {#if device.revoked_at == null}
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Prefix</th><th>Target</th><th class="act" /></tr>
+            </thead>
+            <tbody>
+              {#each snap.rules as rule (rule.id)}
+                <tr>
+                  <td class="mono">{rule.prefix}</td>
+                  <td>
+                    {#if rule.target_kind === 'project'}
+                      <span class="chip chip-project">{rule.project_name ?? '(unnamed project)'}</span>
+                    {:else}
+                      <span class="chip chip-label">{rule.label ?? '(no label)'}</span>
+                    {/if}
+                  </td>
+                  <td class="act">
                     <button
                       type="button" class="link-btn danger"
-                      disabled={busy.has(`device:${device.id}`)}
-                      on:click={() => revokeDevice(device)}
-                    >Revoke</button>
-                  {/if}
-                </td>
-              </tr>
-            {/each}
-            {#if snap.devices.length === 0}
-              <tr><td colspan="4" class="empty">No devices enrolled yet.</td></tr>
-            {/if}
-          </tbody>
-        </table>
-      </div>
-
-      <form class="add-row" on:submit|preventDefault={addDevice}>
-        <input class="txt" type="text" placeholder="Device label" bind:value={addDeviceLabel} />
-        <button class="primary-btn" type="submit" disabled={busy.has('device-add')}>Add device</button>
-      </form>
-      {#if addDeviceError !== undefined}
-        <div class="inline-err">{addDeviceError}</div>
-      {/if}
-
-      {#if newDeviceToken !== undefined}
-        <div class="token-box">
-          <div class="token-head">Token for <b>{newDeviceToken.label}</b></div>
-          <code class="token-value">{newDeviceToken.token}</code>
-          <div class="token-row">
-            <button type="button" class="primary-btn" on:click={copyToken}>{copied ? 'Copied' : 'Copy'}</button>
-            <button type="button" class="link-btn" on:click={() => { newDeviceToken = undefined }}>Done</button>
-          </div>
-          <p class="token-note">Copy this now. It is shown once and cannot be retrieved later.</p>
+                      disabled={busy.has(`rule:${rule.id}`)}
+                      on:click={() => removeRule(rule)}
+                    >Remove</button>
+                  </td>
+                </tr>
+              {/each}
+              {#if snap.rules.length === 0}
+                <tr><td colspan="3" class="empty">No mapping rules yet.</td></tr>
+              {/if}
+            </tbody>
+          </table>
         </div>
-      {/if}
-    </section>
-  {/if}
-</div>
+
+        <form class="add-row" on:submit|preventDefault={addRule}>
+          <input
+            bind:this={prefixInput}
+            class="txt prefix"
+            type="text"
+            placeholder="~/dev/some-project"
+            bind:value={addPrefix}
+          />
+          <div class="seg" role="group" aria-label="Target kind">
+            <button type="button" aria-pressed={addKind === 'project'} on:click={() => { addKind = 'project' }}>Project</button>
+            <button type="button" aria-pressed={addKind === 'label'} on:click={() => { addKind = 'label' }}>Label</button>
+          </div>
+          {#if addKind === 'project'}
+            <select class="txt" bind:value={addProjectId}>
+              <option value="">Pick a project...</option>
+              {#each projects as p (p._id)}
+                <option value={p._id}>{p.name}</option>
+              {/each}
+            </select>
+          {:else}
+            <input class="txt" type="text" placeholder="Label" bind:value={addLabel} />
+          {/if}
+          <button class="primary-btn" type="submit" disabled={busy.has('rule-add')}>Add rule</button>
+        </form>
+        {#if addError !== undefined}
+          <div class="inline-err">{addError}</div>
+        {/if}
+
+        <h3 class="sub">Unmapped</h3>
+        {#if snap.unmapped.length === 0}
+          <p class="note">Every working directory seen in the last 30 days is mapped.</p>
+        {:else}
+          <ul class="unmapped">
+            {#each snap.unmapped as entry (entry.cwd_norm)}
+              <li>
+                <span class="mono path">{entry.cwd}</span>
+                <span class="tok">{fmtM(entry.tokens)} tokens</span>
+                <button type="button" class="link-btn" on:click={() => mapThis(entry)}>Map this</button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </section>
+
+      <!-- Accounts =========================================================================== -->
+      <section class="panel">
+        <div class="head"><h2>Accounts</h2><span class="tag">Billing</span></div>
+        <p class="note">Link each Claude account to an employee and set its monthly plan fee, in
+          whole currency units. The fee is stored in cents and prorated on the usage dashboard.</p>
+
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Account</th><th>Employee</th><th class="n">Monthly fee</th><th class="act" /></tr>
+            </thead>
+            <tbody>
+              {#each snap.accounts as a (a.uuid)}
+                <tr>
+                  <td>
+                    <div class="acct-name">{a.label ?? a.uuid}</div>
+                    {#if a.email != null && a.email !== ''}<div class="acct-email">{a.email}</div>{/if}
+                  </td>
+                  <td>
+                    {#if accountDrafts[a.uuid] !== undefined}
+                      <EmployeeBox
+                        label={ygTimesheet.string.Employee}
+                        bind:value={accountDrafts[a.uuid].employee}
+                        allowDeselect={true}
+                        kind="regular"
+                        size="medium"
+                      />
+                    {/if}
+                  </td>
+                  <td class="n">
+                    {#if accountDrafts[a.uuid] !== undefined}
+                      <input class="txt fee" type="number" min="0" step="0.01" bind:value={accountDrafts[a.uuid].fee} />
+                    {/if}
+                  </td>
+                  <td class="act">
+                    <button
+                      type="button" class="link-btn"
+                      disabled={accountDrafts[a.uuid] === undefined || busy.has(`account:${a.uuid}`)}
+                      on:click={() => saveAccount(a)}
+                    >Save</button>
+                  </td>
+                </tr>
+                {#if accountDrafts[a.uuid]?.error !== undefined}
+                  <tr><td colspan="4" class="inline-err">{accountDrafts[a.uuid].error}</td></tr>
+                {/if}
+              {/each}
+              {#if snap.accounts.length === 0}
+                <tr><td colspan="4" class="empty">No accounts have reported usage yet.</td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Devices ============================================================================ -->
+      <section class="panel">
+        <div class="head"><h2>Devices</h2><span class="tag">Tokens</span></div>
+        <p class="note">Each device authenticates with its own token. A revoked device can no
+          longer send usage.</p>
+
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>System</th><th>OS</th><th>Last seen</th><th class="act" /></tr>
+            </thead>
+            <tbody>
+              {#each snap.devices as device (device.id)}
+                <tr>
+                  <td>
+                    {#if device.reported_name != null && device.reported_name !== ''}
+                      <div class="dev-name">{device.reported_name}</div>
+                      <div class="dev-label">{device.label}</div>
+                    {:else}
+                      {device.label}
+                    {/if}
+                    {#if device.stale}<span class="badge warn">no payload in over 24 hours</span>{/if}
+                    {#if device.revoked_at != null}<span class="badge">revoked</span>{/if}
+                  </td>
+                  <td>{device.os ?? '-'}</td>
+                  <td>
+                    {#if device.last_seen != null}
+                      <TimeSince value={device.last_seen * 1000} />
+                    {:else}
+                      Never
+                    {/if}
+                  </td>
+                  <td class="act">
+                    {#if device.revoked_at == null}
+                      <button
+                        type="button" class="link-btn danger"
+                        disabled={busy.has(`device:${device.id}`)}
+                        on:click={() => revokeDevice(device)}
+                      >Revoke</button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+              {#if snap.devices.length === 0}
+                <tr><td colspan="4" class="empty">No devices enrolled yet.</td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+
+        <form class="add-row" on:submit|preventDefault={addDevice}>
+          <input class="txt" type="text" placeholder="Device label" bind:value={addDeviceLabel} />
+          <button class="primary-btn" type="submit" disabled={busy.has('device-add')}>Add device</button>
+        </form>
+        {#if addDeviceError !== undefined}
+          <div class="inline-err">{addDeviceError}</div>
+        {/if}
+
+        {#if newDeviceToken !== undefined}
+          <div class="token-box">
+            <div class="token-head">Token for <b>{newDeviceToken.label}</b></div>
+            <code class="token-value">{newDeviceToken.token}</code>
+            <div class="token-row">
+              <button type="button" class="primary-btn" on:click={copyToken}>{copied ? 'Copied' : 'Copy'}</button>
+              <button type="button" class="link-btn" on:click={() => { newDeviceToken = undefined }}>Done</button>
+            </div>
+            <p class="token-note">Copy this now. It is shown once and cannot be retrieved later.</p>
+          </div>
+        {/if}
+      </section>
+    {/if}
+  </div>
+</Scroller>
 
 <style lang="scss">
   .ai-usage-config { padding: 1.5rem 1.25rem 4rem; max-width: 72rem; margin: 0 auto; }
@@ -552,6 +560,9 @@
 
   .acct-name { font-weight: 500; color: var(--theme-caption-color); }
   .acct-email { font-size: .6875rem; color: var(--theme-dark-color); }
+
+  .dev-name { font-weight: 500; color: var(--theme-caption-color); }
+  .dev-label { font-size: .6875rem; color: var(--theme-dark-color); }
 
   .badge {
     display: inline-block; margin-left: .5rem; font-size: .625rem; text-transform: uppercase;
