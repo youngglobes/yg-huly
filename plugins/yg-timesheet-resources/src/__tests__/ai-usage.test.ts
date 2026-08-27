@@ -15,7 +15,7 @@ function report (over: Partial<UsageReport> = {}): UsageReport {
     accounts: [{ uuid: 'a1', label: 'Karthi', plan_cents: 20000 }],
     devices: [{ id: 1, label: 'WSL', os: 'wsl', last_seen: H }],
     idle_sec: 300,
-    stats: { dup_dropped_7d: 5, stale_devices: [] },
+    stats: { dup_dropped_7d: 5, stale_devices: [], duplicate_devices: [] },
     // Both rows share the account (the whole point: one Claude account, several people), but
     // are assigned to different people via the trailing PERSON column, so account and person
     // filtering are genuinely distinct axes in these fixtures.

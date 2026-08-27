@@ -39,6 +39,7 @@
 
   $: view = report === undefined ? undefined : filterReport(report, filters)
   $: stale = report?.stats?.stale_devices ?? []
+  $: duplicates = report?.stats?.duplicate_devices ?? []
 </script>
 
 <Scroller>
@@ -53,6 +54,13 @@
     {:else if error !== undefined}
       <div class="state err">{error}</div>
     {:else if report !== undefined && view !== undefined}
+      {#if duplicates.length > 0}
+        <div class="state warn">
+          {duplicates.join(', ')} reported by more than one enrolled device.
+          Usage for that machine is being counted twice. Revoke the duplicate in Configuration.
+        </div>
+      {/if}
+
       {#if stale.length > 0}
         <div class="state warn">
           No usage received from {stale.join(', ')} in over 24 hours.

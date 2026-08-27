@@ -29,7 +29,7 @@ export interface UsageReport {
   accounts: UsageAccount[]
   devices: UsageDevice[]
   idle_sec: number
-  stats: { dup_dropped_7d: number, stale_devices: string[] }
+  stats: { dup_dropped_7d: number, stale_devices: string[], duplicate_devices: string[] }
   tokens: TokenRow[]
   activity: ActivityRow[]
   sessions: SessionRow[]

@@ -49,6 +49,9 @@
     last_seen: number | null
     revoked_at: number | null
     stale: boolean
+    // Labels of OTHER unrevoked devices reporting the same reported_name, i.e. the same machine
+    // enrolled twice. Empty for a revoked device or one that has never reported.
+    duplicate_with: string[]
     // Which Claude accounts this device has reported under, derived from the facts. Never
     // stored: a device can genuinely show more than one when a shared login moves machines.
     accounts: DeviceAccountRef[]
@@ -491,6 +494,11 @@
                   <td>
                     <div class="dev-name">{device.reported_name ?? device.label}</div>
                     {#if device.stale}<span class="badge warn">no payload in over 24 hours</span>{/if}
+                    {#if device.duplicate_with.length > 0}
+                      <span class="badge warn" title="Also reported by {device.duplicate_with.join(', ')}. Revoke the duplicate.">
+                        duplicate machine
+                      </span>
+                    {/if}
                     {#if device.revoked_at != null}<span class="badge">revoked</span>{/if}
                   </td>
                   <td>
