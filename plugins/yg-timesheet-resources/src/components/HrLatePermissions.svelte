@@ -21,13 +21,22 @@
   import { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label, showPopup } from '@hcengineering/ui'
-  import contact, { formatName, type Employee } from '@hcengineering/contact'
-  import ygTimesheet, { type LatePermission } from '@hcengineering/yg-timesheet'
+  import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
+  import ygTimesheet, { isHrDesignation, type LatePermission, type WorkDesignation } from '@hcengineering/yg-timesheet'
   import { approveLatePermission, rejectLatePermission } from '../utils/attendance-write'
   import RejectLatePopup from './RejectLatePopup.svelte'
 
   const client = getClient()
-  const isHr = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
+
+  // Who may approve/reject: HR staff (WorkProfile designation) plus admin break-glass. The server
+  // guard (OnLatePermissionUpdate) enforces the same rule, so hiding the buttons is only UX, not the
+  // security boundary. Reactive because the designation arrives from a live query.
+  const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
+  const me = getCurrentEmployee()
+  let myDesignation: WorkDesignation | undefined
+  const profQuery = createQuery()
+  profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => { myDesignation = res[0]?.designation })
+  $: isHr = isAdmin || isHrDesignation(myDesignation)
 
   let rows: LatePermission[] = []
   const q = createQuery()

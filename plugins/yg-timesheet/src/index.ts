@@ -127,6 +127,15 @@ export interface WorkProfile extends Employee {
   shiftStart?: number
 }
 
+// The designation that identifies HR staff. Late-punch permissions may be approved/rejected by an
+// HR-designated user (plus admin break-glass), never a workspace-role check - HR staff stay ordinary
+// Users. Kept here as the single source of truth so the client gate (HrLatePermissions.svelte) and
+// the server guard (OnLatePermissionUpdate) cannot drift apart on who counts as HR.
+export const HR_DESIGNATION: WorkDesignation = 'HR Executive'
+export function isHrDesignation (d: WorkDesignation | undefined): boolean {
+  return d === HR_DESIGNATION
+}
+
 /** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
 export interface HrTimeEntry extends Doc {
   source: Ref<TimeSpendReport>

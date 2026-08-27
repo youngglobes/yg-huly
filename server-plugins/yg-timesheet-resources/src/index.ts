@@ -51,6 +51,7 @@ import {
 } from '@hcengineering/server-notification-resources'
 import { jsonToMarkup, nodeDoc, nodeParagraph, nodeText } from '@hcengineering/text-core'
 import ygTimesheet, {
+  isHrDesignation,
   type DayStatus,
   type HrTimeEntry,
   type LatePermission,
@@ -586,9 +587,15 @@ export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerContro
 
     const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
     const actor = await getEmployee(control, utx.modifiedBy)
-    // Fail closed: an unresolved actor can't be ruled out as self, so it is never authorized,
-    // admin included (mirrors OnTimesheetTaskUpdate's actorId !== undefined requirement).
-    const authorized = isAdmin && actor !== undefined && actor._id !== perm.employee
+    // HR staff (WorkProfile designation 'HR Executive') may approve/reject, alongside admin
+    // break-glass. Fail closed: an unresolved actor can't be ruled out as self, so it is never
+    // authorized, admin included (mirrors OnTimesheetTaskUpdate's actorId !== undefined requirement).
+    const actorProfile =
+      actor === undefined
+        ? undefined
+        : (await control.findAll(control.ctx, ygTimesheet.mixin.WorkProfile, { _id: actor._id }, { limit: 1 }))[0]
+    const authorized =
+      actor !== undefined && actor._id !== perm.employee && (isAdmin || isHrDesignation(actorProfile?.designation))
     if (authorized) continue
 
     control.ctx.warn('yg-timesheet: unauthorized LatePermission status write reverted', {
