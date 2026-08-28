@@ -1,8 +1,9 @@
 import {
-  headcount, attendanceToday, wfhOfficeSplit, notPunchedToday, orgHoursTotal,
+  headcount, attendanceToday, modeSplit, notPunchedToday, orgHoursTotal,
   hoursByPerson, notLoggedThisWeek, submissionCompliance,
   type HrEmp, type HrAtt, type HrHours, type HrSub
 } from '../utils/hr-dashboard'
+import { dayMode } from '../utils/attendance'
 
 const emps: HrEmp[] = [
   { id: 'e1', name: 'Alice A', active: true },
@@ -17,21 +18,35 @@ describe('headcount', () => {
   })
 })
 
-describe('attendanceToday / wfhOfficeSplit / notPunchedToday', () => {
-  // e1: two sessions today, latest is wfh + open; e2: one office session, closed; e3: no session
+describe('dayMode', () => {
+  it('office-only -> office, wfh-only -> wfh, any mix -> partial', () => {
+    expect(dayMode(['office', 'office'])).toBe('office')
+    expect(dayMode(['wfh'])).toBe('wfh')
+    expect(dayMode(['office', 'wfh'])).toBe('partial')
+    expect(dayMode(['wfh', 'office', 'wfh'])).toBe('partial')
+  })
+})
+
+describe('attendanceToday / modeSplit / notPunchedToday', () => {
+  // e1: office then wfh -> mixed day = partial, latest session still open; e2: one office session,
+  // closed; e3: no session
   const att: HrAtt[] = [
     { employee: 'e1', mode: 'office', open: false, punchIn: 100 },
     { employee: 'e1', mode: 'wfh', open: true, punchIn: 200 },
     { employee: 'e2', mode: 'office', open: false, punchIn: 150 }
   ]
-  it('attendanceToday: one row per present employee, using the latest session', () => {
+  it('attendanceToday: one row per employee; a mixed day is partial, open = latest session', () => {
     expect(attendanceToday(att, emps)).toEqual([
-      { employee: 'e1', name: 'Alice A', mode: 'wfh', open: true },
+      { employee: 'e1', name: 'Alice A', mode: 'partial', open: true },
       { employee: 'e2', name: 'Bob B', mode: 'office', open: false }
     ])
   })
-  it('wfhOfficeSplit: distinct present employees by latest mode', () => {
-    expect(wfhOfficeSplit(att, emps)).toEqual({ office: 1, wfh: 1 })
+  it('modeSplit: office / wfh / partial (a switcher counts as partial, not office or wfh)', () => {
+    expect(modeSplit(att, emps)).toEqual({ office: 1, wfh: 0, partial: 1 })
+  })
+  it('modeSplit: a wfh-only employee counts as wfh', () => {
+    const wfhOnly: HrAtt[] = [{ employee: 'e2', mode: 'wfh', open: false, punchIn: 150 }]
+    expect(modeSplit(wfhOnly, emps)).toEqual({ office: 0, wfh: 1, partial: 0 })
   })
   it('notPunchedToday: active employees with no session today', () => {
     expect(notPunchedToday(att, emps).map((e) => e.id)).toEqual(['e3'])

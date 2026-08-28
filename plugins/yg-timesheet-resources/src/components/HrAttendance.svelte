@@ -222,7 +222,7 @@
               <td>{fmt(r.lastOut)}</td>
               <td>{r.sessions}</td>
               <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
-              <td><Label label={r.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
+              <td><Label label={r.mode === 'partial' ? ygTimesheet.string.Partial : r.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
             </tr>
           {:else}
             <tr><td colspan={7} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>

@@ -1,11 +1,13 @@
 // Pure aggregation for the HR dashboard. No platform deps -> unit-testable. HrDashboard.svelte maps
 // live query results (AttendanceSession / HrTimeEntry / Timesheet / Employee) to these plain shapes
 // and feeds them in, so all math is tested in isolation from queries/rendering.
+import { dayMode, type DayMode } from './attendance'
+
 export interface HrEmp { id: string; name: string; active: boolean }
 export interface HrAtt { employee: string; mode: 'office' | 'wfh'; open: boolean; punchIn: number }
 export interface HrHours { employee: string; hours: number; date: number }
 export interface HrSub { employee: string; submitted: boolean }
-export interface AttToday { employee: string; name: string; mode: 'office' | 'wfh'; open: boolean }
+export interface AttToday { employee: string; name: string; mode: DayMode; open: boolean }
 export interface PersonHours { employee: string; name: string; hours: number; days: number; lastActive: number }
 
 const nameOf = (emps: HrEmp[], id: string): string => emps.find((e) => e.id === id)?.name ?? id
@@ -15,24 +17,36 @@ export function headcount (emps: HrEmp[]): number {
   return emps.filter((e) => e.active).length
 }
 
-// One row per present employee, carrying the mode/open of their LATEST punch-in today (an employee
-// may punch office then wfh; the most recent session wins). Ordered by employee name.
+// One row per present employee. `mode` is the DAY category (office / wfh / partial) across all of
+// their sessions today - office-then-wfh is `partial`, not "wherever they ended". `open` = their
+// latest session is still running. Ordered by employee name.
 export function attendanceToday (att: HrAtt[], emps: HrEmp[]): AttToday[] {
-  const latest = new Map<string, HrAtt>()
+  const byEmp = new Map<string, HrAtt[]>()
   for (const a of att) {
-    const cur = latest.get(a.employee)
-    if (cur === undefined || a.punchIn > cur.punchIn) latest.set(a.employee, a)
+    const list = byEmp.get(a.employee)
+    if (list === undefined) byEmp.set(a.employee, [a])
+    else list.push(a)
   }
-  return [...latest.values()]
-    .map((a) => ({ employee: a.employee, name: nameOf(emps, a.employee), mode: a.mode, open: a.open }))
-    .sort((x, y) => x.name.localeCompare(y.name))
+  const rows: AttToday[] = []
+  for (const [emp, sessions] of byEmp) {
+    const latest = sessions.reduce((x, y) => (y.punchIn > x.punchIn ? y : x))
+    rows.push({
+      employee: emp,
+      name: nameOf(emps, emp),
+      mode: dayMode(sessions.map((s) => s.mode)),
+      open: latest.open
+    })
+  }
+  return rows.sort((x, y) => x.name.localeCompare(y.name))
 }
 
-export function wfhOfficeSplit (att: HrAtt[], emps: HrEmp[]): { office: number, wfh: number } {
+// Present-employee headcount split by day category. office + wfh + partial = present count.
+export function modeSplit (att: HrAtt[], emps: HrEmp[]): { office: number, wfh: number, partial: number } {
   const today = attendanceToday(att, emps)
   return {
     office: today.filter((t) => t.mode === 'office').length,
-    wfh: today.filter((t) => t.mode === 'wfh').length
+    wfh: today.filter((t) => t.mode === 'wfh').length,
+    partial: today.filter((t) => t.mode === 'partial').length
   }
 }
 

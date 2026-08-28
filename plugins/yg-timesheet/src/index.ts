@@ -374,6 +374,7 @@ export default plugin(ygTimesheetId, {
     PunchOut: '' as IntlString,
     Office: '' as IntlString,
     WFH: '' as IntlString,
+    Partial: '' as IntlString,
     AddNote: '' as IntlString,
     In: '' as IntlString,
     Out: '' as IntlString,

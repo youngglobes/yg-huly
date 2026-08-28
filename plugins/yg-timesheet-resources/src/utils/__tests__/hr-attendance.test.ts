@@ -45,7 +45,7 @@ describe('todayBoard', () => {
     expect(a.lastOut).toBe(at(29, 14))
     expect(a.sessions).toBe(2)
     expect(a.totalMs).toBe(3 * HOUR)
-    expect(a.mode).toBe('wfh') // most recent session's mode
+    expect(a.mode).toBe('partial') // office + wfh sessions today -> mixed day category
   })
   test('an open session -> status in, lastOut undefined, total counts live to now', () => {
     const rows = todayBoard([open(bob, 29, 14, 'wfh')], employees, mid(29), now)

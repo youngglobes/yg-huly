@@ -31,7 +31,7 @@
   } from '@hcengineering/yg-timesheet'
   import {
     attendanceToday, headcount, hoursByPerson, notPunchedToday, orgHoursTotal,
-    submissionCompliance, wfhOfficeSplit, type HrAtt, type HrEmp, type HrHours, type HrSub
+    submissionCompliance, modeSplit, type HrAtt, type HrEmp, type HrHours, type HrSub
   } from '../utils/hr-dashboard'
   import { localMidnight } from '../utils/attendance'
   import { formatHours, lastWorkingDay, weekRange } from '../utils/week'
@@ -153,7 +153,7 @@
 
   // --- Derived (pure lib) --------------------------------------------------------
   $: present = attendanceToday(att, emps)
-  $: split = wfhOfficeSplit(att, emps)
+  $: split = modeSplit(att, emps)
   $: notPunched = notPunchedToday(att, emps)
   $: byPerson = hoursByPerson(hours, emps)
   // Compliance denominator = active employees minus PMs/TLs and HR-roster members (they do not
@@ -169,7 +169,7 @@
   $: kpis = [
     { label: 'Headcount', value: headcount(emps), tone: 'neutral', accent: '#6366f1' },
     { label: 'Present today', value: present.length, tone: 'neutral', accent: '#10b981' },
-    { label: 'WFH / Office', value: `${split.wfh} / ${split.office}`, tone: 'neutral', accent: '#14b8a6' },
+    { label: 'Office / WFH / Partial', value: `${split.office} / ${split.wfh} / ${split.partial}`, tone: 'neutral', accent: '#14b8a6' },
     { label: 'Hours this week', value: formatHours(orgHoursTotal(hours)), tone: 'neutral', accent: '#8b5cf6' },
     {
       label: 'Timesheet submissions',
@@ -196,7 +196,8 @@
       <Donut
         segments={[
           { name: 'Office', count: split.office, color: '#6366f1' },
-          { name: 'WFH', count: split.wfh, color: '#14b8a6' }
+          { name: 'WFH', count: split.wfh, color: '#14b8a6' },
+          { name: 'Partial', count: split.partial, color: '#f59e0b' }
         ]}
         title={ygTimesheet.string.OfficeVsWfh}
         centerLabel={'present'}
