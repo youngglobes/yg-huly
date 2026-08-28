@@ -13,18 +13,16 @@
   import { getCurrentEmployee } from '@hcengineering/contact'
   import core from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
-  import { createQuery, getClient } from '@hcengineering/presentation'
+  import { createQuery } from '@hcengineering/presentation'
   import { Label, themeStore, getCurrentLocation, navigate } from '@hcengineering/ui'
   import ygTimesheet, { type AttendanceSession, type AttendanceReminderSettings } from '@hcengineering/yg-timesheet'
   import { evaluateReminder, DEFAULT_REMINDER_CONFIG, type ReminderConfig, type ReminderKind } from '../utils/reminder'
-  import { closePunchOut } from '../utils/attendance-write'
   import { findOpenSession } from '../utils/attendance'
 
   const OPT_IN_KEY = 'yg-punch-reminders-optin'
   const optedIn = (): boolean => typeof localStorage !== 'undefined' && localStorage.getItem(OPT_IN_KEY) === 'on'
 
   const me = getCurrentEmployee()
-  const client = getClient()
 
   // Org config (singleton; defaults when absent).
   const cfgQuery = createQuery()
@@ -120,10 +118,10 @@
     navigate(loc)
   }
 
-  async function doPunch (): Promise<void> {
-    // Punch-out has no mode -> keep the one-tap close. Punch-in must NOT auto-punch (it would skip the
-    // mandatory Office/WFH choice), so just open My Attendance and let them pick the mode + punch there.
-    if (punchedIn && openSession !== undefined) await closePunchOut(client, openSession._id)
+  // A reminder never performs the punch (as the punch-in reminder always has): it just opens My
+  // Attendance so the user does the punch-out - or the mode-choosing punch-in - there, deliberately.
+  // Clicking the notification must NOT auto punch-out; it takes you to the page to punch yourself.
+  function goToPunch (): void {
     bannerKind = 'none'
     goToMyAttendance()
   }
@@ -158,7 +156,7 @@
   function onSwMessage (e: MessageEvent): void {
     if (e.data?.type !== 'yg-punch-reminder-action') return
     if (e.data.action === 'snooze') snooze()
-    else void doPunch()
+    else goToPunch()
   }
 
   onMount(() => {
@@ -208,7 +206,7 @@
           : ygTimesheet.string.ReminderPunchOutTitle}
       />
     </span>
-    <button class="yg-btn yg-btn--primary" on:click={() => void doPunch()}>
+    <button class="yg-btn yg-btn--primary" on:click={goToPunch}>
       <Label label={bannerKind === 'punch-in' ? ygTimesheet.string.PunchIn : ygTimesheet.string.PunchOut} />
     </button>
     <button class="yg-btn yg-btn--ghost" on:click={snooze}><Label label={ygTimesheet.string.Snooze} /></button>

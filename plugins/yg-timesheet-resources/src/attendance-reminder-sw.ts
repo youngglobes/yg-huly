@@ -86,7 +86,8 @@ worker.addEventListener('notificationclick', (event: NotificationClickEvent) => 
     event.waitUntil(handlePushClick(data))
     return
   }
-  // Punch reminder: 'punch' when a button is clicked; '' (body click) is focus + punch too. 'snooze' snoozes.
+  // Punch reminder: 'snooze' snoozes; anything else (the punch button OR a body click) just focuses the
+  // tab and opens My Attendance. The page performs NO auto-punch - the user punches out/in there.
   const action = event.action === 'snooze' ? 'snooze' : 'punch'
   event.waitUntil(
     (async () => {
