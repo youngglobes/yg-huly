@@ -52,6 +52,9 @@ import {
 import { jsonToMarkup, nodeDoc, nodeParagraph, nodeText } from '@hcengineering/text-core'
 import ygTimesheet, {
   isHrDesignation,
+  istDayStart,
+  istMinutesOfDay,
+  type AttendanceSession,
   type DayStatus,
   type HrTimeEntry,
   type LatePermission,
@@ -610,6 +613,74 @@ export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerContro
     await control.apply(control.ctx, [revert])
   }
   return []
+}
+
+//
+// Server authority for punch time + late detection. A browser's Date.now() cannot be trusted (a user
+// can change their device clock), so on every punch the server overwrites punchIn/punchOut with its
+// OWN clock and keys the day + late math off IST via istDayStart/istMinutesOfDay - correct regardless
+// of the container timezone (which is UTC). It is the SOLE creator of the LatePermission: the client's
+// inline reason rides on the session (lateReason) and is consumed here only when the SERVER decides
+// the first punch of the IST day is late. Loop-safe: registered on AttendanceSession, and every write
+// it emits is System-authored, skipped at the top of the loop.
+//
+export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  const res: Tx[] = []
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+
+    // Punch-out: stamp the close with server time (ignore ip/geo patches, which set no punchOut).
+    if (tx._class === core.class.TxUpdateDoc) {
+      const utx = tx as TxUpdateDoc<AttendanceSession>
+      if (utx.objectClass !== ygTimesheet.class.AttendanceSession) continue
+      if (utx.operations.punchOut === undefined) continue
+      const now = Date.now()
+      res.push(control.txFactory.createTxUpdateDoc(
+        utx.objectClass, utx.objectSpace, utx.objectId, { punchOut: now }, false, now, core.account.System
+      ))
+      continue
+    }
+
+    if (tx._class !== core.class.TxCreateDoc) continue
+    const ctx = tx as TxCreateDoc<AttendanceSession>
+    if (ctx.objectClass !== ygTimesheet.class.AttendanceSession) continue
+
+    const now = Date.now()
+    const date = istDayStart(now)
+    // Authoritative punch-in time + IST day key, discarding whatever the browser sent.
+    res.push(control.txFactory.createTxUpdateDoc(
+      ctx.objectClass, ctx.objectSpace, ctx.objectId, { punchIn: now, date }, false, now, core.account.System
+    ))
+
+    // Late detection: only the FIRST punch of the IST day (earlier sessions carry the server-set date).
+    const employee = ctx.attributes.employee
+    const sameDay = (
+      await control.findAll(control.ctx, ygTimesheet.class.AttendanceSession, { employee, date }, {})
+    ).filter((s) => s._id !== ctx.objectId)
+    if (sameDay.length > 0) continue
+
+    const profile = (
+      await control.findAll(control.ctx, ygTimesheet.mixin.WorkProfile, { _id: employee }, { limit: 1 })
+    )[0]
+    const shiftStart = profile?.shiftStart
+    if (shiftStart === undefined) continue
+
+    const minutesLate = istMinutesOfDay(now) - shiftStart
+    if (minutesLate <= 0) continue // on time or early
+
+    const exists = await control.findAll(
+      control.ctx, ygTimesheet.class.LatePermission, { employee, date }, { limit: 1 }
+    )
+    if (exists.length > 0) continue // idempotent
+
+    const reason = (ctx.attributes.lateReason ?? '').trim()
+    res.push(control.txFactory.createTxCreateDoc(
+      ygTimesheet.class.LatePermission, core.space.Workspace,
+      { employee, date, punchIn: now, shiftStartSnapshot: shiftStart, minutesLate, reason, status: 'Pending' },
+      undefined, now, core.account.System
+    ))
+  }
+  return res
 }
 
 //
@@ -1377,6 +1448,7 @@ export default async () => ({
     OnTimesheetDaySubmitNotify,
     OnTimesheetTaskUpdate,
     OnLatePermissionUpdate,
+    OnAttendancePunch,
     OnProjectApproversChange,
     OnApprovalsMembershipGuard,
     OnProjectApproversMixinGuard,

@@ -180,6 +180,7 @@ export class TAttendanceSession extends TDoc implements AttendanceSession {
   @Prop(TypeNumber(), core.string.Object) geoLat?: number
   @Prop(TypeNumber(), core.string.Object) geoLng?: number
   @Prop(TypeNumber(), core.string.Object) geoAccuracy?: number
+  @Prop(TypeString(), core.string.Object) lateReason?: string
 }
 
 @Model(ygTimesheet.class.AttendanceReminderSettings, core.class.Doc, DOMAIN_YG_TIMESHEET)

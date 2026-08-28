@@ -29,7 +29,7 @@
     buildDayTimeline,
     formatDuration
   } from '../utils/attendance'
-  import { createPunchIn, closePunchOut, createLatePermission } from '../utils/attendance-write'
+  import { createPunchIn, closePunchOut } from '../utils/attendance-write'
   import { isLate, minutesLateOf, dayLateStatus } from '../utils/late'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
   import HolidayCalendarView from './HolidayCalendarView.svelte'
@@ -166,10 +166,10 @@
     }
 
     try {
-      await createPunchIn(client, me, m, note)
-      if (lateReason !== undefined) {
-        await createLatePermission(client, me, at, shiftStart as number, lateReason)
-      }
+      // Pass the inline late reason with the punch; the server (OnAttendancePunch) is the authority
+      // that stamps the real IST time and creates the LatePermission, consuming this reason only if
+      // IT judges the punch late. No client-side LatePermission write - the browser clock is untrusted.
+      await createPunchIn(client, me, m, note, lateReason)
       note = ''
       // keep `busy` until openSession appears (released reactively below)
     } catch (err) {

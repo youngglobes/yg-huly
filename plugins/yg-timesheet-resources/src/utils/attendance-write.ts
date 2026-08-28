@@ -10,11 +10,10 @@ import ygTimesheet, {
   type LatePermission
 } from '@hcengineering/yg-timesheet'
 import { localMidnight } from './attendance'
-import { minutesLateOf } from './late'
 import { capturePunchContext, readDeviceFields } from './capture'
 
 export async function createPunchIn (
-  client: TxOperations, employee: Ref<Employee>, mode: AttendanceMode, note?: string
+  client: TxOperations, employee: Ref<Employee>, mode: AttendanceMode, note?: string, lateReason?: string
 ): Promise<void> {
   // Authoritative single-open-session guard: if a session is already open for this employee, do
   // nothing. Prevents a double punch-in (e.g. a rapid second click before the live query reflected
@@ -27,13 +26,18 @@ export async function createPunchIn (
   if (open.length > 0) return
   const at = Date.now()
   const trimmed = (note ?? '').trim()
+  const lateTrimmed = (lateReason ?? '').trim()
+  // date + punchIn are the client's best guess; the server (OnAttendancePunch) overwrites them with
+  // its own IST clock, so these are placeholders replaced by the trusted values on arrival. lateReason
+  // is the inline "why late" hint the server consumes only if IT decides the punch is late.
   const id = await client.createDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, {
     employee,
     date: localMidnight(at),
     punchIn: at,
     mode,
     ...readDeviceFields(),
-    ...(trimmed !== '' ? { punchInNote: trimmed } : {})
+    ...(trimmed !== '' ? { punchInNote: trimmed } : {}),
+    ...(lateTrimmed !== '' ? { lateReason: lateTrimmed } : {})
   })
   void capturePunchContext(client, id)
 }
@@ -46,27 +50,6 @@ export async function closePunchOut (
   await client.updateDoc(ygTimesheet.class.AttendanceSession, core.space.Workspace, sessionId, {
     punchOut: at,
     ...(trimmed !== '' ? { punchOutNote: trimmed } : {})
-  })
-}
-
-export async function createLatePermission (
-  client: TxOperations, employee: Ref<Employee>, punchInMs: number, shiftStartMin: number, reason: string
-): Promise<void> {
-  const date = localMidnight(punchInMs)
-  // Idempotency: at most one per (employee, day). First-of-day is also enforced by the caller, but
-  // guard here too so a retry cannot create a duplicate.
-  const existing = await client.findAll(
-    ygTimesheet.class.LatePermission, { employee, date }, { limit: 1 }
-  )
-  if (existing.length > 0) return
-  await client.createDoc(ygTimesheet.class.LatePermission, core.space.Workspace, {
-    employee,
-    date,
-    punchIn: punchInMs,
-    shiftStartSnapshot: shiftStartMin,
-    minutesLate: minutesLateOf(punchInMs, shiftStartMin),
-    reason: reason.trim(),
-    status: 'Pending'
   })
 }
 

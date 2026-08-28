@@ -136,6 +136,22 @@ export function isHrDesignation (d: WorkDesignation | undefined): boolean {
   return d === HR_DESIGNATION
 }
 
+// Indian Standard Time is a fixed UTC+5:30 with no daylight saving, so attendance day-boundaries and
+// late math use a constant offset. This is correct no matter what timezone the code runs in - vital
+// on the server, whose container clock is UTC, where new Date().getHours() would give the wrong hour.
+const IST_OFFSET_MS = 330 * 60 * 1000
+const DAY_MS = 86400000
+
+/** UTC-ms of IST 00:00 for the IST day containing `ms` (the AttendanceSession.date key). */
+export function istDayStart (ms: number): number {
+  return Math.floor((ms + IST_OFFSET_MS) / DAY_MS) * DAY_MS - IST_OFFSET_MS
+}
+
+/** Minutes since IST midnight for the instant `ms` (0..1439). */
+export function istMinutesOfDay (ms: number): number {
+  return Math.floor(((ms + IST_OFFSET_MS) % DAY_MS) / 60000)
+}
+
 /** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
 export interface HrTimeEntry extends Doc {
   source: Ref<TimeSpendReport>
@@ -174,6 +190,10 @@ export interface AttendanceSession extends Doc {
   geoLat?: number      // GPS (when granted on a secure context)
   geoLng?: number
   geoAccuracy?: number // metres
+  // Client-captured "why I'm late" hint. Set at punch-in when the browser thinks the punch is late;
+  // the server trigger consumes it when IT decides (from server time) that a LatePermission is due.
+  // Advisory only - the server, not this field, is the authority on whether a punch is late.
+  lateReason?: string
 }
 
 /** An org-wide holiday (one per day). Non-working everywhere via isWorkingDay. */
