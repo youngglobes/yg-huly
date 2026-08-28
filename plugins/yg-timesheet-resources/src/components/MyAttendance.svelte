@@ -224,7 +224,7 @@
 
     <!-- Hero band: today's live punch action + at a glance. -->
     <section class="att-hero">
-      <div class="att-panel att-punch" class:is-on={punchedIn}>
+      <div class="att-panel att-punch" class:is-on={punchedIn} class:is-wfh={punchedIn && openSession?.mode === 'wfh'}>
         {#if punchedIn && openSession !== undefined}
           <div class="att-punch__eyebrow">
             <span class="att-status att-status--on"><span class="att-status__dot" /><Label label={ygTimesheet.string.OnTheClock} /></span>
@@ -370,6 +370,10 @@
     --att-wfh: #5566c4;
     --att-wfh-bg: rgba(85, 102, 196, 0.12);
     --att-wfh-line: rgba(85, 102, 196, 0.28);
+    /* Office = green, WFH = purple (above), break/not-logged-in = grey. */
+    --att-office: #16a34a;
+    --att-office-line: rgba(22, 163, 74, 0.28);
+    --att-break: rgba(100, 116, 139, 0.16);
 
     box-sizing: border-box;
     padding: 20px 24px 40px;
@@ -383,6 +387,9 @@
     --att-wfh: #7d8bec;
     --att-wfh-bg: rgba(125, 139, 236, 0.16);
     --att-wfh-line: rgba(125, 139, 236, 0.32);
+    --att-office: #34d399;
+    --att-office-line: rgba(52, 211, 153, 0.32);
+    --att-break: rgba(148, 163, 184, 0.20);
   }
 
   .att-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -410,20 +417,25 @@
   .att-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: stretch; }
   .att-right { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 
-  .att-punch { padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
-  .att-punch.is-on { border-color: var(--att-wfh-line); }
+  .att-punch {
+    padding: 22px 24px; display: flex; flex-direction: column; gap: 16px;
+    /* Live-progress accent flips with the open session's mode: office = green, WFH = purple. */
+    --att-accent: var(--att-office); --att-accent-line: var(--att-office-line);
+  }
+  .att-punch.is-wfh { --att-accent: var(--att-wfh); --att-accent-line: var(--att-wfh-line); }
+  .att-punch.is-on { border-color: var(--att-accent-line); }
 
   .att-punch__eyebrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .att-status { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 650; color: var(--yg-text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
   .att-status__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--yg-text-faint); }
-  .att-status--on { color: var(--att-wfh); }
-  .att-status--on .att-status__dot { background: var(--att-wfh); box-shadow: 0 0 0 0 var(--att-wfh-line); animation: att-pulse 1.8s ease-out infinite; }
+  .att-status--on { color: var(--att-accent); }
+  .att-status--on .att-status__dot { --att-pulse-line: var(--att-accent-line); background: var(--att-accent); box-shadow: 0 0 0 0 var(--att-accent-line); animation: att-pulse 1.8s ease-out infinite; }
 
   .att-bigclock, .att-timer {
     font-size: 56px; line-height: 1; font-weight: 720; letter-spacing: -0.03em;
     font-variant-numeric: tabular-nums; color: var(--yg-text);
   }
-  .att-timer { color: var(--att-wfh); }
+  .att-timer { color: var(--att-accent); }
   .att-punch__since { font-size: 13px; color: var(--yg-text-dim); font-variant-numeric: tabular-nums; margin-top: -6px; }
 
   // Segmented Office / WFH toggle - the selected option is filled (Office = ink, WFH = indigo).
@@ -500,12 +512,13 @@
     padding: 6px 10px;
   }
 
-  .att-track { position: relative; height: 46px; margin: 16px 0 6px; border-radius: 10px; background: var(--yg-panel-soft); border: 1px solid var(--yg-border); }
+  .att-track { position: relative; height: 46px; margin: 16px 0 6px; border-radius: 10px; background: var(--att-break); border: 1px solid var(--yg-border); }
   .att-track__grid { position: absolute; top: 6px; bottom: 16px; width: 1px; background: var(--yg-border); transform: translateX(-0.5px); }
   .att-track__lbl { position: absolute; bottom: 1px; transform: translateX(-50%); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--yg-text-faint); }
-  .att-block { position: absolute; top: 8px; height: 20px; min-width: 4px; border-radius: 5px; background: var(--yg-grey); }
+  .att-block { position: absolute; top: 8px; height: 20px; min-width: 4px; border-radius: 5px; background: var(--att-office); }
   .att-block.is-wfh { background: var(--att-wfh); }
-  .att-block.is-open { background: var(--att-wfh); box-shadow: 0 0 0 0 var(--att-wfh-line); animation: att-pulse 1.8s ease-out infinite; }
+  .att-block.is-open { --att-pulse-line: var(--att-office-line); box-shadow: 0 0 0 0 var(--att-office-line); animation: att-pulse 1.8s ease-out infinite; }
+  .att-block.is-wfh.is-open { --att-pulse-line: var(--att-wfh-line); box-shadow: 0 0 0 0 var(--att-wfh-line); }
   .att-track__now { position: absolute; top: 2px; bottom: 14px; width: 2px; background: var(--yg-ink); transform: translateX(-1px); border-radius: 2px; }
 
   .att-empty { padding: 22px 2px 26px; color: var(--yg-text-faint); font-size: 13px; }
@@ -520,7 +533,7 @@
   .att-th--type { width: 1%; white-space: nowrap; }
 
   @keyframes att-pulse {
-    0% { box-shadow: 0 0 0 0 var(--att-wfh-line); }
+    0% { box-shadow: 0 0 0 0 var(--att-pulse-line, var(--att-wfh-line)); }
     100% { box-shadow: 0 0 0 7px transparent; }
   }
   @media (prefers-reduced-motion: reduce) {
