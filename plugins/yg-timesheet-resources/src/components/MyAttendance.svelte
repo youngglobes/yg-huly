@@ -323,6 +323,9 @@
       </div>
 
       <div class="att-track">
+        <!-- Grey base spanning the whole day window: the "break / not logged in" fill that the
+             coloured session segments sit on top of, so the bar reads as day-start-to-end filled. -->
+        <span class="att-track__base" />
         {#each timeline.ticks as t (t.hour)}
           <span class="att-track__grid" style="left:{t.pct}%" />
           {#if t.hour % 2 === 0}<span class="att-track__lbl" style="left:{t.pct}%">{hourLabel(t.hour)}</span>{/if}
@@ -373,7 +376,7 @@
     /* Office = green, WFH = purple (above), break/not-logged-in = grey. */
     --att-office: #16a34a;
     --att-office-line: rgba(22, 163, 74, 0.28);
-    --att-break: rgba(100, 116, 139, 0.16);
+    --att-break: #d7dce3;
 
     box-sizing: border-box;
     padding: 20px 24px 40px;
@@ -389,7 +392,7 @@
     --att-wfh-line: rgba(125, 139, 236, 0.32);
     --att-office: #34d399;
     --att-office-line: rgba(52, 211, 153, 0.32);
-    --att-break: rgba(148, 163, 184, 0.20);
+    --att-break: #3a4451;
   }
 
   .att-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -512,7 +515,8 @@
     padding: 6px 10px;
   }
 
-  .att-track { position: relative; height: 46px; margin: 16px 0 6px; border-radius: 10px; background: var(--att-break); border: 1px solid var(--yg-border); }
+  .att-track { position: relative; height: 46px; margin: 16px 0 6px; border-radius: 10px; background: var(--yg-panel-soft); border: 1px solid var(--yg-border); }
+  .att-track__base { position: absolute; top: 8px; left: 0; right: 0; height: 20px; border-radius: 5px; background: var(--att-break); }
   .att-track__grid { position: absolute; top: 6px; bottom: 16px; width: 1px; background: var(--yg-border); transform: translateX(-0.5px); }
   .att-track__lbl { position: absolute; bottom: 1px; transform: translateX(-50%); font-size: 10px; font-variant-numeric: tabular-nums; color: var(--yg-text-faint); }
   .att-block { position: absolute; top: 8px; height: 20px; min-width: 4px; border-radius: 5px; background: var(--att-office); }
