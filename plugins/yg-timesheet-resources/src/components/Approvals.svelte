@@ -17,10 +17,13 @@
   import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { Label, getPanelURI, showPopup } from '@hcengineering/ui'
-  import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers } from '@hcengineering/yg-timesheet'
+  import { Label, addNotification, getPanelURI, NotificationSeverity, showPopup } from '@hcengineering/ui'
+  import SubmitErrorNotification from './SubmitErrorNotification.svelte'
+  import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers, type TimesheetRejectCycle } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
   import { approveTask, rejectTask } from '../utils/day'
+  import { asRefArray } from '../utils/workflow'
+  import { cycleKey, groupCycles, closedCycles } from '../utils/reject-cycle'
   import ApproveTaskPopup from './ApproveTaskPopup.svelte'
   import RejectTaskPopup from './RejectTaskPopup.svelte'
 
@@ -38,7 +41,7 @@
     isApprover = projects.some((p) => {
       if (!hierarchy.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
       const a = hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return a.pm === me || a.teamLead === me
+      return asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me)
     })
   })
   $: canApprove = isHRAdmin || isApprover
@@ -122,6 +125,58 @@
     return [...byEmployee.values()]
   })()
 
+  //
+  // Prior rejection history for the tasks currently in the queue (backlog item 2). Bounded by the
+  // queue, not by total history: we ask only for the issues on screen and filter the
+  // employee+date part of the key in code.
+  //
+  // CAREFUL - same trap as the `query` block above: this reactive statement READS `cycleQuery`, so
+  // it must never ASSIGN to it, or Svelte re-runs the statement forever. Results go to a separate
+  // variable, and the empty case calls unsubscribe() rather than reassigning.
+  const cycleQuery = createQuery()
+  let cycles: TimesheetRejectCycle[] = []
+  $: queueIssues = [...new Set(queue.map((t) => t.issue))]
+  $: if (queueIssues.length > 0) {
+    cycleQuery.query(
+      ygTimesheet.class.TimesheetRejectCycle,
+      { issue: { $in: queueIssues } },
+      (res: TimesheetRejectCycle[]) => {
+        cycles = res
+      }
+    )
+  } else {
+    cycleQuery.unsubscribe()
+    cycles = []
+  }
+
+  $: cyclesByKey = groupCycles(cycles)
+
+  /**
+   * Completed rounds for a task, oldest first. Empty for a task that was never rejected.
+   *
+   * `byKey` is a PARAMETER, not read from the closure, and callers in the template MUST pass
+   * `cyclesByKey` explicitly. Svelte derives a template expression's dependencies from the
+   * identifiers it REFERENCES; state read inside a function body is invisible to the compiler.
+   * When this read cyclesByKey from the closure, the {#each} never re-rendered as the cycles
+   * live-query resolved, so the history vanished on every cold load and reappeared only when some
+   * unrelated change forced a redraw (found 2026-08-06).
+   */
+  function historyFor (
+    task: TimesheetTask, byKey: Map<string, TimesheetRejectCycle[]>
+  ): TimesheetRejectCycle[] {
+    const employee = employeeOf(task)
+    if (employee === undefined) return []
+    return closedCycles(byKey.get(cycleKey(employee, task.issue, task.date)) ?? [])
+  }
+
+  // Which rows have their older rounds expanded. Component-local, nothing persisted.
+  let expanded = new Set<string>()
+  function toggle (id: string): void {
+    if (expanded.has(id)) expanded.delete(id)
+    else expanded.add(id)
+    expanded = expanded
+  }
+
   $: totalTasks = queue.length
   $: totalPeople = groups.length
   $: totalHours = groups.reduce((sum, g) => sum + g.hours, 0)
@@ -134,7 +189,7 @@
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   }
 
-  async function onApprove (task: TimesheetTask): Promise<void> {
+  async function onApprove (task: TimesheetTask, isReapproval: boolean = false): Promise<void> {
     // Give the approver context for setting approved hours (user request 2026-07-29): the issue's
     // estimation, and the employee's spent-time notes for THIS task's issue on THIS day.
     const DAY = 86_400_000
@@ -155,22 +210,33 @@
         title: task.title,
         submittedHours: task.submittedHours,
         estimation: issue?.estimation,
-        notes
+        notes,
+        isReapproval
       },
       undefined,
       (res?: { approvedHours: number }) => {
-        if (res !== undefined) void approveTask(client, task._id, res.approvedHours)
+        if (res !== undefined) {
+          void approveTask(client, task._id, res.approvedHours).then(() => {
+            addNotification('Time approved', `${task.identifier} approved.`, SubmitErrorNotification, undefined, NotificationSeverity.Success)
+          })
+        }
       }
     )
   }
 
   function onReject (task: TimesheetTask): void {
+    // employeeOf can miss (the "Unknown" group); rejectTask resolves it itself in that case.
+    const employee = employeeOf(task)
     showPopup(
       RejectTaskPopup,
       { identifier: task.identifier, title: task.title },
       undefined,
       (res?: { reason: string }) => {
-        if (res !== undefined) void rejectTask(client, task._id, res.reason)
+        if (res !== undefined) {
+          void rejectTask(client, task._id, res.reason, employee).then(() => {
+            addNotification('Time rejected', `${task.identifier} sent back to the employee.`, SubmitErrorNotification, undefined, NotificationSeverity.Info)
+          })
+        }
       }
     )
   }
@@ -204,6 +270,8 @@
             <span class="group__hrs">{formatHours(g.hours)}</span>
           </div>
           {#each g.tasks as task (task._id)}
+            {@const history = historyFor(task, cyclesByKey)}
+            {@const latest = history[history.length - 1]}
             <div class="approw">
               <span class="approw__date">{dayFmt.format(task.date)}</span>
               <span class="yg-idbadge">{task.identifier}</span>
@@ -216,14 +284,37 @@
               </a>
               <span class="approw__hrs">{formatHours(task.submittedHours)}</span>
               <span class="ap-actions">
-                <button class="yg-btn yg-btn--primary" on:click={() => { void onApprove(task) }}>
-                  <Label label={ygTimesheet.string.Approve} />
+                <button class="yg-btn yg-btn--primary" on:click={() => { void onApprove(task, history.length > 0) }}>
+                  <Label label={history.length > 0 ? ygTimesheet.string.Reapprove : ygTimesheet.string.Approve} />
                 </button>
                 <button class="yg-btn yg-btn--danger" on:click={() => onReject(task)}>
                   <Label label={ygTimesheet.string.Reject} />
                 </button>
               </span>
             </div>
+            {#if latest !== undefined}
+              <div class="prior">
+                <div class="prior__line">⟲ previously rejected: "{latest.rejectReason}"</div>
+                {#if (latest.resubmitNote ?? '') !== ''}
+                  <div class="prior__reply">{g.name} replied: "{latest.resubmitNote}"</div>
+                {/if}
+                {#if history.length > 1}
+                  <button class="prior__more" on:click={() => toggle(task._id)}>
+                    rejected {history.length}x {expanded.has(task._id) ? '▴' : '▾'}
+                  </button>
+                  {#if expanded.has(task._id)}
+                    {#each history.slice(0, -1) as round, ri (round._id)}
+                      <div class="prior__round">
+                        <b>round {ri + 1}:</b> "{round.rejectReason}"
+                        {#if (round.resubmitNote ?? '') !== ''}
+                          <span class="prior__reply">replied: "{round.resubmitNote}"</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  {/if}
+                {/if}
+              </div>
+            {/if}
           {/each}
         </div>
       {/each}
@@ -270,6 +361,29 @@
     font-weight: 600;
   }
   .group__hrs { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px; min-width: 44px; text-align: right; }
+
+  // Prior-rejection context under a resubmitted task (backlog item 2). Indented past the date +
+  // id-badge columns of .approw's grid so it reads as belonging to the row above it.
+  .prior {
+    padding: 2px 0 8px 84px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .prior__line { font-size: 12.5px; color: var(--yg-text-dim); }
+  .prior__reply { font-size: 12.5px; color: var(--yg-text-faint); }
+  .prior__more {
+    align-self: flex-start;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--yg-text-faint);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .prior__more:hover { color: var(--yg-text-dim); }
+  .prior__round { font-size: 12.5px; color: var(--yg-text-faint); padding-left: 10px; }
 
   .approw {
     display: grid;

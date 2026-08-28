@@ -26,13 +26,17 @@
     SelectPopup,
     TooltipAlignment,
     eventToHTMLElement,
-    showPopup
+    showPopup,
+    addNotification,
+    NotificationSeverity
   } from '@hcengineering/ui'
   import { statusStore } from '@hcengineering/view-resources'
   import { Analytics } from '@hcengineering/analytics'
   import { createEventDispatcher } from 'svelte'
 
   import tracker from '../../plugin'
+  import EstimateBlockedNotification from './EstimateBlockedNotification.svelte'
+  import { estimateBlocksActivation } from './estimateGate'
   import IssueStatusIcon from './IssueStatusIcon.svelte'
   import StatusPresenter from './StatusPresenter.svelte'
 
@@ -60,6 +64,20 @@
 
   const changeStatus = async (newStatus: Ref<IssueStatus> | undefined, refocus: boolean = true) => {
     if (!isEditable || newStatus == null || value.status === newStatus) {
+      return
+    }
+
+    // Estimate gate (backlog #1): fast-fail the common path so an un-estimated issue never even
+    // dispatches a change, instead of round-tripping through the server guard's revert. Shared with
+    // the Kanban drag path via estimateGate.ts (mirrors the server guard).
+    if ('_class' in value && estimateBlocksActivation(newStatus, value.estimation, $statusStore.byId)) {
+      addNotification(
+        'Set an estimate first',
+        `Add an estimate to ${value.identifier} before moving it to a started status.`,
+        EstimateBlockedNotification,
+        undefined,
+        NotificationSeverity.Error
+      )
       return
     }
 

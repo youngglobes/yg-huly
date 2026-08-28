@@ -76,6 +76,7 @@
     let updates = getUpdateProps(dragCard, state)
 
     if (updates === undefined) {
+      dispatch('move-blocked', { doc: dragCard, state })
       panelDragLeave(undefined, dragCardState)
       dragCard = undefined
       dragCardAvailableCategories = undefined

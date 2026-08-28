@@ -17,7 +17,7 @@ import {
   TypeString,
   UX
 } from '@hcengineering/model'
-import contact from '@hcengineering/contact'
+import contact, { TEmployee } from '@hcengineering/model-contact'
 import hr from '@hcengineering/hr'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
 import presentation from '@hcengineering/model-presentation'
@@ -32,14 +32,21 @@ import ygTimesheet, {
   type AttendanceReminderSettings,
   type AttendanceSession,
   type DayStatus,
+  type Holiday,
   type HrTimeEntry,
+  type LatePermission,
+  type LatePermissionStatus,
   type ProjectApprovers,
   type TaskStatus,
   type Timesheet,
   type TimesheetApproval,
   type TimesheetDay,
   type TimesheetLine,
-  type TimesheetTask
+  type TimesheetRejectCycle,
+  type TimesheetTask,
+  type WorkProfile,
+  type WorkDesignation,
+  type WorkDepartment
 } from '@hcengineering/yg-timesheet'
 
 export { ygTimesheetId } from '@hcengineering/yg-timesheet'
@@ -100,6 +107,9 @@ export class TTimesheetTask extends TAttachedDoc implements TimesheetTask {
   @Prop(ArrOf(TypeRef(contact.mixin.Employee)), core.string.Object) approvers!: Ref<Employee>[]
   @Prop(TypeDate(), core.string.Object) submittedOn?: Timestamp
   @Prop(TypeString(), core.string.Object) rejectReason?: string
+  @Prop(TypeNumber(), core.string.Object) approvedHours?: number
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
 }
 
 @Model(ygTimesheet.class.TimesheetApproval, core.class.Doc, DOMAIN_YG_TIMESHEET)
@@ -110,13 +120,33 @@ export class TTimesheetApproval extends TDoc implements TimesheetApproval {
   @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
 }
 
+@Model(ygTimesheet.class.TimesheetRejectCycle, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TTimesheetRejectCycle extends TDoc implements TimesheetRejectCycle {
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) employee!: Ref<Employee>
+  @Prop(TypeRef(tracker.class.Issue), core.string.Object) issue!: Ref<Issue>
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeString(), core.string.Object) rejectReason!: string
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) rejectedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) rejectedOn!: Timestamp
+  @Prop(TypeString(), core.string.Object) resubmitNote?: string
+  @Prop(TypeDate(), core.string.Object) resubmittedOn?: Timestamp
+}
+
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
 export class TProjectApprovers extends TProject implements ProjectApprovers {
-  @Prop(TypeRef(contact.mixin.Employee), ygTimesheet.string.PM)
-    pm?: Ref<Employee>
+  @Prop(ArrOf(TypeRef(contact.mixin.Employee)), ygTimesheet.string.PM)
+    pm?: Ref<Employee>[]
 
-  @Prop(TypeRef(contact.mixin.Employee), ygTimesheet.string.TeamLead)
-    teamLead?: Ref<Employee>
+  @Prop(ArrOf(TypeRef(contact.mixin.Employee)), ygTimesheet.string.TeamLead)
+    teamLead?: Ref<Employee>[]
+}
+
+@Mixin(ygTimesheet.mixin.WorkProfile, contact.mixin.Employee)
+export class TWorkProfile extends TEmployee implements WorkProfile {
+  @Prop(TypeString(), ygTimesheet.string.Designation) designation?: WorkDesignation
+  @Prop(TypeString(), ygTimesheet.string.Department) department?: WorkDepartment
+  @Prop(TypeString(), ygTimesheet.string.EmployeeId) employeeId?: string
+  @Prop(TypeNumber(), ygTimesheet.string.ShiftStart) shiftStart?: number
 }
 
 @Model(ygTimesheet.class.HrTimeEntry, core.class.Doc, DOMAIN_YG_TIMESHEET)
@@ -142,6 +172,15 @@ export class TAttendanceSession extends TDoc implements AttendanceSession {
   @Prop(TypeString(), core.string.Object) mode!: AttendanceMode
   @Prop(TypeDate(), core.string.Object) punchOut?: Timestamp
   @Prop(TypeString(), core.string.Object) punchOutNote?: string
+  @Prop(TypeString(), core.string.Object) device?: string
+  @Prop(TypeString(), core.string.Object) browser?: string
+  @Prop(TypeString(), core.string.Object) userAgent?: string
+  @Prop(TypeString(), core.string.Object) ip?: string
+  @Prop(TypeString(), core.string.Object) ipCity?: string
+  @Prop(TypeNumber(), core.string.Object) geoLat?: number
+  @Prop(TypeNumber(), core.string.Object) geoLng?: number
+  @Prop(TypeNumber(), core.string.Object) geoAccuracy?: number
+  @Prop(TypeString(), core.string.Object) lateReason?: string
 }
 
 @Model(ygTimesheet.class.AttendanceReminderSettings, core.class.Doc, DOMAIN_YG_TIMESHEET)
@@ -155,8 +194,29 @@ export class TAttendanceReminderSettings extends TDoc implements AttendanceRemin
   @Prop(TypeNumber(), core.string.Object) punchOutIdleMin!: number
 }
 
+@Model(ygTimesheet.class.Holiday, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class THoliday extends TDoc implements Holiday {
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeString(), core.string.Object) name!: string
+}
+
+@Model(ygTimesheet.class.LatePermission, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TLatePermission extends TDoc implements LatePermission {
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) employee!: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) date!: Timestamp
+  @Prop(TypeDate(), core.string.Object) punchIn!: Timestamp
+  @Prop(TypeNumber(), core.string.Object) shiftStartSnapshot!: number
+  @Prop(TypeNumber(), core.string.Object) minutesLate!: number
+  @Prop(TypeString(), core.string.Object) reason!: string
+  @Prop(TypeString(), core.string.Object) status!: LatePermissionStatus
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
+  @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
+  @Prop(TypeString(), core.string.Object) rejectReason?: string
+  @Prop(TypeString(), core.string.Object) approveReason?: string
+}
+
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TProjectApprovers, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TTimesheetRejectCycle, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday, TLatePermission)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.
@@ -280,7 +340,7 @@ export function createModel (builder: Builder): void {
           {
             id: 'timesheets',
             label: ygTimesheet.string.HrTimesheets,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: tracker.icon.TimeReport,
             component: ygTimesheet.component.HrTimesheet,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
@@ -288,17 +348,52 @@ export function createModel (builder: Builder): void {
           {
             id: 'attendance',
             label: ygTimesheet.string.HrAttendance,
-            icon: ygTimesheet.icon.Timesheet,
+            icon: hr.icon.Overtime,
             component: ygTimesheet.component.HrAttendance,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'performance',
+            label: ygTimesheet.string.Performance,
+            icon: view.icon.Star,
+            component: ygTimesheet.component.Performance,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'holidays',
+            label: ygTimesheet.string.Holidays,
+            icon: hr.icon.Vacation,
+            component: ygTimesheet.component.HrHolidays,
+            accessLevel: AccountRole.DocGuest,
+            position: 'top'
+          },
+          {
+            id: 'late-permissions',
+            label: ygTimesheet.string.LatePermissions,
+            icon: hr.icon.PTO,
+            component: ygTimesheet.component.HrLatePermissions,
             accessLevel: AccountRole.DocGuest,
             position: 'top'
           },
           {
             id: 'roster',
             label: ygTimesheet.string.HrRoster,
-            icon: contact.icon.Person,
+            icon: hr.icon.Members,
             component: ygTimesheet.component.HrRoster,
             accessLevel: AccountRole.Owner,
+            position: 'bottom'
+          },
+          {
+            id: 'team-profiles',
+            label: ygTimesheet.string.TeamProfiles,
+            icon: contact.icon.Person,
+            component: ygTimesheet.component.WorkProfileEditor,
+            // DocGuest like the other HR specials: HR-app visibility is already gated to HrData members
+            // + owners (the HiddenApplication trigger), so this shows team-profiles to HR staff too, not
+            // just owners. (Was Owner-only; HR users need to manage designations/departments/IDs.)
+            accessLevel: AccountRole.DocGuest,
             position: 'bottom'
           }
         ]
@@ -357,6 +452,48 @@ export function createModel (builder: Builder): void {
     ygTimesheet.app.Dashboard
   )
 
+  // Admin-only "AI Usage" app. Registered as its own top-level Application rather than as a
+  // branch of DashboardHome, because DashboardHome is a role ROUTER: resolveDashboardRole picks
+  // exactly one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard
+  // beside PM and HR without changing who sees the other two.
+  //
+  // accessLevel is the right nav gate here (unlike the HR app, where "is HR staff" is space
+  // membership and cannot be expressed as a rung on the AccountRole ladder). It is also
+  // client-side ONLY: it hides the icon. The real gate is the sidecar, which verifies the
+  // caller's Huly token and asks the account service for their workspace role before answering.
+  builder.createDoc(
+    workbench.class.Application,
+    core.space.Model,
+    {
+      label: ygTimesheet.string.AiUsage,
+      icon: tracker.icon.TimeReport,
+      alias: 'yg-ai-usage',
+      hidden: false,
+      position: 'top',
+      accessLevel: AccountRole.Maintainer,
+      navigatorModel: {
+        spaces: [],
+        specials: [
+          {
+            id: 'usage',
+            label: ygTimesheet.string.AiUsageDashboard,
+            icon: tracker.icon.TimeReport,
+            component: ygTimesheet.component.AiUsage,
+            position: 'top'
+          },
+          {
+            id: 'config',
+            label: ygTimesheet.string.AiUsageConfiguration,
+            icon: setting.icon.Setting,
+            component: ygTimesheet.component.AiUsageConfig,
+            position: 'bottom'
+          }
+        ]
+      }
+    },
+    ygTimesheet.app.AiUsage
+  )
+
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
   // (rendered embedded in the Inbox — see plugins/notification-resources). Our approval notifications
   // attach to a TimesheetDay (submit) or TimesheetTask (approve/reject); registering
@@ -380,5 +517,12 @@ export function createModel (builder: Builder): void {
   builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
     extension: workbench.extensions.WorkbenchExtensions,
     component: ygTimesheet.component.AttendanceReminder
+  })
+
+  // Global location-permission banner (same slot, purpose-agnostic copy). Reads permission
+  // state without prompting; see LocationPermissionBanner.svelte for the Permissions API usage.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WorkbenchExtensions,
+    component: ygTimesheet.component.LocationPermissionBanner
   })
 }

@@ -15,6 +15,18 @@ export interface AttendanceLike {
   mode: AttendanceMode
 }
 
+// A day's category is derived from its sessions, never stored: sessions stay office/wfh; the day is
+// `partial` when it mixes both (e.g. office in the morning, WFH in the afternoon). This is a
+// headcount label, not a time bucket - office/wfh hours are still split per session elsewhere.
+export type DayMode = AttendanceMode | 'partial'
+
+export function dayMode (modes: readonly AttendanceMode[]): DayMode {
+  const hasOffice = modes.includes('office')
+  const hasWfh = modes.includes('wfh')
+  // office covers the all-office case and the empty case (callers only pass days that have sessions).
+  return hasOffice && hasWfh ? 'partial' : hasWfh ? 'wfh' : 'office'
+}
+
 /** Local midnight (ms) of the day containing `ms` - the AttendanceSession.date key. */
 export function localMidnight (ms: number): number {
   const d = new Date(ms)
@@ -41,16 +53,6 @@ export function findOpenSession<T extends AttendanceLike> (sessions: T[]): T | u
 /** Sum of session durations for a set (typically one day). Open sessions count live to `now`. */
 export function dailyTotal (sessions: AttendanceLike[], now: number): number {
   return sessions.reduce((sum, s) => sum + sessionDuration(s, now), 0)
-}
-
-/**
- * Mode to pre-select for the next punch-in: the most recent session's mode today,
- * else 'office'. Sticky within the day, resets to office each new day (the caller
- * passes only today's sessions). Order-independent.
- */
-export function nextMode (todays: AttendanceLike[]): AttendanceMode {
-  if (todays.length === 0) return 'office'
-  return [...todays].sort((a, b) => b.punchIn - a.punchIn)[0].mode
 }
 
 /** Format an ms duration as "Hh MMm" (e.g. "2h 05m"); under a minute reads "0h 00m". */

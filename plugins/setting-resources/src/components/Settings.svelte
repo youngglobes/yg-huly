@@ -188,12 +188,15 @@
       </Scroller>
 
       <NavFooter split>
-        <NavItem
-          icon={setting.icon.SelectWorkspace}
-          label={setting.string.SelectWorkspace}
-          on:click={selectWorkspace}
-        />
-        {#if hasAccountRole(account, AccountRole.User) && !isDisabled('invites')}
+        <!-- YG fork: switching/creating and inviting to workspaces is owner-only. -->
+        {#if hasAccountRole(account, AccountRole.Owner)}
+          <NavItem
+            icon={setting.icon.SelectWorkspace}
+            label={setting.string.SelectWorkspace}
+            on:click={selectWorkspace}
+          />
+        {/if}
+        {#if hasAccountRole(account, AccountRole.Owner) && !isDisabled('invites')}
           <NavItem
             icon={setting.icon.InviteWorkspace}
             label={setting.string.InviteWorkspace}

@@ -51,15 +51,31 @@ import {
 } from '@hcengineering/server-notification-resources'
 import { jsonToMarkup, nodeDoc, nodeParagraph, nodeText } from '@hcengineering/text-core'
 import ygTimesheet, {
+  isHrDesignation,
+  istDayStart,
+  istMinutesOfDay,
+  type AttendanceSession,
   type DayStatus,
   type HrTimeEntry,
+  type LatePermission,
   type ProjectApprovers,
   type Timesheet,
   type TimesheetDay,
   type TimesheetTask
 } from '@hcengineering/yg-timesheet'
 import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
+import task from '@hcengineering/task'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
+import { estimateRequiredToActivate } from './estimate-gate'
+import { inDayWindow, roundedHoursDiffer, sumHoursInDayWindow } from './approval-drift'
+
+// Local copy of the client-side normalizer (server-plugins cannot import client resources).
+// Legacy scalar or new array -> clean array; null/undefined/empty -> [].
+function asRefArray<T> (v: T | T[] | null | undefined): T[] {
+  if (v == null) return []
+  const arr = Array.isArray(v) ? v : [v]
+  return arr.filter((x): x is T => x != null && (x as unknown) !== '')
+}
 
 // ---------------------------------------------------------------------------
 // Inbox notifications (2026-07-25). The approval workflow now pushes Huly inbox
@@ -341,8 +357,8 @@ async function approverRoleSet (control: TriggerControl): Promise<Set<Ref<Employ
   const set = new Set<Ref<Employee>>()
   for (const p of projects) {
     const pa = control.hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers)
-    if (pa.pm != null) set.add(pa.pm)
-    if (pa.teamLead != null) set.add(pa.teamLead)
+    for (const id of asRefArray(pa.pm)) set.add(id)
+    for (const id of asRefArray(pa.teamLead)) set.add(id)
   }
   return set
 }
@@ -555,6 +571,118 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
   return []
 }
 
+// Late-permission integrity: only an HR admin (Maintainer), and never the employee themselves, may
+// move a LatePermission to Approved/Rejected. An unauthorized status write is reverted to Pending
+// with stamps cleared. System-authored writes (this revert) are skipped so it cannot loop.
+export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const utx = tx as TxUpdateDoc<LatePermission>
+    if (utx.objectClass !== ygTimesheet.class.LatePermission) continue
+    const next = utx.operations.status
+    if (next !== 'Approved' && next !== 'Rejected') continue
+
+    const perm = (
+      await control.findAll(control.ctx, ygTimesheet.class.LatePermission, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (perm === undefined) continue
+
+    const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
+    const actor = await getEmployee(control, utx.modifiedBy)
+    // HR staff (WorkProfile designation 'HR Executive') may approve/reject, alongside admin
+    // break-glass. Fail closed: an unresolved actor can't be ruled out as self, so it is never
+    // authorized, admin included (mirrors OnTimesheetTaskUpdate's actorId !== undefined requirement).
+    const actorProfile =
+      actor === undefined
+        ? undefined
+        : (await control.findAll(control.ctx, ygTimesheet.mixin.WorkProfile, { _id: actor._id }, { limit: 1 }))[0]
+    const authorized =
+      actor !== undefined && actor._id !== perm.employee && (isAdmin || isHrDesignation(actorProfile?.designation))
+    if (authorized) continue
+
+    control.ctx.warn('yg-timesheet: unauthorized LatePermission status write reverted', {
+      perm: perm._id, actor: utx.modifiedBy, isAdmin
+    })
+
+    const revert = control.txFactory.createTxUpdateDoc(
+      perm._class, perm.space, perm._id,
+      { status: 'Pending', $unset: { approvedBy: '', approvedOn: '', rejectReason: '', approveReason: '' } } as any,
+      false, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+  }
+  return []
+}
+
+//
+// Server authority for punch time + late detection. A browser's Date.now() cannot be trusted (a user
+// can change their device clock), so on every punch the server overwrites punchIn/punchOut with its
+// OWN clock and keys the day + late math off IST via istDayStart/istMinutesOfDay - correct regardless
+// of the container timezone (which is UTC). It is the SOLE creator of the LatePermission: the client's
+// inline reason rides on the session (lateReason) and is consumed here only when the SERVER decides
+// the first punch of the IST day is late. Loop-safe: registered on AttendanceSession, and every write
+// it emits is System-authored, skipped at the top of the loop.
+//
+export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  const res: Tx[] = []
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+
+    // Punch-out: stamp the close with server time (ignore ip/geo patches, which set no punchOut).
+    if (tx._class === core.class.TxUpdateDoc) {
+      const utx = tx as TxUpdateDoc<AttendanceSession>
+      if (utx.objectClass !== ygTimesheet.class.AttendanceSession) continue
+      if (utx.operations.punchOut === undefined) continue
+      const now = Date.now()
+      res.push(control.txFactory.createTxUpdateDoc(
+        utx.objectClass, utx.objectSpace, utx.objectId, { punchOut: now }, false, now, core.account.System
+      ))
+      continue
+    }
+
+    if (tx._class !== core.class.TxCreateDoc) continue
+    const ctx = tx as TxCreateDoc<AttendanceSession>
+    if (ctx.objectClass !== ygTimesheet.class.AttendanceSession) continue
+
+    const now = Date.now()
+    const date = istDayStart(now)
+    // Authoritative punch-in time + IST day key, discarding whatever the browser sent.
+    res.push(control.txFactory.createTxUpdateDoc(
+      ctx.objectClass, ctx.objectSpace, ctx.objectId, { punchIn: now, date }, false, now, core.account.System
+    ))
+
+    // Late detection: only the FIRST punch of the IST day (earlier sessions carry the server-set date).
+    const employee = ctx.attributes.employee
+    const sameDay = (
+      await control.findAll(control.ctx, ygTimesheet.class.AttendanceSession, { employee, date }, {})
+    ).filter((s) => s._id !== ctx.objectId)
+    if (sameDay.length > 0) continue
+
+    const profile = (
+      await control.findAll(control.ctx, ygTimesheet.mixin.WorkProfile, { _id: employee }, { limit: 1 })
+    )[0]
+    const shiftStart = profile?.shiftStart
+    if (shiftStart === undefined) continue
+
+    const minutesLate = istMinutesOfDay(now) - shiftStart
+    if (minutesLate <= 0) continue // on time or early
+
+    const exists = await control.findAll(
+      control.ctx, ygTimesheet.class.LatePermission, { employee, date }, { limit: 1 }
+    )
+    if (exists.length > 0) continue // idempotent
+
+    const reason = (ctx.attributes.lateReason ?? '').trim()
+    res.push(control.txFactory.createTxCreateDoc(
+      ygTimesheet.class.LatePermission, core.space.Workspace,
+      { employee, date, punchIn: now, shiftStartSnapshot: shiftStart, minutesLate, reason, status: 'Pending' },
+      undefined, now, core.account.System
+    ))
+  }
+  return res
+}
+
 //
 // Membership of the private Approvals space = every currently-assigned PM/TL, kept in sync with
 // the ProjectApprovers mixin so a newly assigned lead can immediately read (and be attributed on)
@@ -730,10 +858,10 @@ export async function OnProjectApproversMixinGuard (txes: Tx[], control: Trigger
         ? control.hierarchy.as(prevDoc, ygTimesheet.mixin.ProjectApprovers)
         : undefined
 
-    const revertAttrs: Record<string, any> =
-      prevMixin !== undefined
-        ? { pm: prevMixin.pm ?? null, teamLead: prevMixin.teamLead ?? null }
-        : { pm: null, teamLead: null }
+    const revertAttrs: Record<string, any> = {
+      pm: asRefArray(prevMixin?.pm),
+      teamLead: asRefArray(prevMixin?.teamLead)
+    }
 
     control.ctx.warn('yg-timesheet: unauthorized ProjectApprovers mixin write reverted', {
       project: mtx.objectId,
@@ -771,6 +899,15 @@ export async function OnProjectApproversMixinGuard (txes: Tx[], control: Trigger
 // `TxProcessor.extractTx` in this version of @hcengineering/core — only `TxProcessor.createDoc2Doc`
 // (and updateDoc2Doc/buildDoc2Doc), used below to materialize the created report.
 //
+// Approved-hours drift (payroll integrity, 2026-08-07): after a task is Approved, an employee could
+// add/edit a TimeSpendReport on that (employee, issue, day) and the extra time was silently included
+// with no re-approval - a known cheat. On every create/update of a report we now also check whether
+// it belongs to an Approved task whose live logged total no longer matches what was approved, and if
+// so auto-revert that task to Submitted (reopenDriftedApprovedTask, below) so it re-enters the
+// approver's queue. Remove is NOT handled in this v1 (we would need the pre-remove report's
+// employee/issue/date, which the trigger cannot see post-apply) - removing time is not the cheat
+// vector this closes (adding/editing is), so this is a documented limitation, not an oversight.
+//
 export async function OnTimeSpendReportChange (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     if (
@@ -786,16 +923,105 @@ export async function OnTimeSpendReportChange (txes: Tx[], control: TriggerContr
     if (cud._class === core.class.TxCreateDoc) {
       const report = TxProcessor.createDoc2Doc(cud as TxCreateDoc<TimeSpendReport>)
       await upsertMirror(control, report)
+      await reopenDriftedApprovedTask(control, report)
     } else if (cud._class === core.class.TxUpdateDoc) {
       const report = (
         await control.findAll(control.ctx, tracker.class.TimeSpendReport, { _id: cud.objectId }, { limit: 1 })
       )[0]
-      if (report !== undefined) await upsertMirror(control, report)
+      if (report !== undefined) {
+        await upsertMirror(control, report)
+        await reopenDriftedApprovedTask(control, report)
+      }
     } else if (cud._class === core.class.TxRemoveDoc) {
       await deleteMirror(control, cud.objectId)
     }
   }
   return []
+}
+
+/**
+ * Given a TimeSpendReport that was just created/edited, find the Approved TimesheetTask for its
+ * (employee, issue, day) - if any - and reopen it for re-approval when the live logged total no
+ * longer matches what was approved (or submitted, if never approved-then-re-approved). This is the
+ * server-side half of closing the approved-hours-drift cheat described at the top of this trigger.
+ *
+ * System-attributed (loop-safety): the compensating write is a TxUpdateDoc on a TimesheetTask, a
+ * different class from TimeSpendReport, so it structurally cannot re-enter THIS trigger - but it is
+ * still authored as core.account.System (matching the reopen-write idiom at lines ~257-263) so
+ * OnTimesheetTaskUpdate's own top-of-loop System guard skips it too, rather than mistaking it for an
+ * unauthorized status write to revert.
+ */
+async function reopenDriftedApprovedTask (control: TriggerControl, report: TimeSpendReport): Promise<void> {
+  const employee = report.employee
+  if (employee == null) return
+  if (report.date == null) return
+
+  const issue = report.attachedTo as Ref<Issue>
+
+  // Candidates: every Approved task on this issue, across ALL employees - narrowed to this report's
+  // employee AND day inside the loop. We deliberately do NOT filter by `date` in the query: task.date
+  // is stored as LOCAL (IST) midnight, but this trigger runs on the server in UTC, so a server-computed
+  // midnight would never equal the stored value (the previous bug: zero candidates, never reopened).
+  // Instead we match the task whose absolute 24h day-window contains the report instant (inDayWindow),
+  // which is timezone-independent.
+  const candidates = await control.findAll(
+    control.ctx, ygTimesheet.class.TimesheetTask, { issue, status: 'Approved' }
+  )
+  if (candidates.length === 0) return
+
+  for (const candidate of candidates) {
+    const taskDay = (
+      await control.findAll(
+        control.ctx, ygTimesheet.class.TimesheetDay, { _id: candidate.attachedTo as Ref<TimesheetDay> }, { limit: 1 }
+      )
+    )[0]
+    const sheet = taskDay === undefined
+      ? undefined
+      : (
+          await control.findAll(
+            control.ctx, ygTimesheet.class.Timesheet, { _id: taskDay.attachedTo as Ref<Timesheet> }, { limit: 1 }
+          )
+        )[0]
+    if (sheet?.employee !== employee) continue // a different employee's task on the same issue/day
+    if (!inDayWindow(candidate.date, report.date)) continue // an Approved task on a DIFFERENT day of this issue
+
+    // Live total: every TimeSpendReport this employee logged on this issue, cut to this task's day
+    // window (absolute [task.date, task.date + 24h), timezone-independent - see inDayWindow above).
+    const reports = await control.findAll(
+      control.ctx, tracker.class.TimeSpendReport, { attachedTo: issue, employee }
+    )
+    // sumHoursInDayWindow already rounds its total to 2dp.
+    const liveHours = sumHoursInDayWindow(reports.map((r) => ({ date: r.date, value: r.value })), candidate.date)
+
+    // Drift baseline is submittedHours (the spent total the approver reviewed), NOT approvedHours.
+    // The approver may deliberately approve LESS than submitted (e.g. submit 1h, approve 0.5h) - that is
+    // correct and must not reopen. We only reopen when the employee changes the SPENT time after
+    // submission, i.e. live spent no longer equals what was submitted/reviewed.
+    const submittedBaseline = candidate.submittedHours
+    if (!roundedHoursDiffer(submittedBaseline, liveHours)) continue // spent unchanged since submit - do nothing
+
+    control.ctx.warn('yg-timesheet: approved task auto-reopened for re-approval (logged hours drift)', {
+      task: candidate._id, issue, employee, submittedBaseline, liveHours
+    })
+
+    const revert = control.txFactory.createTxUpdateDoc(
+      candidate._class,
+      candidate.space,
+      candidate._id,
+      {
+        status: 'Submitted',
+        submittedHours: liveHours,
+        approvedHours: null,
+        approvedBy: null,
+        approvedOn: null,
+        rejectReason: null
+      } as any,
+      false,
+      Date.now(),
+      core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+  }
 }
 
 // Remove any HrTimeEntry mirror(s) for a given TimeSpendReport (System-attributed). There should be
@@ -1108,17 +1334,128 @@ export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): 
   return []
 }
 
+//
+// Estimate gate (backlog #1): an issue may not enter a started (Active-category) status - In
+// Progress / In Testing / In Review - unless it has a positive estimate. This is the HARD
+// enforcement point: it covers every path that can change a status (the StatusEditor dropdown,
+// kanban drag, bulk edit, and the raw API), complementing the StatusEditor client pre-check
+// (which only fast-fails the common dropdown path). The submit-time check in Timesheet.svelte
+// stays as the final backstop.
+//
+// LOOP-SAFETY: the only write is a System-attributed status revert (createTxUpdateDoc's 7th arg),
+// which the top-of-loop `modifiedBy === System` guard skips - so it never re-enters and re-reverts.
+//
+// SCOPE: this gate covers TRANSITIONS only (a TxUpdateDoc that changes an issue's status). Creating
+// an issue DIRECTLY into an Active status (a TxCreateDoc<Issue>) is INTENTIONALLY NOT gated here
+// (product-owner decision): the timesheet submit-time estimation check in Timesheet.svelte is the
+// backstop for that path. Do not "fix" this by adding TxCreateDoc handling - it is deliberate.
+//
+export async function OnIssueEstimateGate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxUpdateDoc) continue
+    const utx = tx as TxUpdateDoc<Issue>
+    if (utx.objectClass !== tracker.class.Issue) continue
+
+    const nextStatus = (utx.operations as Partial<Issue>).status
+    if (nextStatus == null) continue
+
+    // Resolve the target status's category; only Active (started) statuses are gated.
+    const status = (
+      await control.findAll(control.ctx, tracker.class.IssueStatus, { _id: nextStatus }, { limit: 1 })
+    )[0]
+    if (status === undefined) continue
+
+    const issue = (
+      await control.findAll(control.ctx, tracker.class.Issue, { _id: utx.objectId }, { limit: 1 })
+    )[0]
+    if (issue === undefined) continue
+
+    if (!estimateRequiredToActivate(status.category, task.statusCategory.Active, issue.estimation)) continue
+
+    // Revert to a not-started status THAT BELONGS TO THIS ISSUE'S OWN TASK TYPE. Do NOT scope by
+    // `ofAttribute`: every IssueStatus in the workspace shares one global ofAttribute
+    // (tracker.attribute.IssueStatus), so that query returns statuses across ALL projects/task types
+    // and could land the issue in a foreign status that has no column on its own board. A TaskType
+    // instead owns an ordered `statuses: Ref<Status>[]` array that defines exactly which statuses -
+    // and in what order - belong to it (this is what the client's getTaskTypeStates reads). The
+    // issue's task type is `issue.kind`. Prefer the first ToDo (nearest not-started), else the first
+    // UnStarted (Backlog), in the task type's own ordering. If the task type or a not-started status
+    // can't be resolved we cannot safely revert - log and bail (the client pre-check covers the
+    // common path).
+    const taskType = (
+      await control.findAll(control.ctx, task.class.TaskType, { _id: issue.kind }, { limit: 1 })
+    )[0]
+    if (taskType === undefined) {
+      control.ctx.warn('yg-timesheet: estimate gate could not resolve the issue task type', {
+        issue: issue._id, project: issue.space, kind: issue.kind, attempted: nextStatus
+      })
+      continue
+    }
+
+    // Resolve the task type's statuses, preserving its own ordering (findAll does not guarantee it).
+    const statusDocs = await control.findAll(
+      control.ctx, tracker.class.IssueStatus, { _id: { $in: taskType.statuses } }
+    )
+    const byId = new Map(statusDocs.map((s) => [s._id, s]))
+    const orderedStatuses = taskType.statuses
+      .map((id) => byId.get(id))
+      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+
+    const revertTo =
+      orderedStatuses.find((s) => s.category === task.statusCategory.ToDo)?._id ??
+      orderedStatuses.find((s) => s.category === task.statusCategory.UnStarted)?._id
+    if (revertTo == null || revertTo === nextStatus) {
+      control.ctx.warn('yg-timesheet: estimate gate could not resolve a not-started status', {
+        issue: issue._id, project: issue.space, attempted: nextStatus
+      })
+      continue
+    }
+
+    control.ctx.warn('yg-timesheet: estimate gate reverted un-estimated issue activation', {
+      issue: issue._id, identifier: issue.identifier, actor: utx.modifiedBy, attempted: nextStatus
+    })
+
+    const revert = control.txFactory.createTxUpdateDoc(
+      utx.objectClass,
+      utx.objectSpace,
+      utx.objectId,
+      { status: revertTo } as any,
+      false,
+      Date.now(),
+      core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+
+    // Notify the actor why it snapped back (best-effort; the visible revert is the primary signal).
+    const actor = await getEmployee(control, utx.modifiedBy)
+    if (actor !== undefined) {
+      await notifyInbox(
+        control,
+        tx,
+        [actor._id],
+        issue,
+        `Set an estimate on ${issue.identifier} before moving it to "${status.name}".`
+      )
+    }
+  }
+  return []
+}
+
 export default async () => ({
   trigger: {
     OnTimesheetDayUpdate,
     OnTimesheetDaySubmitNotify,
     OnTimesheetTaskUpdate,
+    OnLatePermissionUpdate,
+    OnAttendancePunch,
     OnProjectApproversChange,
     OnApprovalsMembershipGuard,
     OnProjectApproversMixinGuard,
     OnTimeSpendReportChange,
     OnHrDataMembershipGuard,
     OnHrMembershipChange,
-    OnHrEmployeeCreate
+    OnHrEmployeeCreate,
+    OnIssueEstimateGate
   }
 })

@@ -3,7 +3,6 @@ import {
   sessionDuration,
   findOpenSession,
   dailyTotal,
-  nextMode,
   formatDuration,
   groupByDay,
   dayStats,
@@ -61,26 +60,6 @@ describe('dailyTotal', () => {
   })
   test('empty day is zero', () => {
     expect(dailyTotal([], now)).toBe(0)
-  })
-})
-
-describe('nextMode', () => {
-  test('office when there are no sessions today', () => {
-    expect(nextMode([])).toBe('office')
-  })
-  test('mirrors the most recent session today', () => {
-    const sessions: AttendanceLike[] = [
-      { punchIn: h(9), punchOut: h(10), mode: 'office' },
-      { punchIn: h(13), punchOut: h(14), mode: 'wfh' }
-    ]
-    expect(nextMode(sessions)).toBe('wfh')
-  })
-  test('ignores the order of the input array', () => {
-    const sessions: AttendanceLike[] = [
-      { punchIn: h(13), mode: 'wfh' },
-      { punchIn: h(9), mode: 'office' }
-    ]
-    expect(nextMode(sessions)).toBe('wfh')
   })
 })
 

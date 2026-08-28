@@ -32,6 +32,8 @@
   import { createEventDispatcher } from 'svelte'
   import { InboxNotificationsClientImpl } from '@hcengineering/notification-resources'
   import { DocNotifyContext, InboxNotification } from '@hcengineering/notification'
+  import tracker from '@hcengineering/tracker'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
 
   import plugin from '../../plugin'
   import TreeSeparator from './TreeSeparator.svelte'
@@ -101,17 +103,31 @@
     return inboxNotifications.filter(({ isViewed }) => !isViewed).length > 0
   }
 
+  // YG fork (#12): hide the tracker Projects nav "+" unless ygTimesheet.function.CanCreateProject
+  // allows it. Only the tracker Projects model is gated - HR/Timesheet and every other app's
+  // add-space affordance is unaffected. Defaults false-until-resolved so it never flashes.
+  let canCreateProject = false
+  void getResource(ygTimesheet.function.CanCreateProject).then(async (fn) => {
+    canCreateProject = await fn()
+  })
+
   function getParentActions (): Action[] {
     const result = hasSpaceBrowser ? [browseSpaces] : []
+    const isTrackerProjects = model.spaceClass === tracker.class.Project
     if (
       hasAccountRole(getCurrentAccount(), AccountRole.User) &&
       model.addSpaceLabel !== undefined &&
-      model.createComponent !== undefined
+      model.createComponent !== undefined &&
+      (!isTrackerProjects || canCreateProject)
     ) {
       result.push(addSpace(model.addSpaceLabel, model.createComponent))
     }
     return result
   }
+  // Reactive getter: reference canCreateProject so the `actions` prop reference (and thus the tree
+  // node) re-evaluates once CanCreateProject resolves async. getParentActions() alone is not tracked
+  // by Svelte because canCreateProject is read inside the function, not in this reactive statement.
+  $: reactiveParentActions = (canCreateProject, async (): Promise<Action[]> => getParentActions())
 
   let visibleIf: ((space: Space) => Promise<boolean>) | undefined
 
@@ -158,7 +174,7 @@
 <TreeNode
   _id={'tree-' + model.id}
   label={model.label}
-  actions={async () => getParentActions()}
+  actions={reactiveParentActions}
   highlighted={visible}
   isFold={!empty}
   {empty}

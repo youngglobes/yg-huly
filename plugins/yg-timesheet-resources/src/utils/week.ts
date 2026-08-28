@@ -33,6 +33,16 @@ export function localDayKey (ms: number): DayKey {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+// True if `instantMs` falls within the 24h window that starts at `dayStartMs`. Used to match a
+// TimeSpendReport (a mid-day instant) to a TimesheetTask/approval whose `date` is the day's
+// local-midnight instant. This is ABSOLUTE (timezone-independent): unlike comparing localDayKey
+// strings, it never mis-bins the local-midnight task instant onto the previous day for a viewer whose
+// browser timezone differs from where the data was authored (the "approved columns blank on non-IST
+// clients" bug). Assumes a 24h day, which holds for the IST workspace (no DST).
+export function withinDay (dayStartMs: number, instantMs: number): boolean {
+  return instantMs >= dayStartMs && instantMs < dayStartMs + 86_400_000
+}
+
 export function weekRange (dateMs: number): WeekRange {
   const d = new Date(dateMs)
   d.setHours(0, 0, 0, 0)
@@ -130,23 +140,26 @@ export function isOddSaturday (dateMs: number): boolean {
   return Math.ceil(d.getDate() / 7) % 2 === 1
 }
 
-export function isWorkingDay (dateMs: number): boolean {
+export function isWorkingDay (dateMs: number, holidays?: ReadonlySet<number>): boolean {
+  if (holidays !== undefined) {
+    const d = new Date(dateMs)
+    const mid = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+    if (holidays.has(mid)) return false // HR-marked holiday: non-working
+  }
   const dow = new Date(dateMs).getDay() // 0 Sun .. 6 Sat
   if (dow === 0) return false // Sunday off
   if (dow === 6) return isOddSaturday(dateMs) // Saturday: only odd ones
   return true // Mon-Fri
 }
 
-// The most recent completed working day STRICTLY before today (today is excluded - timesheets are
-// submitted at end of day, so today's is not in yet). Walks back day by day; bounded so it always
-// terminates. Returns local midnight of that day.
-export function lastWorkingDay (nowMs: number): number {
+// The most recent completed working day STRICTLY before today (today excluded). Walks back day by day.
+export function lastWorkingDay (nowMs: number, holidays?: ReadonlySet<number>): number {
   const t = new Date(nowMs)
   const midnight = new Date(t.getFullYear(), t.getMonth(), t.getDate())
   for (let i = 1; i <= 14; i++) {
     const d = new Date(midnight)
     d.setDate(midnight.getDate() - i)
-    if (isWorkingDay(d.getTime())) return d.getTime()
+    if (isWorkingDay(d.getTime(), holidays)) return d.getTime()
   }
-  return midnight.getTime() // unreachable in practice (a working day always exists within 14 days)
+  return midnight.getTime()
 }

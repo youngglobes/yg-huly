@@ -13,10 +13,9 @@
 // limitations under the License.
 -->
 <!--
-  PM dashboard: role-gated overview of the projects a PM/Team Lead (or admin) handles, covering
-  KPIs, per-project stats, in-progress work, pending approvals, overdue/due-soon issues, and two
-  charts. All queries live here; normalization to plain shapes is delegated to utils/dashboard.ts
-  (pure, unit-tested) so the widgets below only ever receive plain data, never live Huly docs.
+  Scope-parameterized dashboard (scope="pm" | "teamLead") rendering project overviews,
+  KPIs, per-project stats, work items, pending approvals, and charts. Gating happens in
+  DashboardHome; this component displays the dashboard for the specified scope only.
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
@@ -25,10 +24,10 @@
   import task from '@hcengineering/task'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
   import ygTimesheet, { type ProjectApprovers, type TimesheetTask, type TimesheetDay, type Timesheet } from '@hcengineering/yg-timesheet'
-  import { canApproveView } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { type DropdownTextItem } from '@hcengineering/ui'
   import { periodRange } from '../utils/week'
+  import { asRefArray } from '../utils/workflow'
   import {
     projectStats, portfolioHours, overdueIssues, dueSoonIssues,
     teamWorkload, priorityWatch, openStatusNames, openStatusTotals, isOpen, type Cat, type DashIssue, type DashTime, type DashProject
@@ -54,6 +53,9 @@
   void ensureHrMembership()
 
   const me = getCurrentEmployee()
+  // Which project set this dashboard shows. 'pm' = projects where pm === me (admins: all);
+  // 'teamLead' = projects where teamLead === me. Default 'pm' keeps existing behavior.
+  export let scope: 'pm' | 'teamLead' | 'org' = 'pm'
   const client = getClient()
   const h = client.getHierarchy()
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -72,26 +74,18 @@
   // --- My projects (pm/teamLead == me, or admin => all) --------------------
   const projectQuery = createQuery()
   let allProjects: Project[] = []
-  // isApprover is derived from the query; isAdmin is synchronous. Gating on isAdmin alone (not
-  // waiting on isApprover) gives admins a fast path so they never sit behind "Restricted to
-  // approvers." while the query is still in flight - mirrors Reports.svelte's isHRAdmin/isApprover
-  // split exactly.
-  let isApprover = false
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     allProjects = res
-    const pairs = res
-      .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
-      .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: a.pm, teamLead: a.teamLead } })
-    isApprover = canApproveView(false, pairs, me)
   })
-  $: canView = isAdmin || isApprover
-  $: myProjectDocs = isAdmin
-    ? allProjects
-    : allProjects.filter((p) => {
-      if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
-      const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return a.pm === me || a.teamLead === me
-    })
+  $: myProjectDocs = scope === 'org'
+    ? allProjects.filter((p) => !p.archived)
+    : scope === 'pm' && isAdmin
+      ? allProjects
+      : allProjects.filter((p) => {
+        if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
+        const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
+        return scope === 'teamLead' ? asRefArray(a.teamLead).includes(me) : asRefArray(a.pm).includes(me)
+      })
   $: myProjectIds = new Set(myProjectDocs.map((p) => p._id))
   $: myProjects = myProjectDocs.map((p): DashProject => ({ id: p._id, name: p.name }))
 
@@ -176,14 +170,40 @@
       employee: tsEmp.get(dayTs.get(t.attachedTo as string) ?? '') ?? ''
     }))
 
+  // --- Approved hours per project in the selected period (Approved column) -------------------
+  // Approved hours live directly on TimesheetTask (denormalized - the separate TimesheetApproval
+  // doc lives in ygTimesheet.space.Approvals, which is not readable by the client). Sum approved
+  // tasks by project within the same period range as Logged.
+  const apprTaskQuery = createQuery()
+  let apprTaskInfo = new Map<string, { project: string, date: number, approvedHours?: number }>()
+  apprTaskQuery.query(ygTimesheet.class.TimesheetTask, { status: 'Approved' }, (r: TimesheetTask[]) => {
+    apprTaskInfo = new Map(r.map((t) => [t._id as string, { project: t.project as string, date: t.date, approvedHours: t.approvedHours }]))
+  })
+  $: approvedByProject = ((): Map<string, number> => {
+    const m = new Map<string, number>()
+    for (const info of apprTaskInfo.values()) {
+      if (info.date < range.start || info.date >= range.end) continue // period scope, matches Logged
+      if (!myProjectIds.has(info.project)) continue
+      m.set(info.project, (m.get(info.project) ?? 0) + (info.approvedHours ?? 0))
+    }
+    return m
+  })()
+
   // --- Employee names ------------------------------------------------------
   const empQuery = createQuery()
   let employeeNames = new Map<string, string>()
-  empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => { employeeNames = new Map(res.map((e) => [e._id as string, formatName(e.name)])) })
+  // Deactivated/archived employees (active === false) are excluded from "Team this week".
+  let inactiveEmps = new Set<string>()
+  empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
+    employeeNames = new Map(res.map((e) => [e._id as string, formatName(e.name)]))
+    const inactive = new Set<string>()
+    for (const e of res) if (e.active === false) inactive.add(e._id)
+    inactiveEmps = inactive
+  })
 
   // --- Derived (pure lib) --------------------------------------------------
   $: now = Date.now()
-  $: stats = projectStats(issues, times, myProjects)
+  $: stats = projectStats(issues, times, myProjects, approvedByProject)
   $: portfolio = portfolioHours(stats)
   $: statusColumns = openStatusNames(issues)
   $: statusSegments = openStatusTotals(issues).map((s, idx) => ({ ...s, color: STATUS_COLORS[idx % STATUS_COLORS.length] }))
@@ -192,7 +212,18 @@
   // In-progress table shows ONLY the literal "In Progress" status (not every active-category status
   // such as In Testing / In Review, which the coarse category would lump together).
   $: inProg = issues.filter((i) => i.status.trim().toLowerCase() === 'in progress')
-  $: team = teamWorkload(issues, times)
+  // The pm approvers of the projects in scope - excluded from "Team this week" so a lead sees the
+  // people working under them, not the project's PM (who is usually assigned issues on their project).
+  $: pmSet = new Set(
+    myProjectDocs.flatMap((p): string[] => {
+      if (!h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return []
+      return asRefArray((h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers).pm)
+    })
+  )
+  // Omit the projects' PMs and any deactivated employees from "Team this week".
+  // Org view keeps PMs visible (owner wants full workload visibility); scoped PM/TL views drop the PM.
+  $: excludeFromTeam = scope === 'org' ? inactiveEmps : new Set([...pmSet, ...inactiveEmps])
+  $: team = teamWorkload(issues, times, excludeFromTeam)
   $: priority = priorityWatch(issues)
   $: hoursByIssue = (() => {
     const m = new Map<string, number>()
@@ -211,37 +242,33 @@
   ] as Kpi[]
 </script>
 
-{#if !canView}
-  <div class="yg-empty">Restricted to approvers.</div>
-{:else}
-  <div class="dash yg-page">
-    <div class="yg-scroll">
-      <GreetingCard name={employeeNames.get(me) ?? ''} />
+<div class="dash yg-page">
+  <div class="yg-scroll">
+    <GreetingCard name={employeeNames.get(me) ?? ''} />
 
-      <!-- Headline KPIs: state-of-play + attention counters, right under the greeting. -->
-      <KpiStrip tiles={kpis} />
+    <!-- Headline KPIs: state-of-play + attention counters, right under the greeting. -->
+    <KpiStrip tiles={kpis} />
 
-      <!-- Attention band: the "act now" items, at the top. -->
-      <div class="dash-attention">
-        <InboxWidget />
-        <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
-        <PriorityWatch issues={priority} {employeeNames} />
-        <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
-      </div>
-
-      <!-- Overview: status mix + team workload this week (Hours-by-project dropped; the same
-           per-project totals live in the "Projects you handle" Logged column). -->
-      <div class="dash-two">
-        <Donut segments={statusSegments} />
-        <TeamWorkload {team} {employeeNames} />
-      </div>
-
-      <!-- Detail tables. -->
-      <ProjectCards {stats} {portfolio} {statusColumns} {presetItems} bind:preset bind:fromStr bind:toStr />
-      <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
+    <!-- Attention band: the "act now" items, at the top. -->
+    <div class="dash-attention">
+      <InboxWidget />
+      <ApprovalsQueue rows={pendingRows} {employeeNames} projectName={(id) => myProjects.find((p) => p.id === id)?.name ?? id} />
+      <PriorityWatch issues={priority} {employeeNames} />
+      <OverdueList overdue={overdue} dueSoon={dueSoon} {employeeNames} />
     </div>
+
+    <!-- Overview: status mix + team workload this week (Hours-by-project dropped; the same
+         per-project totals live in the "Projects you handle" Logged column). -->
+    <div class="dash-two">
+      <Donut segments={statusSegments} />
+      <TeamWorkload {team} {employeeNames} />
+    </div>
+
+    <!-- Detail tables. -->
+    <ProjectCards {stats} {portfolio} {statusColumns} {presetItems} bind:preset bind:fromStr bind:toStr />
+    <InProgressTable issues={inProg} projects={myProjects} {employeeNames} {hoursByIssue} />
   </div>
-{/if}
+</div>
 
 <style lang="scss">
   @use './yg-table' as *;

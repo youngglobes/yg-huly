@@ -31,10 +31,11 @@
   } from '@hcengineering/yg-timesheet'
   import {
     attendanceToday, headcount, hoursByPerson, notPunchedToday, orgHoursTotal,
-    submissionCompliance, wfhOfficeSplit, type HrAtt, type HrEmp, type HrHours, type HrSub
+    submissionCompliance, modeSplit, type HrAtt, type HrEmp, type HrHours, type HrSub
   } from '../utils/hr-dashboard'
   import { localMidnight } from '../utils/attendance'
   import { formatHours, lastWorkingDay, weekRange } from '../utils/week'
+  import { asRefArray } from '../utils/workflow'
   import Donut from './dashboard/Donut.svelte'
   import GreetingCard from './dashboard/GreetingCard.svelte'
   import HrAttendanceTodayCard from './dashboard/HrAttendanceTodayCard.svelte'
@@ -71,7 +72,7 @@
       .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
       .flatMap((p) => {
         const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-        return [a.pm, a.teamLead]
+        return [...asRefArray(a.pm), ...asRefArray(a.teamLead)]
       })
       .filter((r): r is Ref<Employee> => r != null)
   )
@@ -152,7 +153,7 @@
 
   // --- Derived (pure lib) --------------------------------------------------------
   $: present = attendanceToday(att, emps)
-  $: split = wfhOfficeSplit(att, emps)
+  $: split = modeSplit(att, emps)
   $: notPunched = notPunchedToday(att, emps)
   $: byPerson = hoursByPerson(hours, emps)
   // Compliance denominator = active employees minus PMs/TLs and HR-roster members (they do not
@@ -168,7 +169,7 @@
   $: kpis = [
     { label: 'Headcount', value: headcount(emps), tone: 'neutral', accent: '#6366f1' },
     { label: 'Present today', value: present.length, tone: 'neutral', accent: '#10b981' },
-    { label: 'WFH / Office', value: `${split.wfh} / ${split.office}`, tone: 'neutral', accent: '#14b8a6' },
+    { label: 'Office / WFH / Partial', value: `${split.office} / ${split.wfh} / ${split.partial}`, tone: 'neutral', accent: '#14b8a6' },
     { label: 'Hours this week', value: formatHours(orgHoursTotal(hours)), tone: 'neutral', accent: '#8b5cf6' },
     {
       label: 'Timesheet submissions',
@@ -190,17 +191,20 @@
     <!-- Attention band: fixed-height, colour-accented cards in one row. -->
     <div class="dash-attention">
       <HrAttendanceTodayCard {present} {notPunched} accent="#6366f1" />
-      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} submittedList={comp.submittedList} dayLabel={refDayLabel} accent="#f59e0b" />
+      <!-- Office vs WFH sits in the 2nd column so it lines up under the "WFH / Office" KPI card in the
+           row above; Timesheet compliance follows it. -->
       <Donut
         segments={[
           { name: 'Office', count: split.office, color: '#6366f1' },
-          { name: 'WFH', count: split.wfh, color: '#14b8a6' }
+          { name: 'WFH', count: split.wfh, color: '#14b8a6' },
+          { name: 'Partial', count: split.partial, color: '#f59e0b' }
         ]}
         title={ygTimesheet.string.OfficeVsWfh}
         centerLabel={'present'}
         accent="#8b5cf6"
         fill
       />
+      <HrComplianceCard submitted={comp.submitted} expected={comp.expected} missing={comp.missing} submittedList={comp.submittedList} dayLabel={refDayLabel} accent="#f59e0b" />
     </div>
 
     <!-- Full-width detail: per-person hours table. -->

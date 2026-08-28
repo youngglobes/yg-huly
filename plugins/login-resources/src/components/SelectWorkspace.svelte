@@ -215,17 +215,8 @@
     </Scroller>
     <div class="grow-separator" />
     <div class="footer">
-      {#if workspaces.length > 0 && !isReadOnlyGuest}
-        <div>
-          <span><Label label={login.string.WantAnotherWorkspace} /></span>
-          <NavLink
-            href={getHref('createWorkspace')}
-            onClick={() => {
-              goTo('createWorkspace')
-            }}><Label label={login.string.CreateWorkspace} /></NavLink
-          >
-        </div>
-      {/if}
+      <!-- YG fork: workspace creation is admin/tool-only in this single-workspace deployment, so the
+           "Want another workspace? Create workspace" link is intentionally removed from the picker. -->
       <div>
         <span><Label label={login.string.NotSeeingWorkspace} /></span>
         <NavLink

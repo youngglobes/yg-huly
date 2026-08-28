@@ -57,6 +57,9 @@ export interface TimesheetTask extends AttachedDoc {
   approvers: Ref<Employee>[]
   submittedOn?: Timestamp
   rejectReason?: string
+  approvedHours?: number
+  approvedBy?: Ref<Employee>
+  approvedOn?: Timestamp
 }
 
 /**
@@ -75,9 +78,78 @@ export interface TimesheetApproval extends Doc {
   approvedOn?: Timestamp
 }
 
+/**
+ * One reject/resubmit round for a single (employee, issue, date) unit of work.
+ *
+ * Deliberately NOT keyed by Ref<TimesheetTask>: submitDay deletes and recreates task rows on every
+ * resubmit (yg-timesheet-resources utils/day.ts), so a task ref would orphan the history. The
+ * employee+issue+date triple is stable across that churn, which is the whole reason this is a
+ * separate doc rather than an array on the task.
+ *
+ * World-readable (core.space.Workspace), matching where rejectReason already lives on
+ * TimesheetTask. Deliberate, see the 2026-08-05 approval-recycle design.
+ */
+export interface TimesheetRejectCycle extends Doc {
+  employee: Ref<Employee>
+  issue: Ref<Issue>
+  /** Local midnight, same convention as TimesheetTask.date. */
+  date: Timestamp
+  rejectReason: string
+  /** Absent on rows written by the backfill: the old task never stored who rejected it. */
+  rejectedBy?: Ref<Employee>
+  rejectedOn: Timestamp
+  /** The employee's reply, captured at resubmit. Optional by design. */
+  resubmitNote?: string
+  /** Absent = the cycle is still open (rejected, not yet resubmitted). */
+  resubmittedOn?: Timestamp
+}
+
 export interface ProjectApprovers extends Project {
-  pm?: Ref<Employee>
-  teamLead?: Ref<Employee>
+  pm?: Ref<Employee>[]
+  teamLead?: Ref<Employee>[]
+}
+
+export type WorkDesignation =
+  | 'Software Engineer Trainee' | 'Associate Software Engineer' | 'Senior Software Engineer'
+  | 'Team Leader' | 'Project Manager' | 'Software Test Engineer' | 'Senior Software Tester'
+  | 'Web Designer' | 'Front End Developer' | 'Senior Front End Developer'
+  | 'SEO Analyst Trainee' | 'SEO Analyst' | 'Senior SEO Analyst'
+  | 'Business Development Executive' | 'Senior Business Development Executive'
+  | 'Business Development Manager' | 'Salesforce Developer' | 'Senior Salesforce Developer'
+  | 'Lead Generation Executive' | 'CEO' | 'CTO' | 'COO' | 'HR Executive' | 'Intern'
+export type WorkDepartment = 'Development' | 'Testing' | 'SEO' | 'Sales' | 'HR'
+export interface WorkProfile extends Employee {
+  designation?: WorkDesignation
+  department?: WorkDepartment
+  // Free text, e.g. "YGS0024".
+  employeeId?: string
+  // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
+  shiftStart?: number
+}
+
+// The designation that identifies HR staff. Late-punch permissions may be approved/rejected by an
+// HR-designated user (plus admin break-glass), never a workspace-role check - HR staff stay ordinary
+// Users. Kept here as the single source of truth so the client gate (HrLatePermissions.svelte) and
+// the server guard (OnLatePermissionUpdate) cannot drift apart on who counts as HR.
+export const HR_DESIGNATION: WorkDesignation = 'HR Executive'
+export function isHrDesignation (d: WorkDesignation | undefined): boolean {
+  return d === HR_DESIGNATION
+}
+
+// Indian Standard Time is a fixed UTC+5:30 with no daylight saving, so attendance day-boundaries and
+// late math use a constant offset. This is correct no matter what timezone the code runs in - vital
+// on the server, whose container clock is UTC, where new Date().getHours() would give the wrong hour.
+const IST_OFFSET_MS = 330 * 60 * 1000
+const DAY_MS = 86400000
+
+/** UTC-ms of IST 00:00 for the IST day containing `ms` (the AttendanceSession.date key). */
+export function istDayStart (ms: number): number {
+  return Math.floor((ms + IST_OFFSET_MS) / DAY_MS) * DAY_MS - IST_OFFSET_MS
+}
+
+/** Minutes since IST midnight for the instant `ms` (0..1439). */
+export function istMinutesOfDay (ms: number): number {
+  return Math.floor(((ms + IST_OFFSET_MS) % DAY_MS) / 60000)
 }
 
 /** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
@@ -110,6 +182,41 @@ export interface AttendanceSession extends Doc {
   mode: AttendanceMode // set at punch-in; immutable
   punchOut?: Timestamp // full ms timestamp of punch-out; absent while the session is open
   punchOutNote?: string // optional note captured at punch-out
+  device?: string      // parsed from userAgent at punch-in
+  browser?: string
+  userAgent?: string   // raw, for audit
+  ip?: string          // self-reported public IP
+  ipCity?: string      // coarse "City, Region, Country" from the geo-IP call
+  geoLat?: number      // GPS (when granted on a secure context)
+  geoLng?: number
+  geoAccuracy?: number // metres
+  // Client-captured "why I'm late" hint. Set at punch-in when the browser thinks the punch is late;
+  // the server trigger consumes it when IT decides (from server time) that a LatePermission is due.
+  // Advisory only - the server, not this field, is the authority on whether a punch is late.
+  lateReason?: string
+}
+
+/** An org-wide holiday (one per day). Non-working everywhere via isWorkingDay. */
+export interface Holiday extends Doc {
+  date: Timestamp // local midnight (ms) of the holiday day
+  name: string    // e.g. "Diwali"
+}
+
+export type LatePermissionStatus = 'Pending' | 'Approved' | 'Rejected'
+
+/** One per late day: a punch-in after the employee's shiftStart, with a reason HR approves/rejects. */
+export interface LatePermission extends Doc {
+  employee: Ref<Employee>
+  date: Timestamp            // local midnight of the late day (same key as AttendanceSession.date)
+  punchIn: Timestamp         // full ms of the triggering first punch-in
+  shiftStartSnapshot: number // minutes since midnight, snapshot at creation
+  minutesLate: number        // snapshot: punch-in time-of-day minus shiftStartSnapshot
+  reason: string
+  status: LatePermissionStatus
+  approvedBy?: Ref<Employee>
+  approvedOn?: Timestamp
+  rejectReason?: string
+  approveReason?: string
 }
 
 /** Org-wide punch-reminder settings. Singleton (zero or one doc); code falls back to defaults when absent. */
@@ -131,12 +238,16 @@ export default plugin(ygTimesheetId, {
     TimesheetDay: '' as Ref<Class<TimesheetDay>>,
     TimesheetTask: '' as Ref<Class<TimesheetTask>>,
     TimesheetApproval: '' as Ref<Class<TimesheetApproval>>,
+    TimesheetRejectCycle: '' as Ref<Class<TimesheetRejectCycle>>,
     HrTimeEntry: '' as Ref<Class<HrTimeEntry>>,
     AttendanceSession: '' as Ref<Class<AttendanceSession>>,
-    AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>
+    AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>,
+    Holiday: '' as Ref<Class<Holiday>>,
+    LatePermission: '' as Ref<Class<LatePermission>>
   },
   mixin: {
-    ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>
+    ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>,
+    WorkProfile: '' as Ref<Mixin<WorkProfile>>
   },
   space: {
     Timesheets: '' as Ref<Space>,
@@ -147,7 +258,8 @@ export default plugin(ygTimesheetId, {
     Timesheet: '' as Ref<Doc>,
     HumanResource: '' as Ref<Doc>,
     Attendance: '' as Ref<Doc>,
-    Dashboard: '' as Ref<Doc>
+    Dashboard: '' as Ref<Doc>,
+    AiUsage: '' as Ref<Doc>
   },
   component: {
     Timesheet: '' as AnyComponent,
@@ -166,7 +278,14 @@ export default plugin(ygTimesheetId, {
     HrAttendance: '' as AnyComponent,
     AttendanceReminder: '' as AnyComponent,
     AttendanceReminderSettings: '' as AnyComponent,
-    DashboardHome: '' as AnyComponent
+    LocationPermissionBanner: '' as AnyComponent,
+    DashboardHome: '' as AnyComponent,
+    WorkProfileEditor: '' as AnyComponent,
+    Performance: '' as AnyComponent,
+    HrHolidays: '' as AnyComponent,
+    HrLatePermissions: '' as AnyComponent,
+    AiUsage: '' as AnyComponent,
+    AiUsageConfig: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -181,14 +300,15 @@ export default plugin(ygTimesheetId, {
     Approved: '' as IntlString,
     Rejected: '' as IntlString,
     Submit: '' as IntlString,
+    Resubmit: '' as IntlString,
     Recall: '' as IntlString,
     Approve: '' as IntlString,
+    Reapprove: '' as IntlString,
     ApproveWeek: '' as IntlString,
     Reject: '' as IntlString,
     Approvals: '' as IntlString,
     NothingToApprove: '' as IntlString,
     RejectReason: '' as IntlString,
-    Drift: '' as IntlString,
     PM: '' as IntlString,
     TeamLead: '' as IntlString,
     Days: '' as IntlString,
@@ -274,6 +394,7 @@ export default plugin(ygTimesheetId, {
     PunchOut: '' as IntlString,
     Office: '' as IntlString,
     WFH: '' as IntlString,
+    Partial: '' as IntlString,
     AddNote: '' as IntlString,
     In: '' as IntlString,
     Out: '' as IntlString,
@@ -329,13 +450,52 @@ export default plugin(ygTimesheetId, {
     HoursByPerson: '' as IntlString,
     NotSubmitted: '' as IntlString,
     LastActive: '' as IntlString,
-    DaysLogged: '' as IntlString
+    DaysLogged: '' as IntlString,
+    Performance: '' as IntlString,
+    OffDayWork: '' as IntlString,
+    OvertimeCol: '' as IntlString,
+    LateNightCol: '' as IntlString,
+    TotalExtraHours: '' as IntlString,
+    TeamProfiles: '' as IntlString,
+    ShiftStart: '' as IntlString,
+    Designation: '' as IntlString,
+    Department: '' as IntlString,
+    EmployeeId: '' as IntlString,
+    Holidays: '' as IntlString,
+    AddHoliday: '' as IntlString,
+    HolidayName: '' as IntlString,
+    RemoveHoliday: '' as IntlString,
+    EmptyHolidays: '' as IntlString,
+    LatePermissions: '' as IntlString,
+    LateArrivals: '' as IntlString,
+    LateStatusLate: '' as IntlString,
+    LateStatusExcused: '' as IntlString,
+    LateStatusPending: '' as IntlString,
+    LateReasonLabel: '' as IntlString,
+    LateReasonPlaceholder: '' as IntlString,
+    ApproveLate: '' as IntlString,
+    RejectLate: '' as IntlString,
+    MinutesLate: '' as IntlString,
+    NoLatePermissions: '' as IntlString,
+    HrReason: '' as IntlString,
+    HrReasonPlaceholder: '' as IntlString,
+    LatePermissionsIntro: '' as IntlString,
+    Reason: '' as IntlString,
+    Details: '' as IntlString,
+    AiUsage: '' as IntlString,
+    AiUsageDashboard: '' as IntlString,
+    AiUsageConfiguration: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
     // view.mixin.ObjectTitle provider for TimesheetDay - supplies the Inbox card's subtitle (the
     // sheet date), under the @UX class-label title ("Timesheet"). Signature per getDocTitle.
-    TimesheetDayTitle: '' as Resource<(client: Client, id: Ref<Doc>, doc?: Doc) => Promise<string>>
+    TimesheetDayTitle: '' as Resource<(client: Client, id: Ref<Doc>, doc?: Doc) => Promise<string>>,
+    // May the current user create a project? Owner OR HR-space member OR PM/TeamLead on any
+    // project OR leadership designation (WorkProfile). Consumed by core tracker-resources and
+    // workbench-resources to hide the "Create project" affordance - imported as this PLUGIN only
+    // (never yg-timesheet-resources) so those core packages stay free of a circular dependency.
+    CanCreateProject: '' as Resource<() => Promise<boolean>>
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,

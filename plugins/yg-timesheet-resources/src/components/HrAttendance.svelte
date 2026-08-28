@@ -107,7 +107,13 @@
         punchOut: s.punchOut,
         mode: s.mode,
         punchInNote: s.punchInNote,
-        punchOutNote: s.punchOutNote
+        punchOutNote: s.punchOutNote,
+        device: s.device,
+        browser: s.browser,
+        ip: s.ip,
+        ipCity: s.ipCity,
+        geoLat: s.geoLat,
+        geoLng: s.geoLng
       }))
     }
   )
@@ -216,7 +222,7 @@
               <td>{fmt(r.lastOut)}</td>
               <td>{r.sessions}</td>
               <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
-              <td><Label label={r.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
+              <td><Label label={r.mode === 'partial' ? ygTimesheet.string.Partial : r.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
             </tr>
           {:else}
             <tr><td colspan={7} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
@@ -274,6 +280,7 @@
             <th><Label label={ygTimesheet.string.Out} /></th>
             <th><Label label={ygTimesheet.string.Type} /></th>
             <th><Label label={ygTimesheet.string.Duration} /></th>
+            <th><Label label={ygTimesheet.string.Details} /></th>
           </tr>
         </thead>
         <tbody>
@@ -285,10 +292,17 @@
                 <td>{#if s.punchOut !== undefined}{timeFmt.format(s.punchOut)}{#if s.punchOutNote}<span class="att-note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}</td>
                 <td><Label label={s.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
                 <td>{s.punchOut !== undefined ? formatHours((s.punchOut - s.punchIn) / 3600000) : '-'}</td>
+                <td class="att-audit">
+                  <div class="att-audit__line">{s.device ?? '-'}{#if s.browser} / {s.browser}{/if}</div>
+                  <div class="att-audit__line att-audit__muted">{s.ip ?? '-'}{#if s.ipCity} - {s.ipCity}{/if}</div>
+                  {#if s.geoLat !== undefined && s.geoLng !== undefined}
+                    <a class="att-audit__map" href={`https://maps.google.com/?q=${s.geoLat},${s.geoLng}`} target="_blank" rel="noopener noreferrer">Map</a>
+                  {/if}
+                </td>
               </tr>
             {/each}
           {:else}
-            <tr><td colspan={5} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            <tr><td colspan={6} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
           {/each}
         </tbody>
       </table>
@@ -319,4 +333,7 @@
 
   .att-summary { display: flex; flex-wrap: wrap; gap: 18px; padding: 4px 2px 14px; font-size: 13px; color: var(--yg-text-dim); }
   .att-summary__k b { color: var(--yg-text); font-variant-numeric: tabular-nums; }
+
+  .att-audit__line { font-size: 13px; }
+  .att-audit__muted { color: var(--yg-text-faint); font-size: 12px; }
 </style>

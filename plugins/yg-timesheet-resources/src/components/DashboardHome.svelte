@@ -13,44 +13,49 @@
 // limitations under the License.
 -->
 <!--
-  Thin role router for the top-level Dashboard app: renders the existing PM Dashboard for
-  approvers/admins, and the new EmployeeDashboard for everyone else. No aggregation lives here -
-  role detection is copied verbatim from Dashboard.svelte so behavior is identical.
+  Thin role router that reads the current user's WorkProfile designation and pm/teamLead
+  approver roles, resolves a role via resolveDashboardRole, and renders the PM dashboard
+  (scope="pm"), TL dashboard (scope="teamLead"), HR dashboard, or Employee dashboard.
 -->
 <script lang="ts">
   import { getCurrentEmployee } from '@hcengineering/contact'
   import core, { AccountRole, getCurrentAccount, hasAccountRole } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
-  import ygTimesheet, { type ProjectApprovers } from '@hcengineering/yg-timesheet'
-  import { canApproveView } from '../utils/task-approval'
+  import ygTimesheet, { type ProjectApprovers, type WorkDesignation } from '@hcengineering/yg-timesheet'
+  import { resolveDashboardRole } from '../utils/dashboard'
+  import { asRefArray } from '../utils/workflow'
   import Dashboard from './Dashboard.svelte'
   import EmployeeDashboard from './EmployeeDashboard.svelte'
   import HrDashboard from './HrDashboard.svelte'
+  import OrgDashboard from './OrgDashboard.svelte'
 
   const me = getCurrentEmployee()
   const client = getClient()
   const h = client.getHierarchy()
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
 
+  // --- My WorkProfile designation --------------------------------------------
+  let designation: WorkDesignation | undefined
+  let desigReady = false
+  const profQuery = createQuery()
+  profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => { designation = res[0]?.designation; desigReady = true })
+
   // --- My projects (pm/teamLead == me, or admin => all) --------------------
   const projectQuery = createQuery()
-  // isApprover is derived from the query; isAdmin is synchronous. Gating on isAdmin alone (not
-  // waiting on isApprover) gives admins a fast path so they never sit behind "Restricted to
-  // approvers." while the query is still in flight - mirrors Reports.svelte's isHRAdmin/isApprover
-  // split exactly.
-  let isApprover = false
+  let isPmApprover = false
+  let isTlApprover = false
   // Projects query still resolving on first render; render nothing until it returns so the
   // template never flashes the wrong dashboard.
   let projReady = false
   projectQuery.query(tracker.class.Project, {}, (res: Project[]) => {
     const pairs = res
       .filter((p) => h.hasMixin(p, ygTimesheet.mixin.ProjectApprovers))
-      .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: a.pm, teamLead: a.teamLead } })
-    isApprover = canApproveView(false, pairs, me)
+      .map((p) => { const a = h.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers; return { pm: asRefArray(a.pm), teamLead: asRefArray(a.teamLead) } })
+    isPmApprover = pairs.some((a) => a.pm.includes(me))
+    isTlApprover = pairs.some((a) => a.teamLead.includes(me))
     projReady = true
   })
-  $: isPM = isAdmin || isApprover
 
   // --- HR roster membership (HrData space) ----------------------------------
   let isHR = false
@@ -62,15 +67,20 @@
     hrReady = true
   })
 
-  // Wait for both queries before branching so the template never flashes the wrong dashboard.
-  $: ready = projReady && hrReady
+  // Wait for all queries before branching so the template never flashes the wrong dashboard.
+  $: ready = projReady && hrReady && desigReady
+  $: role = resolveDashboardRole({ designation, isAdmin, isPmApprover, isTlApprover, isHr: isHR })
 </script>
 
 {#if !ready}
-  <!-- projects/HR queries still resolving; render nothing to avoid a role flash -->
-{:else if isPM}
-  <Dashboard />
-{:else if isHR}
+  <!-- queries still resolving; render nothing to avoid a role flash -->
+{:else if role === 'org'}
+  <OrgDashboard />
+{:else if role === 'pm'}
+  <Dashboard scope="pm" />
+{:else if role === 'teamLead'}
+  <Dashboard scope="teamLead" />
+{:else if role === 'hr'}
   <HrDashboard />
 {:else}
   <EmployeeDashboard />

@@ -5,10 +5,11 @@
 //
 import type { Ref } from '@hcengineering/core'
 import type { Employee } from '@hcengineering/contact'
-import { sessionDuration, type AttendanceMode } from './attendance'
+import { dayMode, sessionDuration, type AttendanceMode, type DayMode } from './attendance'
 
-/** Minimal shape the aggregators need from an AttendanceSession doc. Notes are carried (unused by
- *  the math) so the Individual log can render them. */
+/** Minimal shape the aggregators need from an AttendanceSession doc. Notes and the capture
+ *  fields (device/browser/ip/geo) are carried (unused by the math) so the Individual log can
+ *  render them - HR + owners only, per-session passthrough, no aggregation. */
 export interface SessionLike {
   employee: Ref<Employee>
   date: number // local midnight of the punch-in day
@@ -17,6 +18,12 @@ export interface SessionLike {
   mode: AttendanceMode
   punchInNote?: string
   punchOutNote?: string
+  device?: string
+  browser?: string
+  ip?: string
+  ipCity?: string
+  geoLat?: number
+  geoLng?: number
 }
 
 /** An employee row source (ref + display name). */
@@ -33,7 +40,7 @@ export interface TodayRow {
   lastOut?: number // undefined while a session is open, or none closed
   sessions: number
   totalMs: number // open session counts live to `now`
-  mode?: AttendanceMode // most-recent session's mode
+  mode?: DayMode // day category across today's sessions (office / wfh / partial)
 }
 
 export interface SummaryRow {
@@ -83,7 +90,6 @@ export function todayBoard (
   for (const [emp, ss] of byEmp) {
     const openExists = ss.some((s) => s.punchOut === undefined)
     const outs = ss.filter((s) => s.punchOut !== undefined).map((s) => s.punchOut as number)
-    const latest = [...ss].sort((a, b) => b.punchIn - a.punchIn)[0]
     rows.push({
       employee: emp,
       name: nameOf.get(emp) ?? '',
@@ -92,7 +98,7 @@ export function todayBoard (
       lastOut: openExists || outs.length === 0 ? undefined : Math.max(...outs),
       sessions: ss.length,
       totalMs: ss.reduce((sum, s) => sum + sessionDuration(s, now), 0),
-      mode: latest.mode
+      mode: dayMode(ss.map((s) => s.mode))
     })
   }
   return rows.sort((a, b) => a.name.localeCompare(b.name))

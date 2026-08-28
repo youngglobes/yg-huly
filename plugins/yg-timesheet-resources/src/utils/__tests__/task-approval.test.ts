@@ -117,4 +117,9 @@ describe('canApproveView', () => {
   test('empty approver set + not admin => false', () => {
     expect(canApproveView(false, [], me)).toBe(false)
   })
+  test('multiple PMs/TLs per project are supported (array form)', () => {
+    expect(canApproveView(false, [{ pm: ['other', me] }], me)).toBe(true)
+    expect(canApproveView(false, [{ teamLead: ['x', me] }], me)).toBe(true)
+    expect(canApproveView(false, [{ pm: ['x'], teamLead: ['y'] }], me)).toBe(false)
+  })
 })

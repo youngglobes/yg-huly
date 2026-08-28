@@ -28,13 +28,13 @@
   import ygTimesheet, {
     type ProjectApprovers,
     type Timesheet,
-    type TimesheetApproval,
     type TimesheetDay,
     type TimesheetTask
   } from '@hcengineering/yg-timesheet'
   import { filterRows, type ReportFilter, type ReportRow } from '../utils/reports'
   import { exportReportXlsx } from '../utils/report-xlsx'
-  import { formatHours, localDayKey, weekRange } from '../utils/week'
+  import { formatHours, localDayKey, weekRange, withinDay } from '../utils/week'
+  import { asRefArray } from '../utils/workflow'
 
   const me = getCurrentEmployee()
   const client = getClient()
@@ -50,7 +50,7 @@
     isApprover = projects.some((p) => {
       if (!hierarchy.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) return false
       const a = hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
-      return a.pm === me || a.teamLead === me
+      return asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me)
     })
   })
   $: canApprove = isHRAdmin || isApprover
@@ -168,24 +168,25 @@
   // onto the other's row (payroll misattribution). Reuses `employeeNames` (above) for the approver's
   // display name.
   //
-  // Resolved with FLAT queries + a client-side join, NOT a deep nested $lookup. An earlier version
-  // used a 3-level $lookup (approval → task → day → timesheet) to reach the employee; that resolved
-  // only from the client cache in-session and came back UNRESOLVED on a fresh server query, so every
-  // approval was dropped and the columns showed blank on refresh + in the CSV export (2026-07-27).
-  // Four flat live queries (each in a world- or approver-readable space) feed one reactive join.
-  const approvalQuery = createQuery()
-  let approvalByTask = new Map<string, TimesheetApproval>() // TimesheetTask._id -> approval
-  approvalQuery.query(ygTimesheet.class.TimesheetApproval, {}, (res: TimesheetApproval[]) => {
-    const m = new Map<string, TimesheetApproval>()
-    for (const a of res) m.set(a.task as string, a)
-    approvalByTask = m
-  })
-
+  // approvedHours/approvedBy are read directly off TimesheetTask (denormalized there - see
+  // ygTimesheet.class.TimesheetApproval's doc comment): the separate TimesheetApproval doc lives in
+  // ygTimesheet.space.Approvals, which is not readable by the client, so an earlier version that
+  // queried it came back UNRESOLVED on a fresh server query and every approval was dropped, blanking
+  // the columns on refresh + in the CSV export (2026-07-27). Three flat live queries (each in a
+  // world-readable space) feed one reactive join.
   const taskInfoQuery = createQuery()
-  let taskInfo = new Map<string, { day: string, issue: string, date: number }>() // TimesheetTask._id
+  let taskInfo = new Map<string, { day: string, issue: string, date: number, approvedHours?: number, approvedBy?: string }>() // TimesheetTask._id
   taskInfoQuery.query(ygTimesheet.class.TimesheetTask, { status: 'Approved' }, (res: TimesheetTask[]) => {
-    const m = new Map<string, { day: string, issue: string, date: number }>()
-    for (const t of res) m.set(t._id, { day: t.attachedTo as string, issue: t.issue as string, date: t.date })
+    const m = new Map<string, { day: string, issue: string, date: number, approvedHours?: number, approvedBy?: string }>()
+    for (const t of res) {
+      m.set(t._id, {
+        day: t.attachedTo as string,
+        issue: t.issue as string,
+        date: t.date,
+        approvedHours: t.approvedHours,
+        approvedBy: t.approvedBy as string | undefined
+      })
+    }
     taskInfo = m
   })
 
@@ -205,18 +206,25 @@
     tsEmployee = m
   })
 
-  // Join the four maps: approval → task → day → timesheet → employee, keyed exactly like the row
-  // lookup below. Fail SAFE: an unresolved chain yields no key, so the columns come out blank rather
+  // Join the three maps: task → day → timesheet → employee, keyed exactly like the row lookup
+  // below. Fail SAFE: an unresolved chain yields no key, so the columns come out blank rather
   // than mis-attributed.
-  $: approvedByKey = ((): Map<string, TimesheetApproval> => {
-    const m = new Map<string, TimesheetApproval>()
-    for (const [taskId, a] of approvalByTask) {
-      const info = taskInfo.get(taskId)
-      if (info === undefined) continue
+  // Index approved tasks by employee|issue, each carrying the task's day-start instant. The row
+  // lookup below matches a report to its approval with an ABSOLUTE 24h window (withinDay), NOT a
+  // localDayKey string: task.date is stored as local-midnight, an instant that a non-IST viewer's
+  // browser bins onto the previous day, which silently blanked the Approved/Approved-by columns.
+  // Only tasks that actually have approvedHours are included.
+  $: approvedByEmpIssue = ((): Map<string, Array<{ start: number, approvedHours?: number, approvedBy?: string }>> => {
+    const m = new Map<string, Array<{ start: number, approvedHours?: number, approvedBy?: string }>>()
+    for (const info of taskInfo.values()) {
+      if (info.approvedHours == null) continue
       const tsId = dayTimesheet.get(info.day)
       const emp = tsId != null ? tsEmployee.get(tsId) : undefined
       if (emp == null) continue
-      m.set(`${emp}|${info.issue}|${localDayKey(info.date)}`, a)
+      const key = `${emp}|${info.issue}`
+      const arr = m.get(key) ?? []
+      arr.push({ start: info.date, approvedHours: info.approvedHours, approvedBy: info.approvedBy })
+      m.set(key, arr)
     }
     return m
   })()
@@ -230,7 +238,7 @@
     const date = r.date ?? 0
     const status = (issue?.status ?? '') as string
     const issueId = (issue?._id ?? r.attachedTo) as string
-    const approved = approvedByKey.get(`${employee}|${issueId}|${localDayKey(date)}`)
+    const approved = approvedByEmpIssue.get(`${employee}|${issueId}`)?.find((c) => withinDay(c.start, date))
     return {
       date,
       employee,
@@ -270,12 +278,26 @@
 
   $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
   // Newest work first; ties broken by employee then issue id — stable & predictable across pages.
-  $: rows = filterRows(allRows, filter).sort(
-    (a, b) =>
-      b.date - a.date ||
-      a.employeeName.localeCompare(b.employeeName) ||
-      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
-  )
+  $: rows = ((): ReportRow[] => {
+    const sorted = filterRows(allRows, filter).sort(
+      (a, b) =>
+        b.date - a.date ||
+        a.employeeName.localeCompare(b.employeeName) ||
+        a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+    )
+    // A task (employee+issue+day) has ONE approval but can span several TimeSpendReport rows (time
+    // logged in more than one sitting). Keep the approved hours/approver on the FIRST row of each task
+    // only and blank the rest, so the Approved column and its footer total sum the approval ONCE -
+    // matching the per-task figure the PM dashboard shows (this was double-counting split-logged tasks).
+    const seenTask = new Set<string>()
+    return sorted.map((r) => {
+      if (r.approvedHours == null) return r
+      const key = `${r.employee}|${r.issue}|${localDayKey(r.date)}`
+      if (seenTask.has(key)) return { ...r, approvedHours: undefined, approvedByName: undefined }
+      seenTask.add(key)
+      return r
+    })
+  })()
   $: totalSpent = rows.reduce((s, r) => s + r.hours, 0)
   $: totalApproved = rows.reduce((s, r) => s + (r.approvedHours ?? 0), 0)
 

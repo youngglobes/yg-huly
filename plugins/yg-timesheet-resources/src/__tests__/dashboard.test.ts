@@ -1,6 +1,7 @@
 import {
   greetingFor, isOpen, inProgressIssues, overdueIssues, dueSoonIssues,
   statusBuckets, openStatusNames, openStatusTotals, hoursByProject, projectStats, portfolioHours, teamWorkload, priorityWatch, computeKpis, todayStart, assignedTo,
+  resolveDashboardRole,
   type DashIssue, type DashTime, type DashProject
 } from '../utils/dashboard'
 
@@ -77,8 +78,12 @@ describe('projectStats', () => {
   ]
   it('rolls up counts, per-status breakdown, hours, members, estimated and spent', () => {
     expect(projectStats(issues, times, projects)).toEqual([
-      { project: 'p1', name: 'Alpha', open: 2, inProgress: 1, done: 1, byStatus: { 'In Progress': 1, Todo: 1 }, hours: 3, members: 2, estimated: 8, spent: 7 }
+      { project: 'p1', name: 'Alpha', open: 2, inProgress: 1, done: 1, byStatus: { 'In Progress': 1, Todo: 1 }, hours: 3, approvedHours: 0, members: 2, estimated: 8, spent: 7 }
     ])
+  })
+  it('applies approvedByProject as the period-scoped approved hours', () => {
+    expect(projectStats(issues, times, projects, new Map([['p1', 5.5]]))[0].approvedHours).toBe(5.5)
+    expect(projectStats(issues, times, projects)[0].approvedHours).toBe(0) // default: no approvals tracked
   })
 })
 
@@ -102,8 +107,8 @@ describe('open status breakdown (real status names, open only)', () => {
 describe('portfolioHours', () => {
   it('sums estimated and spent across projects', () => {
     const stats = [
-      { project: 'p1', name: 'A', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, members: 0, estimated: 8, spent: 7 },
-      { project: 'p2', name: 'B', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, members: 0, estimated: 4.5, spent: 2 }
+      { project: 'p1', name: 'A', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, approvedHours: 0, members: 0, estimated: 8, spent: 7 },
+      { project: 'p2', name: 'B', open: 0, inProgress: 0, done: 0, byStatus: {}, hours: 0, approvedHours: 0, members: 0, estimated: 4.5, spent: 2 }
     ]
     expect(portfolioHours(stats)).toEqual({ estimated: 12.5, spent: 9 })
   })
@@ -125,6 +130,11 @@ describe('teamWorkload', () => {
     expect(teamWorkload(issues, times)).toEqual([
       { employee: 'e1', hours: 3, open: 2 },
       { employee: 'e2', hours: 1.5, open: 0 }
+    ])
+  })
+  it('excludes members in the exclude set (project PMs + deactivated), even with issues/time', () => {
+    expect(teamWorkload(issues, times, new Set(['e2']))).toEqual([
+      { employee: 'e1', hours: 3, open: 2 }
     ])
   })
 })
@@ -163,5 +173,41 @@ describe('assignedTo', () => {
   })
   it('empty when none match', () => {
     expect(assignedTo(issues, 'zzz')).toEqual([])
+  })
+})
+
+describe('resolveDashboardRole', () => {
+  const base = { designation: undefined, isAdmin: false, isPmApprover: false, isTlApprover: false, isHr: false }
+
+  it('admin is always org (all projects + HR), even with a manager designation', () => {
+    expect(resolveDashboardRole({ ...base, isAdmin: true })).toBe('org')
+    expect(resolveDashboardRole({ ...base, isAdmin: true, designation: 'Team Leader' })).toBe('org')
+    expect(resolveDashboardRole({ ...base, isAdmin: true, designation: 'Project Manager' })).toBe('org')
+  })
+
+  it('designation Team Leader -> teamLead, even without a teamLead assignment', () => {
+    expect(resolveDashboardRole({ ...base, designation: 'Team Leader' })).toBe('teamLead')
+    expect(resolveDashboardRole({ ...base, designation: 'Team Leader', isPmApprover: true })).toBe('teamLead')
+  })
+
+  it('designation Project Manager -> pm, even when configured as a teamLead', () => {
+    expect(resolveDashboardRole({ ...base, designation: 'Project Manager' })).toBe('pm')
+    expect(resolveDashboardRole({ ...base, designation: 'Project Manager', isTlApprover: true })).toBe('pm')
+  })
+
+  it('non-manager designation falls through to the approver check', () => {
+    expect(resolveDashboardRole({ ...base, designation: 'Software Test Engineer', isTlApprover: true })).toBe('teamLead')
+    expect(resolveDashboardRole({ ...base, designation: 'Software Test Engineer' })).toBe('employee')
+  })
+
+  it('fallback: pm-approver -> pm; teamLead-approver -> teamLead; both -> pm (pm wins)', () => {
+    expect(resolveDashboardRole({ ...base, isPmApprover: true })).toBe('pm')
+    expect(resolveDashboardRole({ ...base, isTlApprover: true })).toBe('teamLead')
+    expect(resolveDashboardRole({ ...base, isPmApprover: true, isTlApprover: true })).toBe('pm')
+  })
+
+  it('no manager role: hr -> hr, otherwise employee', () => {
+    expect(resolveDashboardRole({ ...base, isHr: true })).toBe('hr')
+    expect(resolveDashboardRole({ ...base })).toBe('employee')
   })
 })

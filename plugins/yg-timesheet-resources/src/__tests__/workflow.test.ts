@@ -1,5 +1,5 @@
 import {
-  legalTransition, resolveApprovers, buildSnapshot, canApprove, canEditApproved, driftHours,
+  legalTransition, resolveApprovers, buildSnapshot, canApprove, canEditApproved,
   type DayReportLike, type ProjectApproverLike
 } from '../utils/workflow'
 
@@ -27,6 +27,14 @@ describe('resolveApprovers', () => {
   it('drops the employee even if they are an approver (no self-approve)', () => {
     const got = resolveApprovers([rep('P1', 'i1', 2)], new Map([['P1', { pm: 'A', teamLead: 'B' }]]), 'A')
     expect(got).toEqual(['B'])
+  })
+  it('resolveApprovers unions multiple PMs and TLs, minus the employee', () => {
+    const got = resolveApprovers(
+      [rep('P1', 'i1', 2)],
+      new Map([['P1', { pm: ['A', 'D'], teamLead: ['B'] }]]),
+      'A'
+    )
+    expect(got.sort()).toEqual(['B', 'D']) // A removed (self), D + B remain
   })
   it('returns empty when no project has approvers', () => {
     expect(resolveApprovers([rep('PX', 'i1', 2)], new Map(), 'A')).toEqual([])
@@ -56,8 +64,4 @@ describe('canEditApproved', () => {
     expect(canEditApproved('B', 'C', true)).toBe(true)
     expect(canEditApproved(undefined, 'C', false)).toBe(false)
   })
-})
-
-describe('driftHours', () => {
-  it('reports live-minus-snapshot rounded to 2dp', () => { expect(driftHours(8, 8.5)).toBe(0.5); expect(driftHours(8, 8)).toBe(0) })
 })

@@ -13,13 +13,14 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { getCurrentEmployee } from '@hcengineering/contact'
+  import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import core, { type Ref } from '@hcengineering/core'
   import { type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { Label, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI } from '@hcengineering/ui'
-  import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask } from '@hcengineering/yg-timesheet'
+  import { Label, IconForward, IconBack, addNotification, NotificationSeverity, getPanelURI, showPopup } from '@hcengineering/ui'
+  import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type TimesheetRejectCycle } from '@hcengineering/yg-timesheet'
+  import { cycleKey, groupCycles, closedCycles, openCycle } from '../utils/reject-cycle'
   import { weekRange, groupByDay, formatHours, localDayKey, type ReportLike, type DayGroup } from '../utils/week'
   import {
     submitDay,
@@ -33,6 +34,7 @@
   import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
   import { ensureHrMembership } from '../utils/hrMembership'
   import SubmitErrorNotification from './SubmitErrorNotification.svelte'
+  import ResubmitDayPopup from './ResubmitDayPopup.svelte'
 
   // Owner bootstrap (fallback to Dashboard's call): self-add an Owner to HrData so the server
   // un-hides the HR app for them and they can reach the roster editor. No-op for non-owners.
@@ -162,6 +164,71 @@
     }
   )
 
+  //
+  // The employee's own rejection history for the visible week (backlog item 2, employee side).
+  // Scoped to `me` and the week window so it stays small.
+  //
+  const cycleQuery = createQuery()
+  let cycles: TimesheetRejectCycle[] = []
+  $: cycleQuery.query(
+    ygTimesheet.class.TimesheetRejectCycle,
+    { employee: me, date: { $gte: week.start, $lt: week.end } },
+    (res: TimesheetRejectCycle[]) => {
+      cycles = res
+    }
+  )
+  $: cyclesByKey = groupCycles(cycles)
+
+  // Approver display names, for attributing the open round. Same idiom as Approvals.svelte.
+  const empNameQuery = createQuery()
+  let approverNames: Map<string, string> = new Map()
+  empNameQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
+    const m = new Map<string, string>()
+    for (const e of res) m.set(e._id, formatName(e.name))
+    approverNames = m
+  })
+
+  /**
+   * Rounds for a task, oldest first.
+   *
+   * `byKey` is a PARAMETER, not read from the closure, and callers in the template MUST pass
+   * `cyclesByKey` explicitly. Svelte derives a template expression's dependencies from the
+   * identifiers it REFERENCES; state read inside a function body is invisible to the compiler.
+   * When this read cyclesByKey from the closure, the {#each} never re-rendered as the cycles
+   * live-query resolved, so the history vanished on every cold load and reappeared only when some
+   * unrelated change forced a redraw (found 2026-08-06).
+   */
+  function cyclesFor (
+    task: TimesheetTask, byKey: Map<string, TimesheetRejectCycle[]>
+  ): TimesheetRejectCycle[] {
+    return byKey.get(cycleKey(me, task.issue, task.date)) ?? []
+  }
+
+  /**
+   * Who rejected the current open round, formatted for display. Empty when unattributed.
+   * Both maps are parameters for the same reactivity reason as cyclesFor above. The TEMPLATE does
+   * not call this: it derives the name from the already-reactive `open` const instead. This exists
+   * for the imperative call in onSubmit, which runs at click time and needs a one-shot value.
+   */
+  function rejectedByName (
+    task: TimesheetTask,
+    byKey: Map<string, TimesheetRejectCycle[]>,
+    names: Map<string, string>
+  ): string {
+    const open = openCycle(cyclesFor(task, byKey))
+    if (open?.rejectedBy == null) return ''
+    return names.get(open.rejectedBy) ?? ''
+  }
+
+  let expanded = new Set<string>()
+  function toggle (id: string): void {
+    if (expanded.has(id)) expanded.delete(id)
+    else expanded.add(id)
+    expanded = expanded
+  }
+
+  const agoFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+
   function statusString (s: DerivedDayStatus): IntlString {
     switch (s) {
       case 'Submitted':
@@ -194,6 +261,20 @@
     }
   }
 
+  // Multi-click guard: day keys whose submit is currently in flight. A slow submitDay used to let a
+  // second click fire duplicate submissions/approvals; the button below is disabled + shows "Submitting"
+  // while its day is in this set.
+  let submitting = new Set<string>()
+  async function onSubmitGuarded (day: DayGroup): Promise<void> {
+    if (submitting.has(day.key)) return
+    submitting = new Set(submitting).add(day.key)
+    try {
+      await onSubmit(day)
+    } finally {
+      submitting = new Set([...submitting].filter((k) => k !== day.key))
+    }
+  }
+
   async function onSubmit (day: DayGroup): Promise<void> {
     const reports = reportsByKey.get(day.key) ?? []
     // Block the whole submit until every task's issue has an estimation (user decision 2026-07-29).
@@ -208,7 +289,49 @@
       )
       return
     }
-    const res = await submitDay(client, { employee: me, date: day.date, reports, approversByProject })
+    // Backlog item 4: a day whose derived status is Rejected collects one optional reply per
+    // rejected task before it goes back. deriveDayStatus returns 'Rejected' iff at least one task
+    // is rejected, and the Submit button only renders for Draft or Rejected, so this single check
+    // is sufficient. The Draft path is untouched: no dialog, zero added friction.
+    const dayTasksNow = tasksByKey.get(day.key) ?? []
+    const isResubmit = deriveDayStatus(dayTasksNow.map((t) => t.status)) === 'Rejected'
+    let resubmitNotes: Map<string, string> | undefined
+    if (isResubmit) {
+      const rows = dayTasksNow
+        .filter((t) => t.status === 'Rejected')
+        .filter((t) => reports.some((r) => r.issue === t.issue))
+        .map((t) => ({
+          issue: t.issue as string,
+          identifier: t.identifier,
+          title: t.title,
+          hours: formatHours(t.submittedHours),
+          reason: t.rejectReason ?? '',
+          rejectedBy: rejectedByName(t, cyclesByKey, approverNames)
+        }))
+      if (rows.length > 0) {
+        const answered = await new Promise<Map<string, string> | undefined>((resolve) => {
+          showPopup(
+            ResubmitDayPopup,
+            { dayLabel: weekdayLongFmt.format(day.date), rows },
+            undefined,
+            (out?: { notes: Map<string, string> }) => {
+              resolve(out?.notes)
+            }
+          )
+        })
+        // Cancel (undefined) aborts the resubmit entirely; an empty map means "no replies, proceed".
+        if (answered === undefined) return
+        resubmitNotes = answered
+      }
+    }
+
+    const res = await submitDay(client, {
+      employee: me,
+      date: day.date,
+      reports,
+      approversByProject,
+      resubmitNotes: resubmitNotes as Map<Ref<Issue>, string> | undefined
+    })
     if (typeof res === 'object' && 'kind' in res && res.kind === NO_APPROVER) {
       // No inline error element (#2): surface the block as a toast instead of breaking the day card.
       const projects = res.projects.map((p) => projectNames.get(p) ?? p).join(', ')
@@ -218,6 +341,14 @@
         SubmitErrorNotification,
         undefined,
         NotificationSeverity.Error
+      )
+    } else {
+      addNotification(
+        isResubmit ? 'Resubmitted for approval' : `Submitted ${weekdayLongFmt.format(day.date)}`,
+        isResubmit ? 'Your reply and hours were sent back for re-approval.' : 'Your timesheet was sent to the approver.',
+        SubmitErrorNotification,
+        undefined,
+        NotificationSeverity.Success
       )
     }
   }
@@ -265,7 +396,6 @@
       {@const dayTasks = tasksByKey.get(day.key) ?? []}
       {@const status = deriveDayStatus(dayTasks.map((t) => t.status))}
       {@const hasTasks = day.issues.length > 0}
-      {@const rejectedTask = dayTasks.find((t) => t.status === 'Rejected' && (t.rejectReason ?? '') !== '')}
       <div
         class="day {railClass(status)}"
         class:has-tasks={hasTasks}
@@ -284,8 +414,12 @@
           <span class="yg-pill yg-pill--{status.toLowerCase()}"><Label label={statusString(status)} /></span>
           <span class="day__hours" class:zero={day.total === 0}>{formatHours(day.total)}</span>
           {#if (status === 'Draft' || status === 'Rejected') && hasTasks}
-            <button class="yg-btn yg-btn--primary" on:click={() => onSubmit(day)}>
-              <Label label={ygTimesheet.string.Submit} />
+            <button class="yg-btn yg-btn--primary" on:click={() => onSubmitGuarded(day)} disabled={submitting.has(day.key)}>
+              {#if submitting.has(day.key)}
+                Submitting...
+              {:else}
+                <Label label={status === 'Rejected' ? ygTimesheet.string.Resubmit : ygTimesheet.string.Submit} />
+              {/if}
             </button>
           {:else if status === 'Submitted'}
             <button class="yg-btn yg-btn--ghost" on:click={() => onRecall(day)}>
@@ -297,6 +431,10 @@
           <div class="tasks">
             {#each day.issues as it (it.issueId)}
               {@const task = dayTasks.find((t) => t.issue === it.issueId)}
+              {@const rounds = task !== undefined ? cyclesFor(task, cyclesByKey) : []}
+              {@const open = openCycle(rounds)}
+              {@const past = closedCycles(rounds)}
+              {@const rejectedBy = open?.rejectedBy != null ? (approverNames.get(open.rejectedBy) ?? '') : ''}
               <div class="task">
                 <span class="yg-idbadge">{it.identifier}</span>
                 <a
@@ -314,13 +452,34 @@
                   </span>
                 {/if}
               </div>
+              {#if task !== undefined && task.status === 'Rejected' && (task.rejectReason ?? '') !== ''}
+                <div class="reason">
+                  <div class="reason__text">⤷ "{task.rejectReason}"</div>
+                  <div class="reason__meta">
+                    {#if open !== undefined}
+                      <span>
+                        {#if rejectedBy !== ''}{rejectedBy}, {/if}{agoFmt.format(open.rejectedOn)}
+                      </span>
+                    {/if}
+                    {#if past.length > 0}
+                      <button class="reason__more" on:click={() => toggle(task._id)}>
+                        rejected {past.length + 1}x {expanded.has(task._id) ? '▴' : '▾'}
+                      </button>
+                    {/if}
+                  </div>
+                  {#if past.length > 0 && expanded.has(task._id)}
+                    {#each past as round, ri (round._id)}
+                      <div class="reason__round">
+                        <b>round {ri + 1}:</b> "{round.rejectReason}"
+                        {#if (round.resubmitNote ?? '') !== ''}
+                          <span class="reason__reply">you replied: "{round.resubmitNote}"</span>
+                        {/if}
+                      </div>
+                    {/each}
+                  {/if}
+                </div>
+              {/if}
             {/each}
-          </div>
-        {/if}
-        {#if rejectedTask !== undefined}
-          <div class="reason">
-            <b>Rejected: "{rejectedTask.rejectReason}."</b>
-            <span class="fix">Open the task, fix it, then resubmit the day.</span>
           </div>
         {/if}
       </div>
@@ -475,19 +634,39 @@
   .task__title:hover .go { color: var(--yg-text); transform: translate(1px, -1px); }
   .task__hrs { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--yg-text-dim); min-width: 40px; text-align: right; }
 
-  // Rejected-day reason callout, from the mockup's `.reason`.
+  // Rejection reason, now rendered PER REJECTED TASK rather than once per day. The old day-level
+  // callout showed only the first rejected task's reason, so a second rejected task in the same day
+  // silently lost its reason (backlog item 2). Indented to sit under its task row.
   .reason {
     display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    margin: 0 18px 14px 20px;
-    padding: 10px 12px;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0 18px 10px 20px;
+    padding: 8px 12px;
     background: var(--yg-red-bg);
     border: 1px solid var(--yg-red-line);
     border-radius: 9px;
-    font-size: 13px;
     color: var(--yg-text);
   }
-  .reason b { font-weight: 650; }
-  .reason .fix { color: var(--yg-text-dim); }
+  .reason__text { font-size: 13px; }
+  .reason__meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--yg-text-faint);
+  }
+  .reason__more {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--yg-text-faint);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .reason__more:hover { color: var(--yg-text-dim); }
+  .reason__round { font-size: 12.5px; color: var(--yg-text-dim); padding-left: 10px; }
+  .reason__round b { font-weight: 650; }
+  .reason__reply { color: var(--yg-text-faint); }
 </style>

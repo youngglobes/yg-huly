@@ -3,10 +3,12 @@
   import { Class, IdMap, Ref, Status } from '@hcengineering/core'
   import { IntlString } from '@hcengineering/platform'
   import { DocPopup, getClient } from '@hcengineering/presentation'
-  import { Task, TaskType } from '@hcengineering/task'
+  import task, { Task, TaskType } from '@hcengineering/task'
+  import { addNotification, NotificationSeverity } from '@hcengineering/ui'
   import { getObjectId, ObjectPresenter, statusStore } from '@hcengineering/view-resources'
   import { createEventDispatcher } from 'svelte'
   import { taskTypeStore } from '..'
+  import EstimateBlockedToast from './EstimateBlockedToast.svelte'
 
   export let value: Task | Task[]
   export let width: 'medium' | 'large' | 'full' = 'medium'
@@ -25,8 +27,33 @@
     progress = true
     const docs = Array.isArray(value) ? value : [value]
 
+    // Estimate gate (backlog #1): the same feedback the details-page dropdown gives, for the shared
+    // Set-Status action (context menu / bulk / keybinding, list AND board). task-resources is upstream
+    // of tracker, so this uses a structural `estimation` check rather than a tracker.class.Issue ref.
+    const cat = $statusStore.byId.get(newStatus)?.category
+    const blocked = (d: Task): boolean =>
+      d.status !== newStatus &&
+      cat === task.statusCategory.Active &&
+      'estimation' in d &&
+      ((d as any).estimation ?? 0) <= 0
+    const blockedDocs = docs.filter(blocked)
+    if (blockedDocs.length > 0) {
+      const ids = blockedDocs
+        .map((d) => (d as any).identifier as string | undefined)
+        .filter((s): s is string => s != null && s !== '')
+      addNotification(
+        'Set an estimate first',
+        ids.length > 0
+          ? `Add an estimate to ${ids.join(', ')} before moving it to a started status.`
+          : 'Add an estimate before moving it to a started status.',
+        EstimateBlockedToast,
+        undefined,
+        NotificationSeverity.Error
+      )
+    }
+
     const ops = client.apply(undefined, 'set-status')
-    const changed = (d: Task) => d.status !== newStatus
+    const changed = (d: Task) => d.status !== newStatus && !blocked(d)
     for (const it of docs.filter(changed)) {
       await ops.update(it, { status: newStatus })
     }

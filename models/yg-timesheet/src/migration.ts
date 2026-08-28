@@ -12,9 +12,9 @@ import core from '@hcengineering/model-core'
 import workbench from '@hcengineering/model-workbench'
 import hr from '@hcengineering/hr'
 import tracker from '@hcengineering/tracker'
-import type { Employee } from '@hcengineering/contact'
+import contact, { type Employee } from '@hcengineering/contact'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
-import ygTimesheet, { ygTimesheetId, type TimesheetDay } from '@hcengineering/yg-timesheet'
+import ygTimesheet, { ygTimesheetId, type Timesheet, type TimesheetDay, type WorkDesignation } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
@@ -74,6 +74,32 @@ async function createApprovalsSpace (tx: TxOperations): Promise<void> {
 // workspace whose Approvals space predates that.
 async function openApprovalsSpaceRaw (client: MigrationClient): Promise<void> {
   await client.update(DOMAIN_SPACE, { _id: ygTimesheet.space.Approvals, private: true }, { private: false })
+}
+
+// Convert the ProjectApprovers mixin's pm/teamLead from the legacy single Ref to Ref[]. Runs in
+// the `migrate` phase (raw domain write, like migrateDaysToTasks). Idempotent: only rewrites a
+// field that is still a scalar/null, leaves already-array values untouched. Projects with no
+// approver mixin have neither field, so they are skipped.
+//
+// Mixin data lives NESTED under the mixin's own key in the domain doc (same precedent as
+// models/contact/src/migration.ts), not flat on the document, so both the read and the write
+// go through ygTimesheet.mixin.ProjectApprovers.
+async function migrateApproversToArrays (client: MigrationClient): Promise<void> {
+  const mixinKey = ygTimesheet.mixin.ProjectApprovers
+  const projects = await client.find<Project>(DOMAIN_SPACE, { _class: tracker.class.Project })
+  for (const p of projects) {
+    const m = (p as unknown as Record<string, { pm?: unknown, teamLead?: unknown }>)[mixinKey]
+    if (m == null) continue // no approvers mixin on this project
+    const upd: Record<string, Ref<Employee>[]> = {}
+    for (const key of ['pm', 'teamLead'] as const) {
+      const v = m[key]
+      if (v === undefined || Array.isArray(v)) continue // absent or already migrated
+      upd[key] = v == null || v === '' ? [] : [v as Ref<Employee>]
+    }
+    if (Object.keys(upd).length > 0) {
+      await client.update(DOMAIN_SPACE, { _id: p._id }, { [mixinKey]: { ...m, ...upd } })
+    }
+  }
 }
 
 // Hide Huly's built-in HR app so there is one HR menu (ours). Best-effort: an existing app doc can
@@ -244,12 +270,95 @@ async function backfillHrTimeEntries (client: MigrationUpgradeClient): Promise<v
   }
 }
 
+// Backfill one TimesheetRejectCycle per EXISTING rejected task. rejectTask only records cycles for
+// rejections made AFTER this ships, so without this every pre-existing rejected task displays as
+// never-rejected. Mirrors rejectTask's field mapping, with two unavoidable gaps:
+//  - rejectedBy is left unset: the task never stored who rejected it, so it is not recoverable.
+//  - rejectedOn falls back to the task's submittedOn (then to its date) as the closest available
+//    approximation of when the rejection happened.
+// The row is left OPEN (no resubmittedOn) because a rejected task is by definition not resubmitted.
+// Idempotent: skips any (employee, issue, date) that already has a cycle, so it is safe to re-run.
+async function backfillRejectCycles (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const tasks = await ops.findAll(ygTimesheet.class.TimesheetTask, { status: 'Rejected' })
+  if (tasks.length === 0) return
+
+  const have = new Set(
+    (await ops.findAll(ygTimesheet.class.TimesheetRejectCycle, {})).map(
+      (c) => `${c.employee}|${c.issue}|${c.date}`
+    )
+  )
+  // Resolve each task's employee via day -> timesheet, pre-loading both levels once.
+  const dayById = new Map((await ops.findAll(ygTimesheet.class.TimesheetDay, {})).map((d) => [d._id, d]))
+  const sheetById = new Map((await ops.findAll(ygTimesheet.class.Timesheet, {})).map((s) => [s._id, s]))
+
+  for (const task of tasks) {
+    const reason = task.rejectReason ?? ''
+    if (reason === '') continue // nothing to show; not worth a row
+    const day = dayById.get(task.attachedTo as Ref<TimesheetDay>)
+    const sheet = day !== undefined ? sheetById.get(day.attachedTo as Ref<Timesheet>) : undefined
+    const employee = sheet?.employee
+    if (employee == null) continue // cannot key it; skip rather than mis-attribute
+    if (have.has(`${employee}|${task.issue}|${task.date}`)) continue // idempotent
+    await ops.createDoc(ygTimesheet.class.TimesheetRejectCycle, core.space.Workspace, {
+      employee,
+      issue: task.issue,
+      date: task.date,
+      rejectReason: reason,
+      rejectedOn: task.submittedOn ?? task.date
+    })
+    have.add(`${employee}|${task.issue}|${task.date}`)
+  }
+}
+
+// Map the retired WorkProfile.category to the new designation so the Performance report keeps its
+// tracked roster after the Category -> Designation change. HR fine-tunes exact titles afterward.
+// junior-dev/senior-dev/salesforce map to tracked titles; sales maps to an untracked title; 'other'
+// (and any unknown) is left unset. Idempotent: skips any profile that already has a designation.
+const CATEGORY_TO_DESIGNATION: Record<string, WorkDesignation> = {
+  'junior-dev': 'Associate Software Engineer',
+  'senior-dev': 'Senior Software Engineer',
+  salesforce: 'Salesforce Developer',
+  sales: 'Business Development Executive'
+}
+
+// Denormalize existing TimesheetApproval (approvedHours/approvedBy/approvedOn) onto their TimesheetTask
+// so Reports/dashboard read approval data off the task (the Approvals space is not client-readable).
+// Idempotent: skips tasks that already have approvedHours. Uses updateDoc via TxOperations.
+async function backfillTaskApproval (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const approvals = await ops.findAll(ygTimesheet.class.TimesheetApproval, {})
+  for (const a of approvals) {
+    const task = await ops.findOne(ygTimesheet.class.TimesheetTask, { _id: a.task })
+    if (task === undefined || task.approvedHours !== undefined) continue // idempotent
+    await ops.updateDoc(ygTimesheet.class.TimesheetTask, task.space, task._id, {
+      approvedHours: a.approvedHours,
+      approvedBy: a.approvedBy,
+      approvedOn: a.approvedOn
+    })
+  }
+}
+
+async function migrateWorkProfileDesignation (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const profiles = await ops.findAll(ygTimesheet.mixin.WorkProfile, {})
+  for (const p of profiles) {
+    if (p.designation !== undefined) continue // idempotent
+    const oldCat = (p as unknown as { category?: string }).category
+    if (oldCat === undefined) continue
+    const designation = CATEGORY_TO_DESIGNATION[oldCat]
+    if (designation === undefined) continue // 'other' / unknown -> leave unset
+    await ops.updateMixin(p._id, contact.mixin.Employee, p.space, ygTimesheet.mixin.WorkProfile, { designation })
+  }
+}
+
 export const ygTimesheetOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode): Promise<void> {
     await migrateDaysToTasks(client)
     // Raw flip of an existing private Approvals space -> public (see openApprovalsSpaceRaw for why
     // this is here and not an upgrade-phase updateDoc). Cheap + idempotent, safe every run.
     await openApprovalsSpaceRaw(client)
+    await migrateApproversToArrays(client)
   },
   async upgrade (state: Map<string, Set<string>>, client: () => Promise<MigrationUpgradeClient>, mode): Promise<void> {
     await tryUpgrade(mode, state, client, ygTimesheetId, [
@@ -304,6 +413,26 @@ export const ygTimesheetOperation: MigrateOperation = {
           const ops = new TxOperations(client, core.account.System)
           await setHrAppIcon(ops)
         }
+      },
+      {
+        // One-shot backfill of rejection history for tasks rejected before the reject-cycle feature
+        // shipped. Last in the array: it depends only on TimesheetTask rows, which all earlier
+        // states leave alone.
+        state: 'reject-cycle-backfill-0001',
+        func: backfillRejectCycles
+      },
+      {
+        // Backfill WorkProfile.designation from the retired category so the Performance report stays
+        // populated after the Category -> Designation change. Idempotent (skips set designations).
+        state: 'workprofile-designation-0001',
+        func: migrateWorkProfileDesignation
+      },
+      {
+        // Backfill approvedHours/approvedBy/approvedOn onto TimesheetTask from existing
+        // TimesheetApproval rows, so Reports/dashboard (which cannot read the Approvals space)
+        // show approval data for tasks approved before this denormalization shipped.
+        state: 'task-approval-denorm-0001',
+        func: backfillTaskApproval
       }
     ])
   }

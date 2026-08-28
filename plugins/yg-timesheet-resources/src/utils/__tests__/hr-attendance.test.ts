@@ -45,7 +45,7 @@ describe('todayBoard', () => {
     expect(a.lastOut).toBe(at(29, 14))
     expect(a.sessions).toBe(2)
     expect(a.totalMs).toBe(3 * HOUR)
-    expect(a.mode).toBe('wfh') // most recent session's mode
+    expect(a.mode).toBe('partial') // office + wfh sessions today -> mixed day category
   })
   test('an open session -> status in, lastOut undefined, total counts live to now', () => {
     const rows = todayBoard([open(bob, 29, 14, 'wfh')], employees, mid(29), now)
@@ -106,5 +106,24 @@ describe('individualLog', () => {
       [s(alice, 27, 13, 14), s(alice, 27, 9, 10)], alice, mid(27), mid(30), now
     )
     expect(log.days[0].sessions.map((x) => x.punchIn)).toEqual([at(27, 9), at(27, 13)])
+  })
+  test('capture fields (device/browser/ip/ipCity/geo) pass through untouched, per session', () => {
+    const withCapture: SessionLike = {
+      ...s(alice, 27, 9, 11, 'office'),
+      device: 'iPhone',
+      browser: 'Safari',
+      ip: '203.0.113.7',
+      ipCity: 'Chennai, TN, IN',
+      geoLat: 13.0827,
+      geoLng: 80.2707
+    }
+    const log = individualLog([withCapture], alice, mid(27), mid(30), now)
+    const row = log.days[0].sessions[0]
+    expect(row.device).toBe('iPhone')
+    expect(row.browser).toBe('Safari')
+    expect(row.ip).toBe('203.0.113.7')
+    expect(row.ipCity).toBe('Chennai, TN, IN')
+    expect(row.geoLat).toBe(13.0827)
+    expect(row.geoLng).toBe(80.2707)
   })
 })

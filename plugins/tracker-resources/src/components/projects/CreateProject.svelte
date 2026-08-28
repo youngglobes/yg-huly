@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import { Analytics } from '@hcengineering/analytics'
+  import { getClient as getAccountClient } from '@hcengineering/account-client'
   import { Employee } from '@hcengineering/contact'
   import {
     AccountArrayEditor,
@@ -36,7 +37,8 @@
     notEmpty,
     setWorkspaceGuestAutoJoinRoles
   } from '@hcengineering/core'
-  import { Asset } from '@hcengineering/platform'
+  import login from '@hcengineering/login'
+  import { Asset, getMetadata } from '@hcengineering/platform'
   import presentation, { IconWithEmoji, Card, createQuery, getClient } from '@hcengineering/presentation'
   import task, { ProjectType, TaskType } from '@hcengineering/task'
   import { taskTypeStore, typeStore } from '@hcengineering/task-resources'
@@ -56,7 +58,7 @@
   import view from '@hcengineering/view'
   import { IconPicker } from '@hcengineering/view-resources'
   import { deepEqual } from 'fast-equals'
-  import { createEventDispatcher } from 'svelte'
+  import { createEventDispatcher, onMount } from 'svelte'
 
   import tracker from '../../plugin'
   import StatusSelector from '../issues/StatusSelector.svelte'
@@ -71,7 +73,8 @@
 
   let name: string = project?.name ?? namePlaceholder
   let description: string = project?.description ?? descriptionPlaceholder
-  let isPrivate: boolean = project?.private ?? false
+  // YG fork: new projects default to Private (existing projects keep their stored value).
+  let isPrivate: boolean = project?.private ?? true
   let icon: Asset | undefined = project?.icon ?? tracker.icon.Home
   let color = project?.color ?? getColorNumberByText(name)
   let isColorSelected = false
@@ -80,6 +83,25 @@
     project?.members !== undefined ? hierarchy.clone(project.members) : [getCurrentAccount().uuid]
   let owners: AccountUuid[] =
     project?.owners !== undefined ? hierarchy.clone(project.owners) : [getCurrentAccount().uuid]
+
+  // YG fork (#14): new projects default `members` to include every workspace Owner, so Owners can
+  // see/act on private projects without being explicitly invited. `owners` (project admin rights)
+  // is untouched - only membership (private-space visibility) is granted here. Existing projects
+  // (editing) are never touched.
+  if (project === undefined) {
+    onMount(async () => {
+      try {
+        const accountsUrl = getMetadata(login.metadata.AccountsUrl)
+        const token = getMetadata(presentation.metadata.Token)
+        const ownerUuids = (await getAccountClient(accountsUrl, token).getWorkspaceMembers())
+          .filter((m) => m.role === AccountRole.Owner)
+          .map((m) => m.person)
+        members = Array.from(new Set([...members, ...ownerUuids]))
+      } catch (e: any) {
+        Analytics.handleError(e)
+      }
+    })
+  }
   let projectsIdentifiers = new Set<string>()
   let isSaving = false
   let defaultStatus: Ref<IssueStatus> | undefined = project?.defaultIssueStatus
