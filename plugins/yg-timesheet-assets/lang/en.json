@@ -186,6 +186,8 @@
     "RejectLate": "Reject",
     "MinutesLate": "min late",
     "NoLatePermissions": "No late permissions in this view.",
+    "HrReason": "HR reason",
+    "HrReasonPlaceholder": "Optional note for the employee",
     "LatePermissionsIntro": "Late punch-ins awaiting HR review.",
     "Reason": "Reason",
     "Details": "Details",

@@ -196,6 +196,7 @@ export interface LatePermission extends Doc {
   approvedBy?: Ref<Employee>
   approvedOn?: Timestamp
   rejectReason?: string
+  approveReason?: string
 }
 
 /** Org-wide punch-reminder settings. Singleton (zero or one doc); code falls back to defaults when absent. */
@@ -455,6 +456,8 @@ export default plugin(ygTimesheetId, {
     RejectLate: '' as IntlString,
     MinutesLate: '' as IntlString,
     NoLatePermissions: '' as IntlString,
+    HrReason: '' as IntlString,
+    HrReasonPlaceholder: '' as IntlString,
     LatePermissionsIntro: '' as IntlString,
     Reason: '' as IntlString,
     Details: '' as IntlString,

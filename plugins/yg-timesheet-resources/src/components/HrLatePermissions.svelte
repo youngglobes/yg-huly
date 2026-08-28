@@ -24,7 +24,7 @@
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import ygTimesheet, { isHrDesignation, type LatePermission, type WorkDesignation } from '@hcengineering/yg-timesheet'
   import { approveLatePermission, rejectLatePermission } from '../utils/attendance-write'
-  import RejectLatePopup from './RejectLatePopup.svelte'
+  import LateDecisionPopup from './LateDecisionPopup.svelte'
 
   const client = getClient()
 
@@ -54,13 +54,22 @@
   })
 
   function onApprove (r: LatePermission): void {
-    void approveLatePermission(client, r._id)
+    showPopup(LateDecisionPopup, { approve: true }, undefined, (res?: { reason: string }) => {
+      if (res !== undefined) void approveLatePermission(client, r._id, res.reason)
+    })
   }
 
   function onReject (r: LatePermission): void {
-    showPopup(RejectLatePopup, {}, undefined, (res?: { reason: string }) => {
+    showPopup(LateDecisionPopup, { approve: false }, undefined, (res?: { reason: string }) => {
       if (res !== undefined) void rejectLatePermission(client, r._id, res.reason)
     })
+  }
+
+  // The HR reason shown in the table: approve reason once Approved, reject reason once Rejected.
+  function hrReasonOf (r: LatePermission): string {
+    if (r.status === 'Approved') return r.approveReason ?? ''
+    if (r.status === 'Rejected') return r.rejectReason ?? ''
+    return ''
   }
 
   function tagClass (status: LatePermission['status']): string {
@@ -87,6 +96,7 @@
           <th class="yg-num"><Label label={ygTimesheet.string.MinutesLate} /></th>
           <th class="left"><Label label={ygTimesheet.string.Reason} /></th>
           <th class="left"><Label label={ygTimesheet.string.Status} /></th>
+          <th class="left"><Label label={ygTimesheet.string.HrReason} /></th>
           {#if isHr}<th class="left" />{/if}
         </tr>
       </thead>
@@ -100,6 +110,7 @@
             <td class="left">
               <span class="yg-tag {tagClass(r.status)}"><span class="tick" />{r.status}</span>
             </td>
+            <td class="left">{hrReasonOf(r) !== '' ? hrReasonOf(r) : '-'}</td>
             {#if isHr}
               <td class="left">
                 <span class="lp-actions">
@@ -118,7 +129,7 @@
             {/if}
           </tr>
         {:else}
-          <tr><td colspan={isHr ? 6 : 5} class="yg-empty"><Label label={ygTimesheet.string.NoLatePermissions} /></td></tr>
+          <tr><td colspan={isHr ? 7 : 6} class="yg-empty"><Label label={ygTimesheet.string.NoLatePermissions} /></td></tr>
         {/each}
       </tbody>
     </table>

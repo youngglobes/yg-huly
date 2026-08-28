@@ -604,7 +604,7 @@ export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerContro
 
     const revert = control.txFactory.createTxUpdateDoc(
       perm._class, perm.space, perm._id,
-      { status: 'Pending', $unset: { approvedBy: '', approvedOn: '', rejectReason: '' } } as any,
+      { status: 'Pending', $unset: { approvedBy: '', approvedOn: '', rejectReason: '', approveReason: '' } } as any,
       false, Date.now(), core.account.System
     )
     await control.apply(control.ctx, [revert])

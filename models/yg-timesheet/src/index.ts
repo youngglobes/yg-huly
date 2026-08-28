@@ -211,6 +211,7 @@ export class TLatePermission extends TDoc implements LatePermission {
   @Prop(TypeRef(contact.mixin.Employee), core.string.Object) approvedBy?: Ref<Employee>
   @Prop(TypeDate(), core.string.Object) approvedOn?: Timestamp
   @Prop(TypeString(), core.string.Object) rejectReason?: string
+  @Prop(TypeString(), core.string.Object) approveReason?: string
 }
 
 export function createModel (builder: Builder): void {

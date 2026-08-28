@@ -71,12 +71,13 @@ export async function createLatePermission (
 }
 
 export async function approveLatePermission (
-  client: TxOperations, id: Ref<LatePermission>
+  client: TxOperations, id: Ref<LatePermission>, reason: string
 ): Promise<void> {
   await client.updateDoc(ygTimesheet.class.LatePermission, core.space.Workspace, id, {
     status: 'Approved',
     approvedBy: getCurrentEmployee(),
     approvedOn: Date.now(),
+    approveReason: reason.trim(),
     $unset: { rejectReason: '' }
   })
 }
@@ -87,6 +88,6 @@ export async function rejectLatePermission (
   await client.updateDoc(ygTimesheet.class.LatePermission, core.space.Workspace, id, {
     status: 'Rejected',
     rejectReason: reason.trim(),
-    $unset: { approvedBy: '', approvedOn: '' }
+    $unset: { approvedBy: '', approvedOn: '', approveReason: '' }
   })
 }

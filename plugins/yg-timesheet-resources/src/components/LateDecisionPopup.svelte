@@ -14,33 +14,29 @@
 -->
 <script lang="ts">
   //
-  // Reject one late permission with a REQUIRED reason, near-copy of RejectTaskPopup.svelte. Used
-  // ONLY via a direct showPopup(RejectLatePopup, ...) from HrLatePermissions.svelte - no
-  // component ref, no plugin resources registration.
+  // Approve or reject one late permission with an OPTIONAL HR reason. One popup for both decisions
+  // (the `approve` prop flips the title, the confirm label, and the button style). Used ONLY via a
+  // direct showPopup() from HrLatePermissions.svelte - no component ref, no resources registration.
   //
   import { createEventDispatcher } from 'svelte'
   import ui, { Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
 
+  export let approve: boolean = false
+
   const dispatch = createEventDispatcher()
   let reason: string = ''
-
-  $: valid = reason.trim().length > 0
+  $: action = approve ? ygTimesheet.string.ApproveLate : ygTimesheet.string.RejectLate
 </script>
 
 <div class="dialog">
   <div class="dialog__head">
-    <div class="dialog__title"><Label label={ygTimesheet.string.RejectLate} /></div>
+    <div class="dialog__title"><Label label={action} /></div>
   </div>
   <div class="dialog__body">
     <div class="field field--stack">
-      <span class="lbl"><Label label={ygTimesheet.string.RejectReason} /></span>
-      <textarea
-        class="reason-input"
-        rows="3"
-        placeholder="What needs fixing before this can be approved?"
-        bind:value={reason}
-      />
+      <span class="lbl"><Label label={ygTimesheet.string.HrReason} /></span>
+      <textarea class="reason-input" rows="3" bind:value={reason} />
     </div>
   </div>
   <div class="dialog__foot">
@@ -48,11 +44,10 @@
       <Label label={ui.string.Cancel} />
     </button>
     <button
-      class="yg-btn yg-btn--danger"
-      disabled={!valid}
+      class="yg-btn {approve ? 'yg-btn--primary' : 'yg-btn--danger'}"
       on:click={() => dispatch('close', { reason: reason.trim() })}
     >
-      <Label label={ygTimesheet.string.RejectLate} />
+      <Label label={action} />
     </button>
   </div>
 </div>
