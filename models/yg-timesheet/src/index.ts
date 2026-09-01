@@ -457,20 +457,23 @@ export function createModel (builder: Builder): void {
   // one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard beside PM
   // and HR without changing who sees the other two.
   //
-  // The icon itself is visible to every workspace User now, not just Maintainer+: a Team Leader
-  // is a plain User on the AccountRole ladder (their "Team Leader" designation lives on the
-  // WorkProfile mixin, not on AccountRole), so any accessLevel above User would hide the app
-  // from every TL as well as everyone else. The `usage` special carries no accessLevel of its
-  // own either, on purpose: it is reachable by anyone who can see the app, and the page itself
-  // refuses politely if the caller turns out not to be an admin or a viewer. Only `config` keeps
-  // an accessLevel gate (Maintainer), since that page's actions are real admin powers and it is
-  // worth hiding from the nav for everyone else, not just refusing on load.
+  // The icon itself is visible to every workspace User, not just Maintainer+: a Team Leader is a
+  // plain User on the AccountRole ladder (their "Team Leader" designation lives on the
+  // WorkProfile mixin, not on AccountRole), so any accessLevel above User would hide the app from
+  // every TL as well as everyone else. Neither special carries an accessLevel either, for the
+  // same reason: `config` used to gate at Maintainer, but a TL who is only an editor (not an
+  // admin) still needs to reach it to map projects and assign devices, so nav-level gating can no
+  // longer express who may open this page -- only the page and the sidecar can, since only they
+  // know the caller's role AND their viewer/editor status. This is consistent with the icon
+  // already being visible to all users: nothing here was ever the security boundary.
   //
-  // Do not overstate what accessLevel buys here: on every one of these specials it is UI-hiding
-  // ONLY, never an authorization boundary. The actual gate is the sidecar: `/report` requires an
-  // admin role OR the caller's account uuid on its viewer allowlist (see AiUsageConfig.svelte's
-  // Viewers panel), and every /config/* route requires an admin role, full stop. A crafted
-  // request straight at the sidecar is judged by that check, never by what this file hides.
+  // Do not overstate what accessLevel buys (there being none left to overstate is the point):
+  // the actual gate is the sidecar. `/report` requires an admin role OR the caller's account uuid
+  // on its viewer allowlist. Mapping rules and device-employee assignment additionally accept an
+  // editor (a viewer with can_edit set). Device enrollment/revoke, the account fee, and the
+  // viewer/editor list itself require a full admin role, full stop -- see AiUsageConfig.svelte's
+  // capability-based rendering and usage-sidecar/server.js's route tiering. A crafted request
+  // straight at the sidecar is judged by that check, never by what this file hides.
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,
@@ -496,8 +499,7 @@ export function createModel (builder: Builder): void {
             label: ygTimesheet.string.AiUsageConfiguration,
             icon: setting.icon.Setting,
             component: ygTimesheet.component.AiUsageConfig,
-            position: 'bottom',
-            accessLevel: AccountRole.Maintainer
+            position: 'bottom'
           }
         ]
       }
