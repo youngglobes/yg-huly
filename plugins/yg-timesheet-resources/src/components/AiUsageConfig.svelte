@@ -1,8 +1,9 @@
 <script lang="ts">
   // Admin config for the AI Usage dashboard: mapping rules (cwd prefix -> project or label),
-  // account-to-employee links with a monthly fee, and device enrollment tokens. Every control
-  // here talks to the sidecar (usage-sidecar/server.js) via usageGet/usagePost/usageDelete, and
-  // the snapshot is reloaded after every mutation so the page can never show a stale write.
+  // account-to-employee links with a monthly fee, device enrollment tokens, and the viewer
+  // allowlist (who besides an admin may read the dashboard). Every control here talks to the
+  // sidecar (usage-sidecar/server.js) via usageGet/usagePost/usageDelete, and the snapshot is
+  // reloaded after every mutation so the page can never show a stale write.
   //
   // Styling follows AiUsage.svelte and its aiusage/* siblings: --theme-* variables, the same
   // .state loading/error treatment, and the same section/table chrome as ProjectLedger.svelte.
@@ -17,7 +18,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
   import { Scroller, TimeSince } from '@hcengineering/ui'
-  import ygTimesheet from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type WorkProfile } from '@hcengineering/yg-timesheet'
   import { fmtM } from '../utils/ai-usage'
   import { usageGet, usagePost, usageDelete } from '../utils/ai-usage-api'
 
@@ -57,10 +58,21 @@
     accounts: DeviceAccountRef[]
   }
   interface UnmappedEntry { cwd: string, cwd_norm: string, tokens: number }
+  // account_uuid is the viewer's Huly ACCOUNT uuid (what the sidecar matches against the
+  // token's `account` claim), not the employee/person ref -- see addViewer below for how it is
+  // resolved from a picked employee. employee_ref/employee_name are a display label only.
+  interface ConfigViewer {
+    account_uuid: string
+    employee_ref: string | null
+    employee_name: string | null
+    added: string | null
+    created: number
+  }
   interface ConfigSnapshot {
     rules: ConfigRule[]
     accounts: ConfigAccount[]
     devices: ConfigDevice[]
+    viewers: ConfigViewer[]
     unmapped: UnmappedEntry[]
   }
 
@@ -108,11 +120,19 @@
   let projects: Project[] = []
   projectQuery.query(tracker.class.Project, {}, (res) => { projects = res })
 
-  // --- Employees, for resolving the name snapshot sent with a device's employee link -------
+  // --- Employees, for resolving the name snapshot sent with a device's employee link, and the
+  // account uuid sent with a viewer link -----------------------------------------------------
   const employeeQuery = createQuery()
   let employeeName = new Map<Ref<Employee>, string>()
+  // Employee.personUuid IS the Huly account uuid for that person (see
+  // employeeRefByAccountUuidStore in contact-resources/src/utils.ts, which builds the reverse
+  // map from this exact field) -- NOT the same identifier as the employee ref (`_id`). The
+  // sidecar's viewer table keys on the account uuid because that is what a request's decoded
+  // token carries as `account`; sending the employee ref there would silently never match.
+  let employeeByRef = new Map<Ref<Employee>, Employee>()
   employeeQuery.query(contact.mixin.Employee, { active: true }, (res: Employee[]) => {
     employeeName = new Map(res.map((e) => [e._id, formatName(e.name)]))
+    employeeByRef = new Map(res.map((e) => [e._id, e]))
   })
 
   // A previously-linked employee can be inactive (outside the active query above); fall back to
@@ -125,6 +145,14 @@
     const emp = await getClient().findOne(contact.mixin.Employee, { _id: ref as Ref<Employee> })
     return emp != null ? formatName(emp.name) : null
   }
+
+  // --- Team Leaders, so the viewer picker below can put them first: adding a TL is the main
+  // use case for the Viewers panel, but any active employee may be added. -------------------
+  const teamLeadQuery = createQuery()
+  let teamLeadRefs = new Set<Ref<Employee>>()
+  teamLeadQuery.query(ygTimesheet.mixin.WorkProfile, { designation: 'Team Leader' }, (res: WorkProfile[]) => {
+    teamLeadRefs = new Set(res.map((e) => e._id as unknown as Ref<Employee>))
+  })
 
   // Busy keys disable the one control in flight without freezing the rest of the page.
   let busy = new Set<string>()
@@ -327,6 +355,59 @@
       actionError = friendlyError(e, 'Could not revoke that device.')
     } finally {
       setBusy(`device:${device.id}`, false)
+    }
+  }
+
+  // =========================================================================================
+  // Viewers
+  // =========================================================================================
+  // Grants read-only access to the whole dashboard (GET /report) to someone who is not a
+  // workspace admin -- the Team Leader case this panel exists for. It carries no admin power:
+  // every /config/* route, including this one, still requires an admin role on the sidecar side.
+  let newViewerEmployee: Ref<Person> | null = null
+  let addViewerError: string | undefined
+
+  async function addViewer (): Promise<void> {
+    actionError = undefined
+    addViewerError = undefined
+    if (newViewerEmployee == null) { addViewerError = 'Pick an employee.'; return }
+    const emp = employeeByRef.get(newViewerEmployee as Ref<Employee>)
+    if (emp === undefined) { addViewerError = 'Could not find that employee.'; return }
+    // Employee.personUuid is the Huly account uuid (see the note by employeeByRef above). A
+    // person who has never accepted their workspace invite has none yet -- refuse explicitly
+    // here rather than sending a wrong id that would silently never match the token's account
+    // claim on the sidecar side.
+    const accountUuid = emp.personUuid
+    if (accountUuid == null || accountUuid === '') {
+      addViewerError = `${formatName(emp.name)} has no linked Huly account yet (they have not signed in), so they cannot be added as a viewer.`
+      return
+    }
+    setBusy('viewer-add', true)
+    try {
+      await usagePost('/config/viewer', {
+        account_uuid: accountUuid,
+        employee_ref: emp._id,
+        employee_name: formatName(emp.name)
+      })
+      newViewerEmployee = null
+      await load()
+    } catch (e) {
+      addViewerError = friendlyError(e, 'Could not add that viewer.')
+    } finally {
+      setBusy('viewer-add', false)
+    }
+  }
+
+  async function removeViewer (viewer: ConfigViewer): Promise<void> {
+    actionError = undefined
+    setBusy(`viewer:${viewer.account_uuid}`, true)
+    try {
+      await usageDelete(`/config/viewer/${encodeURIComponent(viewer.account_uuid)}`)
+      await load()
+    } catch (e) {
+      actionError = friendlyError(e, 'Could not remove that viewer.')
+    } finally {
+      setBusy(`viewer:${viewer.account_uuid}`, false)
     }
   }
 </script>
@@ -574,6 +655,73 @@
           </div>
         {/if}
       </section>
+
+      <!-- Viewers ============================================================================ -->
+      <section class="panel">
+        <div class="head"><h2>Viewers</h2><span class="tag">Access</span></div>
+        <p class="note">Anyone on this list can see the whole dashboard without being a workspace
+          owner, mainly for Team Leaders who need to check their team's usage. A viewer gets none
+          of the admin powers on this page: every action here still requires an owner.</p>
+
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr><th>Person</th><th>Added</th><th class="act" /></tr>
+            </thead>
+            <tbody>
+              {#each snap.viewers as viewer (viewer.account_uuid)}
+                <tr>
+                  <td>
+                    <div class="acct-name">{viewer.employee_name ?? viewer.account_uuid}</div>
+                  </td>
+                  <td><TimeSince value={viewer.created * 1000} /></td>
+                  <td class="act">
+                    <button
+                      type="button" class="link-btn danger"
+                      disabled={busy.has(`viewer:${viewer.account_uuid}`)}
+                      on:click={() => removeViewer(viewer)}
+                    >Remove</button>
+                  </td>
+                </tr>
+              {/each}
+              {#if snap.viewers.length === 0}
+                <tr><td colspan="3" class="empty">No viewers added yet.</td></tr>
+              {/if}
+            </tbody>
+          </table>
+        </div>
+
+        <form class="add-row viewer-add" on:submit|preventDefault={addViewer}>
+          <!-- Team Leaders first, since adding a TL is the main reason this panel exists, but
+               the second box reaches every active employee so anyone can be added. Both are the
+               same EmployeeBox picker used for the device assignment above; only their docQuery
+               (and so which employees show up) differs. Both boxes are bound to the same value:
+               whichever one the admin picks from is what gets added. -->
+          <div class="picker">
+            <span class="picker-label">Team Leader</span>
+            <EmployeeBox
+              docQuery={{ active: true, _id: { $in: Array.from(teamLeadRefs) } }}
+              label={ygTimesheet.string.Employee}
+              bind:value={newViewerEmployee}
+              kind="regular"
+              size="medium"
+            />
+          </div>
+          <div class="picker">
+            <span class="picker-label">Any employee</span>
+            <EmployeeBox
+              label={ygTimesheet.string.Employee}
+              bind:value={newViewerEmployee}
+              kind="regular"
+              size="medium"
+            />
+          </div>
+          <button class="primary-btn" type="submit" disabled={busy.has('viewer-add')}>Add viewer</button>
+        </form>
+        {#if addViewerError !== undefined}
+          <div class="inline-err">{addViewerError}</div>
+        {/if}
+      </section>
     {/if}
   </div>
 </Scroller>
@@ -632,6 +780,9 @@
   .badge.warn { color: var(--theme-warning-color); border-color: var(--theme-warning-color); }
 
   .add-row { display: flex; flex-wrap: wrap; gap: .625rem; align-items: center; margin-top: .875rem; }
+  .viewer-add { align-items: flex-end; }
+  .picker { display: flex; flex-direction: column; gap: .25rem; }
+  .picker-label { font-size: .625rem; color: var(--theme-dark-color); text-transform: uppercase; letter-spacing: .06em; }
   .txt, select.txt {
     font: inherit; font-size: .8125rem; color: var(--theme-content-color);
     background: var(--theme-bg-color); border: 1px solid var(--theme-divider-color);

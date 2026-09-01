@@ -12,6 +12,10 @@
   let filters: Filters = { account: '*', device: '*', project: '*', person: '*', model: '*', days: 14 }
   let report: UsageReport | undefined
   let error: string | undefined
+  // Set instead of `error` for a 401: this is an expected, everyday outcome now that the app
+  // icon is visible to every workspace User (not just admins), so it gets a calm, distinct
+  // treatment rather than the red error banner.
+  let forbidden: string | undefined
   let loading = true
   let loadedDays = -1
 
@@ -19,10 +23,13 @@
   // filterReport over the rows already in hand, so changing a filter is instant.
   $: if (filters.days !== loadedDays) { void load(filters.days) }
 
+  // The sidecar attaches the real HTTP status to err.status (see ai-usage-api.ts). Branch on
+  // that status, never on the error message text, since that prose can change.
   async function load (days: number): Promise<void> {
     loadedDays = days
     loading = true
     error = undefined
+    forbidden = undefined
     try {
       const r = await usageGet(`/report?days=${days}`)
       // Loud on drift: a future sidecar change to the envelope shape must fail here, not render
@@ -30,7 +37,11 @@
       if (r?.report_schema !== 1) throw new Error(`Unsupported report schema: ${String(r?.report_schema)}`)
       report = r
     } catch (e: any) {
-      error = e?.message ?? 'Could not reach the usage service.'
+      if (e?.status === 401) {
+        forbidden = 'You do not have access to AI Usage. Ask a workspace owner to add you as a viewer.'
+      } else {
+        error = e?.message ?? 'Could not reach the usage service.'
+      }
       report = undefined
     } finally {
       loading = false
@@ -51,6 +62,8 @@
 
     {#if loading}
       <div class="state">Loading usage...</div>
+    {:else if forbidden !== undefined}
+      <div class="state">{forbidden}</div>
     {:else if error !== undefined}
       <div class="state err">{error}</div>
     {:else if report !== undefined && view !== undefined}

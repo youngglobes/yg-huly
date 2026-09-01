@@ -86,7 +86,7 @@ export class TTimesheetDay extends TAttachedDoc implements TimesheetDay {
   @Prop(TypeString(), core.string.Object) rejectReason?: string
   @Prop(TypeNumber(), core.string.Object) totalHours!: number
 
-  // snapshot stored as an opaque array — persisted as plain data, no Prop editor.
+  // snapshot stored as an opaque array - persisted as plain data, no Prop editor.
   declare snapshot?: TimesheetLine[]
 }
 
@@ -295,10 +295,10 @@ export function createModel (builder: Builder): void {
   )
 
   // Dedicated "Human Resource" app hosting the HR Timesheets/Overview sub-modules (and the
-  // Owner-only roster) as a native vertical navigator — mirrors models/contact's Application
+  // Owner-only roster) as a native vertical navigator - mirrors models/contact's Application
   // (navigatorModel.specials, no top-level `component`; see that file's Contacts app doc).
   // App visibility (user decision 2026-07-22, superseding 2026-07-17): registered with NO
-  // `accessLevel`, because "HR" must be HrData-space membership, NOT a workspace role — HR staff
+  // `accessLevel`, because "HR" must be HrData-space membership, NOT a workspace role - HR staff
   // stay ordinary Users with no admin powers. `accessLevel` cannot express this: it is a threshold
   // on the AccountRole ladder, so any rung that excludes Maintainers also excludes non-Owner HR.
   //
@@ -311,7 +311,7 @@ export function createModel (builder: Builder): void {
   // yg-timesheet-resources). Owners self-add to HrData via ensureHrMembership, so admins + roster
   // members see it; everyone else has it hidden.
   //
-  // Icon hiding is BEST-EFFORT (a user can un-hide from the app switcher); the data is absolute —
+  // Icon hiding is BEST-EFFORT (a user can un-hide from the app switcher); the data is absolute -
   // HrTimeEntry lives in the private HrData space and the server refuses every row to non-members,
   // so a non-member who forces the app open sees empty screens.
   builder.createDoc(
@@ -401,13 +401,13 @@ export function createModel (builder: Builder): void {
     },
     ygTimesheet.app.HumanResource
   )
-  // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) —
+  // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) -
   // Builder has no updateDoc; only a TxOperations client (migration) can update an existing app doc.
 
   // New self-service "Attendance" app (Phase 1d). Same native-navigator pattern as the HR app:
   // navigatorModel.specials, no top-level `component`. One special for v1 (My Attendance, the
   // default landing); Leave + attendance-report specials get added here in later phases.
-  // No accessLevel — every workspace user punches their own attendance. AttendanceSession docs
+  // No accessLevel - every workspace user punches their own attendance. AttendanceSession docs
   // live in core.space.Workspace (shared, like Timesheet), so no space is provisioned here.
   builder.createDoc(
     workbench.class.Application,
@@ -452,15 +452,25 @@ export function createModel (builder: Builder): void {
     ygTimesheet.app.Dashboard
   )
 
-  // Admin-only "AI Usage" app. Registered as its own top-level Application rather than as a
-  // branch of DashboardHome, because DashboardHome is a role ROUTER: resolveDashboardRole picks
-  // exactly one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard
-  // beside PM and HR without changing who sees the other two.
+  // "AI Usage" app. Registered as its own top-level Application rather than as a branch of
+  // DashboardHome, because DashboardHome is a role ROUTER: resolveDashboardRole picks exactly
+  // one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard beside PM
+  // and HR without changing who sees the other two.
   //
-  // accessLevel is the right nav gate here (unlike the HR app, where "is HR staff" is space
-  // membership and cannot be expressed as a rung on the AccountRole ladder). It is also
-  // client-side ONLY: it hides the icon. The real gate is the sidecar, which verifies the
-  // caller's Huly token and asks the account service for their workspace role before answering.
+  // The icon itself is visible to every workspace User now, not just Maintainer+: a Team Leader
+  // is a plain User on the AccountRole ladder (their "Team Leader" designation lives on the
+  // WorkProfile mixin, not on AccountRole), so any accessLevel above User would hide the app
+  // from every TL as well as everyone else. The `usage` special carries no accessLevel of its
+  // own either, on purpose: it is reachable by anyone who can see the app, and the page itself
+  // refuses politely if the caller turns out not to be an admin or a viewer. Only `config` keeps
+  // an accessLevel gate (Maintainer), since that page's actions are real admin powers and it is
+  // worth hiding from the nav for everyone else, not just refusing on load.
+  //
+  // Do not overstate what accessLevel buys here: on every one of these specials it is UI-hiding
+  // ONLY, never an authorization boundary. The actual gate is the sidecar: `/report` requires an
+  // admin role OR the caller's account uuid on its viewer allowlist (see AiUsageConfig.svelte's
+  // Viewers panel), and every /config/* route requires an admin role, full stop. A crafted
+  // request straight at the sidecar is judged by that check, never by what this file hides.
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,
@@ -470,7 +480,7 @@ export function createModel (builder: Builder): void {
       alias: 'yg-ai-usage',
       hidden: false,
       position: 'top',
-      accessLevel: AccountRole.Maintainer,
+      accessLevel: AccountRole.User,
       navigatorModel: {
         spaces: [],
         specials: [
@@ -486,7 +496,8 @@ export function createModel (builder: Builder): void {
             label: ygTimesheet.string.AiUsageConfiguration,
             icon: setting.icon.Setting,
             component: ygTimesheet.component.AiUsageConfig,
-            position: 'bottom'
+            position: 'bottom',
+            accessLevel: AccountRole.Maintainer
           }
         ]
       }
@@ -495,7 +506,7 @@ export function createModel (builder: Builder): void {
   )
 
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
-  // (rendered embedded in the Inbox — see plugins/notification-resources). Our approval notifications
+  // (rendered embedded in the Inbox - see plugins/notification-resources). Our approval notifications
   // attach to a TimesheetDay (submit) or TimesheetTask (approve/reject); registering
   // NotificationRedirect as their ObjectPanel makes the click land on the right app view (Approvals
   // vs My Timesheet) instead of a raw doc panel. The component just navigates away on mount.
