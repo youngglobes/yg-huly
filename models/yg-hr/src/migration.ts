@@ -210,6 +210,39 @@ async function addEmployeesDirectorySpecial (ops: TxOperations): Promise<void> {
   }
 }
 
+// Retire the stock Contacts app's "Employee" kind-list special (Task 12) - the SpecialView that
+// renders contact.viewlet.TableEmployee (the EMPLOYEE/WORKER/CUSTOMER/TALENT/UNDEFINED coloured
+// role tags, plus Location/Files/Role columns) for contact.mixin.Employee docs with role != GUEST
+// (models/contact/src/index.ts, the 'employees' special on contact.app.Contacts). Staff now reach
+// employees through the yg-hr "Employees" directory instead (addEmployeesDirectorySpecial above).
+// Same idiom as addHrSettingsSpecial/addEmployeesDirectorySpecial: only a TxOperations client can
+// rewrite an already-committed navigatorModel.specials array. Removes ONLY the special whose id is
+// 'employees' - 'guests', 'persons' and 'companies' (and anything from recruit/lead, which don't
+// touch this app doc at all) are left untouched. Best-effort: never fail the workspace upgrade if
+// the app doc is missing or the update doesn't stick on some backend.
+async function removeContactsEmployeeSpecial (ops: TxOperations): Promise<void> {
+  try {
+    // contact.app.Contacts is typed as the widened `Ref<Doc>` (plugins/contact/src/index.ts), not
+    // `Ref<Application>`, so it needs the same explicit cast used for ygTimesheet.app.HumanResource
+    // above to keep findOne/updateDoc inferring T = Application.
+    const appId = contact.app.Contacts as Ref<Application>
+    const app = await ops.findOne(workbench.class.Application, { _id: appId })
+    if (app === undefined) return
+    const specials = app.navigatorModel?.specials ?? []
+    if (!specials.some((s) => s.id === 'employees')) return // idempotent: already removed
+    await ops.updateDoc<Application>(workbench.class.Application, core.space.Model, appId, {
+      navigatorModel: {
+        spaces: app.navigatorModel?.spaces ?? [],
+        groups: app.navigatorModel?.groups,
+        hideStarred: app.navigatorModel?.hideStarred,
+        specials: specials.filter((s) => s.id !== 'employees')
+      }
+    })
+  } catch (err) {
+    console.error('yg-hr: could not remove Contacts Employee nav special (non-fatal)', err)
+  }
+}
+
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
@@ -237,6 +270,14 @@ async function migrateEmployeesDirectoryNav (client: MigrationUpgradeClient): Pr
   await addEmployeesDirectorySpecial(ops)
 }
 
+// Separate tryUpgrade state (Task 12), same reasoning as migrateHrSettingsNav /
+// migrateEmployeesDirectoryNav above - so it also runs against workspaces that already completed
+// the earlier states.
+async function migrateRemoveContactsEmployeeNav (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await removeContactsEmployeeSpecial(ops)
+}
+
 export const ygHrOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode: MigrateMode): Promise<void> {},
   async upgrade (
@@ -260,6 +301,11 @@ export const ygHrOperation: MigrateOperation = {
         // Task 11: add the "Employees" directory special to the Human Resource app nav.
         state: 'add-employees-directory-nav-special-0001',
         func: migrateEmployeesDirectoryNav
+      },
+      {
+        // Task 12: retire the stock Contacts app's "Employee" kind-list special.
+        state: 'remove-contacts-employee-nav-special-0001',
+        func: migrateRemoveContactsEmployeeNav
       }
     ])
   }
