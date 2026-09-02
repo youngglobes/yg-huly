@@ -165,8 +165,17 @@
         // trigger (which only fires on an Employee-descended MIXIN write, not the bare Employee
         // add) assigns the new hire's YGS#### id. See models/yg-hr/src/index.ts's trigger
         // registration comment for why the bare Employee create alone never fires it.
+        //
+        // objectClass here MUST be contact.mixin.Employee, not contact.class.Person: createMixin
+        // stores this argument verbatim as the resulting TxMixin.objectClass, and the trigger's
+        // txMatch { objectClass: contact.mixin.Employee } expands to Employee's DESCENDANTS
+        // (EmployeePersonal/Contact/Job/WorkProfile), not its ancestors - a Person-rooted objectClass
+        // would silently never match. Same idiom migrateWorkProfiles (models/yg-hr/src/migration.ts)
+        // uses for its own updateMixin calls. CreateEmployee.svelte's own bare createMixin call
+        // uses contact.class.Person correctly, but only because it is adding the FIRST mixin
+        // (Employee itself) onto a plain Person - not a second, Employee-descended one.
         onCreate: async (employeeRef: Ref<Employee>) => {
-          await client.createMixin(employeeRef, contact.class.Person, contact.space.Contacts, ygHr.mixin.EmployeePersonal, {})
+          await client.createMixin(employeeRef, contact.mixin.Employee, contact.space.Contacts, ygHr.mixin.EmployeePersonal, {})
         }
       },
       'top'
