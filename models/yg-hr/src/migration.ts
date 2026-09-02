@@ -113,16 +113,51 @@ async function migrateWorkProfiles (ops: TxOperations): Promise<void> {
   }
 }
 
-// Pre-seed the single EmployeeSeq counter doc at its fixed id (EMPLOYEE_SEQ_ID), last: 24, so the
-// first id the OnEmployeeCreate trigger (server-plugins/yg-hr-resources) ever assigns is YGS0025,
-// continuing the series after the existing YGS0024. Runs before any employee can be created
+// Trailing-digits shape of a YGS-series employee id, e.g. 'YGS0024' -> 24. Ids that don't match
+// (blank, hand-entered, or from some other series) are ignored by maxEmployeeIdSuffix below.
+const EMPLOYEE_ID_SUFFIX = /^YGS(\d+)$/
+
+// Highest numeric suffix across the given employee ids, or `undefined` if none match the YGS####
+// shape. Used to seed EmployeeSeq at a value that can never collide with an id migrateWorkProfiles
+// already copied in - hardcoding this (the previous `last: 24`) only worked for a workspace whose
+// highest existing id happened to be YGS0024; any workspace with a higher id would let
+// OnEmployeeCreate mint a duplicate on the next new hire.
+function maxEmployeeIdSuffix (ids: Iterable<string>): number | undefined {
+  let max: number | undefined
+  for (const id of ids) {
+    const m = EMPLOYEE_ID_SUFFIX.exec(id)
+    if (m === null) continue
+    const n = Number.parseInt(m[1], 10)
+    if (max === undefined || n > max) max = n
+  }
+  return max
+}
+
+// Pre-seed the single EmployeeSeq counter doc at its fixed id (EMPLOYEE_SEQ_ID), so the first id
+// the OnEmployeeCreate trigger (server-plugins/yg-hr-resources) ever assigns continues the series
+// after the highest existing employee id, whatever that happens to be in this workspace. Reads
+// EmployeePersonal.employeeId - migrateWorkProfiles (which runs first in migrateYgHr, immediately
+// before this) has already copied every WorkProfile.employeeId into that mixin, so the mixin is
+// the complete, already-resolved source at this point. Seed is the max parsed suffix across all
+// employees, falling back to 24 (the prior hardcoded floor) if none match the YGS#### shape, so
+// the first new hire is never assigned below YGS0025. Runs before any employee can be created
 // against this workspace, so the counter always exists at one well-known _id and can never
 // diverge into two competing counters (which would let two employees get the same id - see the
-// trigger's own fixed-id fallback for the same reasoning). Idempotent: no-op if already seeded.
+// trigger's own fixed-id fallback for the same reasoning). Idempotent: no-op if already seeded -
+// the doc may already have advanced past this seed, so an existing doc is never overwritten.
 async function ensureEmployeeSeq (ops: TxOperations): Promise<void> {
   const existing = await ops.findOne(ygHr.class.EmployeeSeq, { _id: EMPLOYEE_SEQ_ID })
   if (existing !== undefined) return
-  await ops.createDoc(ygHr.class.EmployeeSeq, core.space.Workspace, { last: 24 }, EMPLOYEE_SEQ_ID)
+  const h = ops.getHierarchy()
+  const employees = await ops.findAll(contact.mixin.Employee, {})
+  const ids: string[] = []
+  for (const emp of employees) {
+    if (!h.hasMixin(emp, ygHr.mixin.EmployeePersonal)) continue
+    const id = h.as(emp, ygHr.mixin.EmployeePersonal).employeeId
+    if (id !== undefined && id !== '') ids.push(id)
+  }
+  const seed = maxEmployeeIdSuffix(ids) ?? 24
+  await ops.createDoc(ygHr.class.EmployeeSeq, core.space.Workspace, { last: seed }, EMPLOYEE_SEQ_ID)
 }
 
 // Add the "HR Settings" special (Task 9) to the existing Human Resource app's navigator model.

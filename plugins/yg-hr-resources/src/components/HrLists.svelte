@@ -20,11 +20,12 @@
   idiom as WorkProfileEditor.svelte. Designation additionally exposes the isHr flag that marks
   which designation counts as HR staff (isHrDesignationByFlag reads it).
 
-  Gating: HrConfig is not private, and no server trigger guards writes to these four classes (only
-  the EmployeePersonal/Contact/Job mixins and EmergencyContact are guarded - see
-  OnEmployeeHrGuard in server-plugins/yg-hr-resources), so this screen's HR/admin gate is UI-only,
-  same caveat as HrLatePermissions.svelte's isHr check: it keeps the edit surface out of casual
-  reach, it is not the security boundary.
+  Gating: HrConfig is not private, but create/update/remove of these four classes IS guarded
+  server-side - guardHrConfigWrite (called from OnEmployeeHrGuard in server-plugins/yg-hr-resources)
+  reverts any write not made by an Owner/Maintainer or a workspace-flagged HR designation. This
+  screen's HR/admin gate is the matching client-side affordance: it keeps the edit surface out of
+  casual reach so a non-HR user never sees controls that would just be reverted, same idiom as
+  HrLatePermissions.svelte's isHr check.
 -->
 <script lang="ts">
   import { AccountRole, getCurrentAccount, hasAccountRole, type Class, type Data, type Doc, type DocumentUpdate, type Ref } from '@hcengineering/core'
