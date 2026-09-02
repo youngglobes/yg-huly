@@ -30,7 +30,7 @@
   import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label } from '@hcengineering/ui'
+  import { closePanel, IconArrowLeft, Label } from '@hcengineering/ui'
   import ygHr, {
     isHrDesignationByFlag,
     type Department,
@@ -130,10 +130,23 @@
   function headerEditClick (): void {
     activeTab = 'personal'
   }
+
+  // Task 11 opens this component in a platform panel (showPanel) rather than a Panel-chrome
+  // component, so there is otherwise no visible way back to the directory besides Escape/
+  // click-outside - this mirrors the approved mockup's own "< Employees" back link exactly.
+  // Harmless no-op if this component is ever rendered outside a panel (closePanel just clears an
+  // already-empty panel store).
+  function backClick (): void {
+    closePanel()
+  }
 </script>
 
 <div class="yg-profile">
   {#if employee !== undefined}
+    <button class="yg-back" on:click={backClick}>
+      <IconArrowLeft size={'small'} />
+      <Label label={ygHr.string.Employees} />
+    </button>
     <div class="yg-idcard">
       <div class="yg-idcard__rail" />
       <div class="yg-idcard__avatar">
@@ -211,6 +224,24 @@
   }
   :global(.theme-dark) .yg-profile {
     --yg-accent: #2dd4bf;
+  }
+
+  .yg-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--theme-dark-color);
+    background: none;
+    border: 0;
+    padding: 0;
+    margin-bottom: 16px;
+    cursor: pointer;
+  }
+  .yg-back:hover {
+    color: var(--theme-caption-color);
   }
 
   .yg-idcard {

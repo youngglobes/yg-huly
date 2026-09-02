@@ -170,6 +170,46 @@ async function addHrSettingsSpecial (ops: TxOperations): Promise<void> {
   }
 }
 
+// Add the "Employees" special (Task 11) to the Human Resource app's navigator model - the
+// directory landing page. Same idiom as addHrSettingsSpecial above: only a TxOperations client
+// can append to an already-committed navigatorModel.specials array. Placed first (position
+// unset, defaults above 'bottom'-pinned specials like HR Settings) so it's the app's default
+// landing entry, matching the approved mockup's nav order.
+//
+// accessLevel: DocGuest, same reasoning as addHrSettingsSpecial - the app itself is already
+// hidden from non-HR/non-owner accounts, so DocGuest here just means "visible to whoever can
+// already see the app" (i.e. everyone who can see Human Resource, per the brief: "visible to all
+// workspace members"). The finer HR-or-admin gate on the Add-employee action lives in
+// EmployeeDirectory.svelte itself, same UI-only caveat as HrLists.svelte's edit gate.
+async function addEmployeesDirectorySpecial (ops: TxOperations): Promise<void> {
+  try {
+    const appId = ygTimesheet.app.HumanResource as Ref<Application>
+    const app = await ops.findOne(workbench.class.Application, { _id: appId })
+    if (app === undefined) return
+    const specials = app.navigatorModel?.specials ?? []
+    if (specials.some((s) => s.id === 'employees')) return // idempotent
+    await ops.updateDoc<Application>(workbench.class.Application, core.space.Model, appId, {
+      navigatorModel: {
+        spaces: app.navigatorModel?.spaces ?? [],
+        groups: app.navigatorModel?.groups,
+        hideStarred: app.navigatorModel?.hideStarred,
+        specials: [
+          {
+            id: 'employees',
+            label: ygHr.string.Employees,
+            icon: contact.icon.Person,
+            component: ygHr.component.EmployeeDirectory,
+            accessLevel: AccountRole.DocGuest
+          },
+          ...specials
+        ]
+      }
+    })
+  } catch (err) {
+    console.error('yg-hr: could not add Employees nav special (non-fatal)', err)
+  }
+}
+
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
@@ -190,6 +230,13 @@ async function migrateHrSettingsNav (client: MigrationUpgradeClient): Promise<vo
   await addHrSettingsSpecial(ops)
 }
 
+// Separate tryUpgrade state (Task 11), same reasoning as migrateHrSettingsNav above - so it also
+// runs against workspaces that already completed the earlier states.
+async function migrateEmployeesDirectoryNav (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await addEmployeesDirectorySpecial(ops)
+}
+
 export const ygHrOperation: MigrateOperation = {
   async migrate (client: MigrationClient, mode: MigrateMode): Promise<void> {},
   async upgrade (
@@ -208,6 +255,11 @@ export const ygHrOperation: MigrateOperation = {
         // Task 9: add the "HR Settings" special to the Human Resource app nav.
         state: 'add-hr-settings-nav-special-0001',
         func: migrateHrSettingsNav
+      },
+      {
+        // Task 11: add the "Employees" directory special to the Human Resource app nav.
+        state: 'add-employees-directory-nav-special-0001',
+        func: migrateEmployeesDirectoryNav
       }
     ])
   }

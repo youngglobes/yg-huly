@@ -64,6 +64,12 @@
     "FirstName": "First name",
     "LastName": "Last name",
     "Save": "Save",
-    "Cancel": "Cancel"
+    "Cancel": "Cancel",
+    "AddEmployee": "Add employee",
+    "SearchEmployeesPlaceholder": "Search people, designation, department...",
+    "AllDepartments": "All",
+    "DirectoryNote": "Everyone sees this directory. Full profiles and editing are limited to HR and admins.",
+    "EmployeeColumn": "Employee",
+    "StatusColumn": "Status"
   }
 }

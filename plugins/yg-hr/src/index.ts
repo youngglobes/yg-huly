@@ -116,7 +116,8 @@ export default plugin(ygHrId, {
   },
   component: {
     HrLists: '' as AnyComponent,
-    EmployeeProfile: '' as AnyComponent
+    EmployeeProfile: '' as AnyComponent,
+    EmployeeDirectory: '' as AnyComponent
   },
   string: {
     Personal: '' as IntlString,
@@ -183,6 +184,12 @@ export default plugin(ygHrId, {
     FirstName: '' as IntlString,
     LastName: '' as IntlString,
     Save: '' as IntlString,
-    Cancel: '' as IntlString
+    Cancel: '' as IntlString,
+    AddEmployee: '' as IntlString,
+    SearchEmployeesPlaceholder: '' as IntlString,
+    AllDepartments: '' as IntlString,
+    DirectoryNote: '' as IntlString,
+    EmployeeColumn: '' as IntlString,
+    StatusColumn: '' as IntlString
   }
 })
