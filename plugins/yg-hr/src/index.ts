@@ -45,6 +45,7 @@ export interface EmployeePersonal extends Employee {
   nationality?: string
   bloodGroup?: string
   employeeId?: string
+  emergencyContacts?: number
 }
 
 export interface EmployeeContact extends Employee {
