@@ -299,6 +299,9 @@
     "@hcengineering/yg-timesheet": "workspace:^0.7.426",
     "@hcengineering/yg-timesheet-assets": "workspace:^0.7.426",
     "@hcengineering/yg-timesheet-resources": "workspace:^0.7.426",
+    "@hcengineering/yg-hr": "workspace:^0.7.426",
+    "@hcengineering/yg-hr-assets": "workspace:^0.7.426",
+    "@hcengineering/yg-hr-resources": "workspace:^0.7.426",
     "readable-stream": "^4.7.0",
     "svelte": "^4.2.20"
   }

@@ -5,6 +5,7 @@ import type { Employee } from '@hcengineering/contact'
 import type { AttachedDoc, Class, Doc, Mixin, Ref, Space, Timestamp } from '@hcengineering/core'
 import type { IntlString, Plugin } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
+import type { AnyComponent } from '@hcengineering/ui'
 
 export type Gender = 'male' | 'female' | 'other'
 export type MaritalStatus = 'single' | 'married' | 'other'
@@ -113,6 +114,9 @@ export default plugin(ygHrId, {
   space: {
     HrConfig: '' as Ref<Space>
   },
+  component: {
+    HrLists: '' as AnyComponent
+  },
   string: {
     Personal: '' as IntlString,
     Contact: '' as IntlString,
@@ -154,6 +158,14 @@ export default plugin(ygHrId, {
     EditProfile: '' as IntlString,
     Name: '' as IntlString,
     EmergencyContact: '' as IntlString,
-    IsHr: '' as IntlString
+    IsHr: '' as IntlString,
+    HrSettings: '' as IntlString,
+    HrSettingsIntro: '' as IntlString,
+    EmploymentStatuses: '' as IntlString,
+    Locations: '' as IntlString,
+    AddItem: '' as IntlString,
+    NoItemsYet: '' as IntlString,
+    RemoveItem: '' as IntlString,
+    HrSettingsRestricted: '' as IntlString
   }
 })

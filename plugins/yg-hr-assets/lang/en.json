@@ -40,6 +40,14 @@
     "EditProfile": "Edit profile",
     "Name": "Name",
     "EmergencyContact": "Emergency contact",
-    "IsHr": "HR staff"
+    "IsHr": "HR staff",
+    "HrSettings": "HR Settings",
+    "HrSettingsIntro": "Manage the shared department, designation, employment status, and location lists used across every employee profile.",
+    "EmploymentStatuses": "Employment statuses",
+    "Locations": "Locations",
+    "AddItem": "Add",
+    "NoItemsYet": "No items yet",
+    "RemoveItem": "Remove",
+    "HrSettingsRestricted": "HR Settings is limited to HR staff and workspace admins."
   }
 }

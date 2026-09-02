@@ -2,7 +2,7 @@
 // YoungGlobes: yg-hr migrations - seed the admin-managed lists, migrate WorkProfile data into
 // the new Personal/Job mixins, flag the HR Executive designation.
 //
-import { TxOperations, type Class, type Data, type Ref } from '@hcengineering/core'
+import { AccountRole, TxOperations, type Class, type Data, type Ref } from '@hcengineering/core'
 import {
   tryUpgrade,
   type MigrateMode,
@@ -12,6 +12,9 @@ import {
 } from '@hcengineering/model'
 import core from '@hcengineering/model-core'
 import contact from '@hcengineering/contact'
+import setting from '@hcengineering/setting'
+import workbench from '@hcengineering/model-workbench'
+import type { Application } from '@hcengineering/workbench'
 import ygTimesheet, { type WorkDepartment, type WorkDesignation } from '@hcengineering/yg-timesheet'
 import ygHr, {
   ygHrId,
@@ -122,6 +125,51 @@ async function ensureEmployeeSeq (ops: TxOperations): Promise<void> {
   await ops.createDoc(ygHr.class.EmployeeSeq, core.space.Workspace, { last: 24 }, EMPLOYEE_SEQ_ID)
 }
 
+// Add the "HR Settings" special (Task 9) to the existing Human Resource app's navigator model.
+// The app doc itself is created by models/yg-timesheet's createModel (builder.createDoc), and the
+// Builder has no updateDoc for extending an already-committed array - only a TxOperations client
+// (this migration) can append to navigatorModel.specials, same idiom as setHrAppIcon /
+// hideStockHrApp (models/yg-timesheet/src/migration.ts). Best-effort: never fail the workspace
+// provision if the app doc is missing or the update doesn't stick on some backend.
+//
+// accessLevel: DocGuest, same as every other special in this app (Overview, Timesheets,
+// Team Profiles, ...) - the app itself is already hidden from non-HR/non-owner accounts (see
+// models/yg-timesheet/src/index.ts's OnHrMembershipChange-driven HiddenApplication trigger), so
+// DocGuest here just means "visible to whoever can already see the app". The finer HR-or-Maintainer
+// gate (and the edit surface itself) lives in HrLists.svelte, same caveat as HrLatePermissions.
+async function addHrSettingsSpecial (ops: TxOperations): Promise<void> {
+  try {
+    // ygTimesheet.app.HumanResource is typed as the widened `Ref<Doc>` (plugins/yg-timesheet/src/
+    // index.ts), not `Ref<Application>`, so it needs an explicit cast here to keep findOne/updateDoc
+    // inferring T = Application instead of falling back to their shared Doc supertype.
+    const appId = ygTimesheet.app.HumanResource as Ref<Application>
+    const app = await ops.findOne(workbench.class.Application, { _id: appId })
+    if (app === undefined) return
+    const specials = app.navigatorModel?.specials ?? []
+    if (specials.some((s) => s.id === 'hr-settings')) return // idempotent
+    await ops.updateDoc<Application>(workbench.class.Application, core.space.Model, appId, {
+      navigatorModel: {
+        spaces: app.navigatorModel?.spaces ?? [],
+        groups: app.navigatorModel?.groups,
+        hideStarred: app.navigatorModel?.hideStarred,
+        specials: [
+          ...specials,
+          {
+            id: 'hr-settings',
+            label: ygHr.string.HrSettings,
+            icon: setting.icon.Setting,
+            component: ygHr.component.HrLists,
+            accessLevel: AccountRole.DocGuest,
+            position: 'bottom'
+          }
+        ]
+      }
+    })
+  } catch (err) {
+    console.error('yg-hr: could not add HR Settings nav special (non-fatal)', err)
+  }
+}
+
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
@@ -131,6 +179,15 @@ async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   await flagHrExecutiveDesignation(ops)
   await migrateWorkProfiles(ops)
   await ensureEmployeeSeq(ops)
+}
+
+// Separate tryUpgrade state (not folded into migrateYgHr above) so it also runs against
+// workspaces that already completed the earlier 'seed-lists-and-migrate-workprofile-0001' state -
+// tryUpgrade skips a state entirely once recorded done, so a workspace migrated before Task 9
+// would otherwise never get the nav special added.
+async function migrateHrSettingsNav (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await addHrSettingsSpecial(ops)
 }
 
 export const ygHrOperation: MigrateOperation = {
@@ -146,6 +203,11 @@ export const ygHrOperation: MigrateOperation = {
         // designation/department/employeeId into the new EmployeeJob/EmployeePersonal mixins.
         state: 'seed-lists-and-migrate-workprofile-0001',
         func: migrateYgHr
+      },
+      {
+        // Task 9: add the "HR Settings" special to the Human Resource app nav.
+        state: 'add-hr-settings-nav-special-0001',
+        func: migrateHrSettingsNav
       }
     ])
   }
