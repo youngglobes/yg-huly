@@ -182,7 +182,6 @@ export default plugin(ygHrId, {
     Dates: '' as IntlString,
     FirstName: '' as IntlString,
     LastName: '' as IntlString,
-    Phone: '' as IntlString,
     Save: '' as IntlString,
     Cancel: '' as IntlString
   }

@@ -23,6 +23,7 @@
   import type { Employee } from '@hcengineering/contact'
   import contact from '@hcengineering/contact'
   import type { AttachedData } from '@hcengineering/core'
+  import { type IntlString, translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygHr, { type EmergencyContact } from '@hcengineering/yg-hr'
@@ -38,12 +39,23 @@
   const query = createQuery()
   $: query.query(ygHr.class.EmergencyContact, { attachedTo: employee._id }, (res) => { contacts = res })
 
-  function phoneOf (c: EmergencyContact): { value: string, label: string } | undefined {
-    if (c.mobile != null && c.mobile !== '') return { value: c.mobile, label: 'Mobile' }
-    if (c.homePhone != null && c.homePhone !== '') return { value: c.homePhone, label: 'Home' }
-    if (c.workPhone != null && c.workPhone !== '') return { value: c.workPhone, label: 'Work' }
+  function phoneOf (c: EmergencyContact): { value: string, label: IntlString } | undefined {
+    if (c.mobile != null && c.mobile !== '') return { value: c.mobile, label: ygHr.string.Mobile }
+    if (c.homePhone != null && c.homePhone !== '') return { value: c.homePhone, label: ygHr.string.HomePhone }
+    if (c.workPhone != null && c.workPhone !== '') return { value: c.workPhone, label: ygHr.string.WorkPhone }
     return undefined
   }
+
+  // <input placeholder> can't bind a <Label> component directly - resolve once, same idiom
+  // HrLists.svelte uses for its own add-form placeholders.
+  let namePlaceholder = ''
+  let relationshipPlaceholder = ''
+  let mobilePlaceholder = ''
+  let homePhonePlaceholder = ''
+  void translate(ygHr.string.Name, {}).then((r) => { namePlaceholder = r })
+  void translate(ygHr.string.Relationship, {}).then((r) => { relationshipPlaceholder = r })
+  void translate(ygHr.string.Mobile, {}).then((r) => { mobilePlaceholder = r })
+  void translate(ygHr.string.HomePhone, {}).then((r) => { homePhonePlaceholder = r })
 
   let adding = false
   let editingId: string | undefined
@@ -131,10 +143,10 @@
       {#each contacts as c (c._id)}
         {#if editingId === c._id}
           <div class="yg-ec-form">
-            <input class="yg-input" type="text" placeholder="Name" bind:value={fName} />
-            <input class="yg-input" type="text" placeholder="Relationship" bind:value={fRelationship} />
-            <input class="yg-input" type="text" placeholder="Mobile" bind:value={fMobile} />
-            <input class="yg-input" type="text" placeholder="Home phone" bind:value={fHomePhone} />
+            <input class="yg-input" type="text" placeholder={namePlaceholder} bind:value={fName} />
+            <input class="yg-input" type="text" placeholder={relationshipPlaceholder} bind:value={fRelationship} />
+            <input class="yg-input" type="text" placeholder={mobilePlaceholder} bind:value={fMobile} />
+            <input class="yg-input" type="text" placeholder={homePhonePlaceholder} bind:value={fHomePhone} />
             <div class="yg-ec-form__actions">
               <button class="yg-linkbtn" on:click={cancelForm}><Label label={ygHr.string.Cancel} /></button>
               <button class="yg-linkbtn yg-linkbtn--accent" on:click={() => submitEdit(c)}><Label label={ygHr.string.Save} /></button>
@@ -151,7 +163,7 @@
             {#if phone !== undefined}
               <div class="yg-ec__phone">
                 <div class="mono">{phone.value}</div>
-                <small>{phone.label}</small>
+                <small><Label label={phone.label} /></small>
               </div>
             {/if}
             {#if canEdit}
@@ -170,10 +182,10 @@
 
       {#if adding}
         <div class="yg-ec-form">
-          <input class="yg-input" type="text" placeholder="Name" bind:value={fName} />
-          <input class="yg-input" type="text" placeholder="Relationship" bind:value={fRelationship} />
-          <input class="yg-input" type="text" placeholder="Mobile" bind:value={fMobile} />
-          <input class="yg-input" type="text" placeholder="Home phone" bind:value={fHomePhone} />
+          <input class="yg-input" type="text" placeholder={namePlaceholder} bind:value={fName} />
+          <input class="yg-input" type="text" placeholder={relationshipPlaceholder} bind:value={fRelationship} />
+          <input class="yg-input" type="text" placeholder={mobilePlaceholder} bind:value={fMobile} />
+          <input class="yg-input" type="text" placeholder={homePhonePlaceholder} bind:value={fHomePhone} />
           <div class="yg-ec-form__actions">
             <button class="yg-linkbtn" on:click={cancelForm}><Label label={ygHr.string.Cancel} /></button>
             <button class="yg-linkbtn yg-linkbtn--accent" on:click={submitAdd}><Label label={ygHr.string.Save} /></button>
