@@ -10,12 +10,15 @@ import {
   Prop,
   TypeBoolean,
   TypeDate,
+  TypeNumber,
   TypeRef,
   TypeString,
   UX
 } from '@hcengineering/model'
 import contact, { TEmployee } from '@hcengineering/model-contact'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
+import serverCore from '@hcengineering/server-core'
+import serverYgHr from '@hcengineering/server-yg-hr'
 import type {
   Department,
   Designation,
@@ -23,6 +26,7 @@ import type {
   EmployeeContact,
   EmployeeJob,
   EmployeePersonal,
+  EmployeeSeq,
   EmploymentStatus,
   Gender,
   Location,
@@ -58,6 +62,14 @@ export class TEmploymentStatus extends TDoc {
 @UX(ygHr.string.Location)
 export class TLocation extends TDoc {
   @Prop(TypeString(), ygHr.string.Location) name!: string
+}
+
+// Monotonic per-workspace counter for employee ids (single doc, no UX label - internal only).
+// Seeded at 24 and incremented atomically by OnEmployeeCreate (server-plugins/yg-hr-resources)
+// so the next assigned id continues the YGS series after the existing YGS0024.
+@Model(ygHr.class.EmployeeSeq, core.class.Doc, DOMAIN_YG_HR)
+export class TEmployeeSeq extends TDoc implements EmployeeSeq {
+  @Prop(TypeNumber(), ygHr.string.EmployeeSeqLast) last!: number
 }
 
 @Mixin(ygHr.mixin.EmployeePersonal, contact.mixin.Employee)
@@ -118,7 +130,8 @@ export function createModel (builder: Builder): void {
     TEmployeePersonal,
     TEmployeeContact,
     TEmployeeJob,
-    TEmergencyContact
+    TEmergencyContact,
+    TEmployeeSeq
   )
 
   // Shared space holding the admin-managed list items (Department / Designation /
@@ -137,4 +150,18 @@ export function createModel (builder: Builder): void {
     },
     ygHr.space.HrConfig
   )
+
+  // Auto-assign employee id on Employee-mixin creation (server trigger, Task 7). objectClass-only
+  // txMatch (same idiom as models/server-yg-timesheet's OnAttendancePunch registration) so it fires
+  // on any write to contact.mixin.Employee OR one of its descendant mixins - EmployeePersonal,
+  // EmployeeContact, EmployeeJob (and ygTimesheet.mixin.WorkProfile) - all of which are written with
+  // objectClass: contact.mixin.Employee (see models/yg-hr/src/migration.ts's updateMixin calls). The
+  // trigger itself (server-plugins/yg-hr-resources) is idempotent and loop-safe: it only acts when
+  // EmployeePersonal.employeeId is still empty, and its own compensating write is System-authored so
+  // the top-of-loop guard there skips it on re-entry.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgHr.trigger.OnEmployeeCreate,
+    isAsync: true,
+    txMatch: { objectClass: contact.mixin.Employee }
+  })
 }

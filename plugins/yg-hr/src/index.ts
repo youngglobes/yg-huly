@@ -136,6 +136,7 @@ export default plugin(ygHrId, {
     Location: '' as IntlString,
     ContractStart: '' as IntlString,
     ContractEnd: '' as IntlString,
+    EmployeeSeqLast: '' as IntlString,
     Relationship: '' as IntlString,
     Departments: '' as IntlString,
     Designations: '' as IntlString,

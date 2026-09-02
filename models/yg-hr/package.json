@@ -51,6 +51,8 @@
     "@hcengineering/ui": "workspace:^0.7.426",
     "@hcengineering/yg-hr-resources": "workspace:^0.7.426",
     "@hcengineering/setting": "workspace:^0.7.426",
-    "@hcengineering/yg-timesheet": "workspace:^0.7.426"
+    "@hcengineering/yg-timesheet": "workspace:^0.7.426",
+    "@hcengineering/server-core": "workspace:^0.7.426",
+    "@hcengineering/server-yg-hr": "workspace:^0.7.426"
   }
 }

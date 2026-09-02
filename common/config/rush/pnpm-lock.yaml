@@ -13979,6 +13979,12 @@ importers:
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
+      '@hcengineering/server-core':
+        specifier: workspace:^0.7.426
+        version: link:../../foundations/server/packages/core
+      '@hcengineering/server-yg-hr':
+        specifier: workspace:^0.7.426
+        version: link:../../server-plugins/yg-hr
       '@hcengineering/setting':
         specifier: workspace:^0.7.426
         version: link:../../plugins/setting

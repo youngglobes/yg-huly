@@ -29,6 +29,7 @@
     "Location": "Location",
     "ContractStart": "Contract start",
     "ContractEnd": "Contract end",
+    "EmployeeSeqLast": "Last assigned employee sequence",
     "Relationship": "Relationship",
     "Departments": "Departments",
     "Designations": "Designations",
