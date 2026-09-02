@@ -164,4 +164,32 @@ export function createModel (builder: Builder): void {
     isAsync: true,
     txMatch: { objectClass: contact.mixin.Employee }
   })
+
+  // Task 8: server-enforced write permissions on the HR mixins + EmergencyContact. Registered as
+  // TWO Trigger docs (one txMatch shape per tx kind), both routed to the same OnEmployeeHrGuard
+  // function - same "narrow, separate registrations per tx shape" idiom
+  // models/server-yg-timesheet uses throughout. See OnEmployeeHrGuard's file-header comment
+  // (server-plugins/yg-hr-resources) for the authorization rule and the revert mechanism.
+  //
+  // Mixin writes: matched on the `mixin` field (NOT objectClass - a TxMixin's objectClass is the
+  // underlying Employee doc's class, contact.mixin.Employee, the same for every one of these three
+  // mixins as well as ygTimesheet.mixin.WorkProfile; only `mixin` tells them apart - same idiom
+  // models/server-yg-timesheet uses for ProjectApprovers: `{ _class: core.class.TxMixin, mixin: ... }`).
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgHr.trigger.OnEmployeeHrGuard,
+    isAsync: true,
+    txMatch: {
+      _class: core.class.TxMixin,
+      mixin: { $in: [ygHr.mixin.EmployeePersonal, ygHr.mixin.EmployeeContact, ygHr.mixin.EmployeeJob] }
+    }
+  })
+
+  // EmergencyContact create/update/remove: a flat CUD tx (this schema version has no separate
+  // TxCollectionCUD class - see the guard's own comment), so an objectClass-only match covers all
+  // three tx kinds, same as e.g. OnTimeSpendReportChange's registration.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgHr.trigger.OnEmployeeHrGuard,
+    isAsync: true,
+    txMatch: { objectClass: ygHr.class.EmergencyContact }
+  })
 }

@@ -15,6 +15,7 @@ export const serverYgHrId = 'server-yg-hr' as Plugin
  */
 export default plugin(serverYgHrId, {
   trigger: {
-    OnEmployeeCreate: '' as Resource<TriggerFunc>
+    OnEmployeeCreate: '' as Resource<TriggerFunc>,
+    OnEmployeeHrGuard: '' as Resource<TriggerFunc>
   }
 })
