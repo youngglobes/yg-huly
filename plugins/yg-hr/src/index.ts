@@ -77,6 +77,16 @@ export function formatEmployeeId (seq: number, prefix = 'YGS', width = 4): strin
   return `${prefix}${String(seq).padStart(width, '0')}`
 }
 
+// Flag-based HR-staff detection: the seeded Designation carrying isHr=true is authoritative;
+// the legacy 'HR Executive' name is kept as a fallback so a workspace whose migration has not
+// yet flagged a designation (or whose admin renamed it) still resolves correctly. Single source
+// of truth for both the yg-hr client and the ygTimesheet.isHrDesignation delegation (see
+// plugins/yg-timesheet/src/index.ts).
+export function isHrDesignationByFlag (designation?: { isHr?: boolean, name?: string }): boolean {
+  if (designation == null) return false
+  return designation.isHr === true || designation.name === HR_DESIGNATION_FALLBACK
+}
+
 export const ygHrId = 'yg-hr' as Plugin
 
 export default plugin(ygHrId, {

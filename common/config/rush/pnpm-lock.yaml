@@ -13997,6 +13997,9 @@ importers:
       '@hcengineering/yg-hr-resources':
         specifier: workspace:^0.7.426
         version: link:../../plugins/yg-hr-resources
+      '@hcengineering/yg-timesheet':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-timesheet
     devDependencies:
       '@hcengineering/platform-rig':
         specifier: workspace:^0.7.426
@@ -30689,6 +30692,9 @@ importers:
       '@hcengineering/ui':
         specifier: workspace:^0.7.426
         version: link:../../packages/ui
+      '@hcengineering/yg-hr':
+        specifier: workspace:^0.7.426
+        version: link:../yg-hr
     devDependencies:
       '@hcengineering/platform-rig':
         specifier: workspace:^0.7.426
