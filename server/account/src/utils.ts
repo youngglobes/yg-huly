@@ -1804,7 +1804,15 @@ export async function getInviteEmail (
   expHours: number,
   resend = false
 ): Promise<EmailInfo> {
-  const ws = sanitizeEmail(workspace.name !== '' ? workspace.name : workspace.url)
+  // YG fork: name the product ("YG Portal") in invite emails, not the workspace slug ("yg").
+  const productName = branding?.title ?? getMetadata(accountPlugin.metadata.ProductName)
+  const ws = sanitizeEmail(
+    productName != null && productName !== ''
+      ? productName
+      : workspace.name !== ''
+        ? workspace.name
+        : workspace.url
+  )
   const lang = branding?.language
 
   return {

@@ -31,7 +31,8 @@ import {
   getWorkspacePermissions,
   sendInvite,
   leaveWorkspace,
-  resendInvite
+  resendInvite,
+  hasPendingInvite
 } from './utils'
 
 import { type Pages, pages } from '@hcengineering/login'
@@ -62,6 +63,7 @@ export default async () => ({
     GetWorkspacePermissions: getWorkspacePermissions,
     SendInvite: sendInvite,
     ResendInvite: resendInvite,
+    HasPendingInvite: hasPendingInvite,
     GetInviteLink: getInviteLink
   }
 })
