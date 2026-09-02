@@ -16,6 +16,7 @@ import ygTimesheet, { type WorkDepartment, type WorkDesignation } from '@hcengin
 import ygHr, {
   ygHrId,
   HR_DESIGNATION_FALLBACK,
+  EMPLOYEE_SEQ_ID,
   type Department,
   type Designation,
   type EmploymentStatus,
@@ -109,6 +110,18 @@ async function migrateWorkProfiles (ops: TxOperations): Promise<void> {
   }
 }
 
+// Pre-seed the single EmployeeSeq counter doc at its fixed id (EMPLOYEE_SEQ_ID), last: 24, so the
+// first id the OnEmployeeCreate trigger (server-plugins/yg-hr-resources) ever assigns is YGS0025,
+// continuing the series after the existing YGS0024. Runs before any employee can be created
+// against this workspace, so the counter always exists at one well-known _id and can never
+// diverge into two competing counters (which would let two employees get the same id - see the
+// trigger's own fixed-id fallback for the same reasoning). Idempotent: no-op if already seeded.
+async function ensureEmployeeSeq (ops: TxOperations): Promise<void> {
+  const existing = await ops.findOne(ygHr.class.EmployeeSeq, { _id: EMPLOYEE_SEQ_ID })
+  if (existing !== undefined) return
+  await ops.createDoc(ygHr.class.EmployeeSeq, core.space.Workspace, { last: 24 }, EMPLOYEE_SEQ_ID)
+}
+
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
@@ -117,6 +130,7 @@ async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   await seedNames<Location>(ops, ygHr.class.Location, LOCATIONS)
   await flagHrExecutiveDesignation(ops)
   await migrateWorkProfiles(ops)
+  await ensureEmployeeSeq(ops)
 }
 
 export const ygHrOperation: MigrateOperation = {

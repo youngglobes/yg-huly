@@ -2,13 +2,12 @@
 // YoungGlobes: server-yg-hr-resources - triggers for the yg-hr module.
 //
 import core, {
-  generateId,
   type Tx,
   type TxMixin
 } from '@hcengineering/core'
 import contact, { type Employee, type Person } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
-import ygHr, { formatEmployeeId, type EmployeeSeq } from '@hcengineering/yg-hr'
+import ygHr, { EMPLOYEE_SEQ_ID, formatEmployeeId, type EmployeeSeq } from '@hcengineering/yg-hr'
 
 //
 // Auto-assign the next YGS#### employee id (Task 7). Fires whenever a write touches
@@ -80,18 +79,23 @@ export async function OnEmployeeCreate (txes: Tx[], control: TriggerControl): Pr
 // pattern) - the incremented value comes back from that one atomic write, never from a separate
 // read, so two concurrent employee creates cannot collide on the same id.
 //
-// First-run seeding: if no EmployeeSeq doc exists yet, one is created at `last: 24` (so the next
-// assigned id is YGS0025, continuing the series after the existing YGS0024) before the $inc. That
-// create-if-absent check is NOT itself atomic - a doc-creation race is possible if two employees
-// were created in the very same instant on a workspace that has never had one before - but it
-// only matters once, at most, per workspace; this accepts the same tradeoff
-// server-yg-timesheet-resources' OnAttendancePunch makes for LatePermission's idempotent create.
-//
+// The counter always lives at the fixed id EMPLOYEE_SEQ_ID (never a generated one) and is
+// pre-seeded there at `last: 24` by the migration (models/yg-hr/src/migration.ts's
+// ensureEmployeeSeq), so the first assigned id is YGS0025, continuing the series after the
+// existing YGS0024, and there is only ever ONE counter doc for the whole workspace. Reviewed fix:
+// an earlier version of this trigger created the counter lazily under a GENERATED id on first use,
+// which let two concurrent employee-mixin writes on a fresh workspace each see "no doc", each
+// create their OWN singleton, and both $inc to 25 - two employees could get the same YGS0025. A
+// fixed id closes that: even the fallback create below (not expected in normal operation, since
+// the migration seeds it ahead of time) always targets this same _id, so a concurrent fallback
+// create can never diverge into a second counter.
 async function nextEmployeeSeq (control: TriggerControl): Promise<number> {
-  let seq = (await control.findAll(control.ctx, ygHr.class.EmployeeSeq, {}, { limit: 1 }))[0]
+  let seq = (
+    await control.findAll(control.ctx, ygHr.class.EmployeeSeq, { _id: EMPLOYEE_SEQ_ID }, { limit: 1 })
+  )[0]
 
   if (seq === undefined) {
-    const objectId = generateId<EmployeeSeq>()
+    // Fallback only - see the doc comment above. Always the fixed id, never generated.
     await control.apply(
       control.ctx,
       [
@@ -99,14 +103,14 @@ async function nextEmployeeSeq (control: TriggerControl): Promise<number> {
           ygHr.class.EmployeeSeq,
           core.space.Workspace,
           { last: 24 },
-          objectId,
+          EMPLOYEE_SEQ_ID,
           Date.now(),
           core.account.System
         )
       ],
       true
     )
-    seq = { _id: objectId, space: core.space.Workspace } as EmployeeSeq
+    seq = { _id: EMPLOYEE_SEQ_ID, space: core.space.Workspace } as EmployeeSeq
   }
 
   const result = await control.apply(

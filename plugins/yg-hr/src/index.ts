@@ -37,6 +37,13 @@ export interface EmployeeSeq extends Doc {
   last: number
 }
 
+// Fixed, well-known id for the single EmployeeSeq counter doc, so it can never diverge into two
+// competing counters (a race between concurrent creates keyed off a generated id could otherwise
+// produce two singletons, each independently counting - and duplicate YGS#### ids). Seeded at
+// migration time (models/yg-hr/src/migration.ts) and read/created by this fixed id in the
+// OnEmployeeCreate trigger (server-plugins/yg-hr-resources).
+export const EMPLOYEE_SEQ_ID = 'yg-hr-employee-seq' as Ref<EmployeeSeq>
+
 export interface EmployeePersonal extends Employee {
   middleName?: string
   gender?: Gender
