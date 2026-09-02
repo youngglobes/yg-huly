@@ -1,8 +1,8 @@
 //
 // YoungGlobes: yg-hr plugin ids.
 //
-import type { AttachedDoc, Class, Doc, Mixin, Ref, Space, Timestamp } from '@hcengineering/core'
 import type { Employee } from '@hcengineering/contact'
+import type { AttachedDoc, Class, Doc, Mixin, Ref, Space, Timestamp } from '@hcengineering/core'
 import type { IntlString, Plugin } from '@hcengineering/platform'
 import { plugin } from '@hcengineering/platform'
 
@@ -13,6 +13,12 @@ export type MaritalStatus = 'single' | 'married' | 'other'
 export interface HrListItem extends Doc {
   name: string
 }
+
+// Department, EmploymentStatus and Location carry no fields beyond HrListItem's; named aliases
+// keep the class-ref keys and the interfaces they point at readable by the same name.
+export type Department = HrListItem
+export type EmploymentStatus = HrListItem
+export type Location = HrListItem
 
 export interface Designation extends HrListItem {
   isHr?: boolean
@@ -31,21 +37,54 @@ export interface EmployeeSeq extends Doc {
   last: number
 }
 
+export interface EmployeePersonal extends Employee {
+  middleName?: string
+  gender?: Gender
+  dateOfBirth?: Timestamp
+  maritalStatus?: MaritalStatus
+  nationality?: string
+  bloodGroup?: string
+  employeeId?: string
+}
+
+export interface EmployeeContact extends Employee {
+  street1?: string
+  street2?: string
+  city?: string
+  state?: string
+  zip?: string
+  country?: string
+  homePhone?: string
+  mobile?: string
+  workPhone?: string
+  otherEmail?: string
+}
+
+export interface EmployeeJob extends Employee {
+  designation?: Ref<Designation>
+  department?: Ref<Department>
+  employmentStatus?: Ref<EmploymentStatus>
+  joinedDate?: Timestamp
+  location?: Ref<Location>
+  contractStart?: Timestamp
+  contractEnd?: Timestamp
+}
+
 export const ygHrId = 'yg-hr' as Plugin
 
 export default plugin(ygHrId, {
   class: {
-    Department: '' as Ref<Class<HrListItem>>,
+    Department: '' as Ref<Class<Department>>,
     Designation: '' as Ref<Class<Designation>>,
-    EmploymentStatus: '' as Ref<Class<HrListItem>>,
-    Location: '' as Ref<Class<HrListItem>>,
+    EmploymentStatus: '' as Ref<Class<EmploymentStatus>>,
+    Location: '' as Ref<Class<Location>>,
     EmergencyContact: '' as Ref<Class<EmergencyContact>>,
     EmployeeSeq: '' as Ref<Class<EmployeeSeq>>
   },
   mixin: {
-    EmployeePersonal: '' as Ref<Mixin<Employee>>,
-    EmployeeContact: '' as Ref<Mixin<Employee>>,
-    EmployeeJob: '' as Ref<Mixin<Employee>>
+    EmployeePersonal: '' as Ref<Mixin<EmployeePersonal>>,
+    EmployeeContact: '' as Ref<Mixin<EmployeeContact>>,
+    EmployeeJob: '' as Ref<Mixin<EmployeeJob>>
   },
   space: {
     HrConfig: '' as Ref<Space>
