@@ -35,6 +35,7 @@ import { serverGmailId } from '@hcengineering/server-gmail'
 import { serverGuestId } from '@hcengineering/server-guest'
 import { serverHrId } from '@hcengineering/server-hr'
 import { serverYgTimesheetId } from '@hcengineering/server-yg-timesheet'
+import { serverYgHrId } from '@hcengineering/server-yg-hr'
 import { serverInventoryId } from '@hcengineering/server-inventory'
 import { serverLeadId } from '@hcengineering/server-lead'
 import { serverNotificationId } from '@hcengineering/server-notification'
@@ -67,6 +68,7 @@ addLocation(serverGmailId, () => import('@hcengineering/server-gmail-resources')
 addLocation(serverTelegramId, () => import('@hcengineering/server-telegram-resources'))
 addLocation(serverHrId, () => import('@hcengineering/server-hr-resources'))
 addLocation(serverYgTimesheetId, () => import('@hcengineering/server-yg-timesheet-resources'))
+addLocation(serverYgHrId, () => import('@hcengineering/server-yg-hr-resources'))
 addLocation(serverRequestId, () => import('@hcengineering/server-request-resources'))
 addLocation(serverViewId, () => import('@hcengineering/server-view-resources'))
 addLocation(serverDocumentId, () => import('@hcengineering/server-document-resources'))
