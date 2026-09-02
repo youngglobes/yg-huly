@@ -8,7 +8,8 @@ import core, {
   type PersonId,
   type Tx,
   type TxCUD,
-  type TxMixin
+  type TxMixin,
+  type TxUpdateDoc
 } from '@hcengineering/core'
 import contact, { type Employee, type Person } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
@@ -303,9 +304,9 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
     return
   }
 
-  // Update: restore every own field to its pre-tx value. Split into a plain field-set (safe for
-  // concrete values) and a $unset-only tx (for any field whose pre-tx value was itself unset).
-  // Verified against the postgres adapter's operator-less update path (updateDoc(), the
+  // Update: restore every own content field to its pre-tx value. Split into a plain field-set
+  // (safe for concrete values) and a $unset-only tx (for any field whose pre-tx value was itself
+  // unset). Verified against the postgres adapter's operator-less update path (updateDoc(), the
   // `data = COALESCE(data || $jsonb)` branch): it merges rather than replaces, and explicitly
   // skips any key whose value is `undefined` - so setting a plain field to `undefined` would
   // silently leave the CURRENT (unauthorized) value in place instead of clearing it. A pure
@@ -320,11 +321,50 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
     else setOps[field] = val
   }
 
+  // Re-parent bypass: EmergencyContact is an AttachedDoc, and the platform lets a plain update
+  // change attachedTo/attachedToClass/collection to move the record onto a different employee
+  // (TxOperations.updateCollection). Reverting only the five content fields above would leave an
+  // unauthorized move standing - the record would keep pointing at the wrong parent even though
+  // its content looks restored. `operations` on THIS tx says exactly what moved (falling back to
+  // the pre-tx value for anything it did not touch, the same way triggers.ts's own
+  // updateCollection handler computes `newAttachedToClass = operations.attachedToClass ?? _class`).
+  const utx = cud as TxUpdateDoc<EmergencyContact>
+  const priorAttachedTo = (prevDoc as any).attachedTo
+  const priorAttachedToClass = (prevDoc as any).attachedToClass
+  const priorCollection = (prevDoc as any).collection
+  const currentAttachedTo = (utx.operations as any)?.attachedTo ?? priorAttachedTo
+  const currentAttachedToClass = (utx.operations as any)?.attachedToClass ?? priorAttachedToClass
+  const currentCollection = (utx.operations as any)?.collection ?? priorCollection
+  const reparented =
+    currentAttachedTo !== priorAttachedTo ||
+    currentAttachedToClass !== priorAttachedToClass ||
+    currentCollection !== priorCollection
+
+  if (reparented) {
+    setOps.attachedTo = priorAttachedTo
+    setOps.attachedToClass = priorAttachedToClass
+    setOps.collection = priorCollection
+  }
+
   const reverts: Tx[] = []
   if (Object.keys(setOps).length > 0) {
-    reverts.push(control.txFactory.createTxUpdateDoc(
+    const base = control.txFactory.createTxUpdateDoc(
       cud.objectClass, cud.objectSpace, cud.objectId, setOps as any, false, Date.now(), core.account.System
-    ))
+    )
+    // Wrapped via createTxCollectionCUD (mirroring TxOperations.updateCollection) ONLY when the
+    // record actually moved, with the CURRENT (malicious) parent as the tx's own attachedTo/
+    // attachedToClass/collection - exactly the shape the generic collection-count middleware
+    // expects to move EmployeePersonal.emergencyContacts off the wrong parent and back onto the
+    // right one (see guardMixinWrite's header comment / the create-revert wrap() above for the
+    // same mechanism applied to create/remove).
+    reverts.push(
+      reparented
+        ? control.txFactory.createTxCollectionCUD(
+          currentAttachedToClass, currentAttachedTo, cud.objectSpace, currentCollection, base, Date.now(),
+          core.account.System
+        )
+        : base
+    )
   }
   if (Object.keys(unsetOps).length > 0) {
     reverts.push(control.txFactory.createTxUpdateDoc(
