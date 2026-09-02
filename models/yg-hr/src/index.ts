@@ -192,4 +192,22 @@ export function createModel (builder: Builder): void {
     isAsync: true,
     txMatch: { objectClass: ygHr.class.EmergencyContact }
   })
+
+  // The four admin-managed HrConfig list classes (Department/Designation/EmploymentStatus/
+  // Location, all in ygHr.space.HrConfig) had no server-side write guard - the UI gate on
+  // HrLists.svelte does not stop a direct API call, and since HR-status is decided off
+  // Designation.isHr, an unguarded Designation write let any member self-elevate
+  // (updateDoc(Designation, ..., theirOwnDesignationId, { isHr: true })), after which the mixin/
+  // EmergencyContact guards above would treat them as authorized. objectClass `$in` covers all
+  // four classes and all three tx kinds in one registration, same idiom as the EmergencyContact
+  // match above.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgHr.trigger.OnEmployeeHrGuard,
+    isAsync: true,
+    txMatch: {
+      objectClass: {
+        $in: [ygHr.class.Department, ygHr.class.Designation, ygHr.class.EmploymentStatus, ygHr.class.Location]
+      }
+    }
+  })
 }

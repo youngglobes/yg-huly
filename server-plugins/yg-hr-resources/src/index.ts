@@ -5,7 +5,9 @@ import core, {
   AccountRole,
   hasAccountRole,
   TxProcessor,
+  type Doc,
   type PersonId,
+  type Ref,
   type Tx,
   type TxCUD,
   type TxMixin,
@@ -191,7 +193,49 @@ const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
 
 const EMERGENCY_CONTACT_FIELDS = ['name', 'relationship', 'homePhone', 'mobile', 'workPhone'] as const
 
-async function isHrAuthorized (control: TriggerControl, actorId: PersonId): Promise<boolean> {
+// Own fields of each guarded HrConfig list class (Department/EmploymentStatus/Location carry only
+// `name`; Designation also carries `isHr`, the field this whole trigger's authorization decision
+// is keyed off of - see resolveDesignation below for why writes to THIS class need special care).
+const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
+  [ygHr.class.Department]: ['name'],
+  [ygHr.class.Designation]: ['name', 'isHr'],
+  [ygHr.class.EmploymentStatus]: ['name'],
+  [ygHr.class.Location]: ['name']
+}
+
+// Resolves a Designation doc by id - but if `cud` is itself the tx that just wrote THIS SAME
+// Designation (a write to ygHr.class.Designation with matching objectId), reads its PRE-tx state
+// instead of the current (POST-APPLY, possibly tainted) one.
+//
+// Why this matters: isHrAuthorized below decides authorization by re-reading the actor's OWN
+// resolved Designation's `isHr` flag. Without this guard, a non-HR member could
+// `updateDoc(ygHr.class.Designation, ..., theirOwnDesignationId, { isHr: true })` and have THAT
+// SAME evaluation see the just-applied isHr=true (control.findAll always returns POST-APPLY state,
+// same fact documented throughout this file) and conclude they are HR-authorized to make exactly
+// the write that granted them that status - a self-authorizing TOCTOU. Reconstructing the pre-tx
+// value here (same TxProcessor.buildDoc2Doc replay idiom used everywhere else in this file) closes
+// that: the write is judged against what the actor's designation WAS before this tx, never against
+// what this tx itself just made it.
+async function resolveDesignation (
+  control: TriggerControl,
+  designationId: Ref<Designation>,
+  cud: TxCUD<Doc> | undefined
+): Promise<Designation | undefined> {
+  if (cud !== undefined && cud.objectClass === ygHr.class.Designation && cud.objectId === designationId) {
+    const logTxes = Array.from(
+      await control.findAll(control.ctx, core.class.TxCUD, { objectId: designationId })
+    ).filter((it) => it._id !== cud._id)
+    return TxProcessor.buildDoc2Doc<Designation>(logTxes) ?? undefined
+  }
+  return (await control.findAll(control.ctx, ygHr.class.Designation, { _id: designationId }, { limit: 1 }))[0]
+}
+
+// `cud`, when supplied, is the CUD tx currently being authorized - passed through so
+// resolveDesignation can avoid reading its own not-yet-authorized effect on the actor's
+// designation (see resolveDesignation's comment). Existing callers (guardMixinWrite,
+// guardEmergencyContactWrite) never pass it - they can never BE a write to the Designation class,
+// so there is nothing to guard against and their behavior is unchanged.
+async function isHrAuthorized (control: TriggerControl, actorId: PersonId, cud?: TxCUD<Doc>): Promise<boolean> {
   if (hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)) return true
 
   const actor = await getEmployee(control, actorId)
@@ -201,9 +245,7 @@ async function isHrAuthorized (control: TriggerControl, actorId: PersonId): Prom
     await control.findAll(control.ctx, ygHr.mixin.EmployeeJob, { _id: actor._id }, { limit: 1 })
   )[0]
   const designation: Designation | undefined =
-    job?.designation === undefined
-      ? undefined
-      : (await control.findAll(control.ctx, ygHr.class.Designation, { _id: job.designation }, { limit: 1 }))[0]
+    job?.designation === undefined ? undefined : await resolveDesignation(control, job.designation, cud)
 
   return isHrDesignationByFlag(designation)
 }
@@ -375,6 +417,92 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
   if (reverts.length > 0) await control.apply(control.ctx, reverts)
 }
 
+// Reverts an unauthorized create/update/remove of one of the four HrConfig list docs (Department/
+// Designation/EmploymentStatus/Location). These are plain Docs - not mixins, not AttachedDoc - so
+// (unlike guardEmergencyContactWrite) there is no attachedTo/collection bookkeeping to preserve;
+// create/update/remove reverts are the simple createDoc/updateDoc/removeDoc shape.
+//
+// Closes the actual privilege-escalation hole this guard exists for: without it, any workspace
+// member could `updateDoc(ygHr.class.Designation, ..., theirOwnDesignationId, { isHr: true })`
+// directly via the API (the UI gate does not stop an API call) and have guardMixinWrite/
+// guardEmergencyContactWrite's isHrAuthorized treat them as HR from then on. Authorization is the
+// SAME isHrAuthorized check used everywhere else in this file, with `cud` threaded through so a
+// write to the actor's OWN Designation doc is judged against its PRE-tx isHr value, not the
+// tainted post-apply one this very tx just set - see resolveDesignation's comment for why that
+// matters and is not optional.
+async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Promise<void> {
+  const fields = HR_CONFIG_FIELDS[cud.objectClass]
+  if (fields === undefined) return // not one of the four guarded HrConfig list classes
+
+  if (await isHrAuthorized(control, cud.modifiedBy, cud)) return
+
+  control.ctx.warn('yg-hr: unauthorized HrConfig list write reverted', {
+    doc: cud.objectId, class: cud.objectClass, actor: cud.modifiedBy, txClass: cud._class
+  })
+
+  if (cud._class === core.class.TxCreateDoc) {
+    // Unauthorized create: delete it. No prior state to reconstruct.
+    const revert = control.txFactory.createTxRemoveDoc(
+      cud.objectClass, cud.objectSpace, cud.objectId, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+    return
+  }
+
+  // Update/remove: reconstruct the pre-tx state (see guardMixinWrite for why POST-APPLY state
+  // alone is not enough).
+  const logTxes = Array.from(
+    await control.findAll(control.ctx, core.class.TxCUD, { objectId: cud.objectId })
+  ).filter((it) => it._id !== cud._id)
+  const prevDoc = TxProcessor.buildDoc2Doc<Doc>(logTxes)
+
+  if (prevDoc === undefined || prevDoc === null) {
+    // An update/remove implies a prior create exists earlier in this object's own tx log - this
+    // should never happen. Fail loud rather than guess at a revert.
+    control.ctx.error(
+      'yg-hr: cannot reconstruct HrConfig list prior state - unauthorized write NOT reverted',
+      { doc: cud.objectId, class: cud.objectClass, actor: cud.modifiedBy, txClass: cud._class }
+    )
+    return
+  }
+
+  if (cud._class === core.class.TxRemoveDoc) {
+    // Unauthorized delete: recreate it from the replayed state.
+    const { _id, _class, space, modifiedBy, modifiedOn, createdBy, createdOn, ...attrs } = prevDoc as any
+    const revert = control.txFactory.createTxCreateDoc(
+      prevDoc._class, prevDoc.space, attrs, prevDoc._id, Date.now(), core.account.System
+    )
+    await control.apply(control.ctx, [revert])
+    return
+  }
+
+  // Update: restore this class's own fields to their pre-tx values. Split into a plain field-set
+  // and a $unset-only tx the same way guardEmergencyContactWrite does - see its comment for why a
+  // plain merge cannot clear a field back to "unset" (isHr in particular: a field left unset
+  // before this tx must end up unset again, not merely left at whatever value this tx wrote).
+  const setOps: Record<string, any> = {}
+  const unsetOps: Record<string, ''> = {}
+  for (const field of fields) {
+    const val = (prevDoc as any)[field]
+    if (val === undefined) unsetOps[field] = ''
+    else setOps[field] = val
+  }
+
+  const reverts: Tx[] = []
+  if (Object.keys(setOps).length > 0) {
+    reverts.push(control.txFactory.createTxUpdateDoc(
+      cud.objectClass, cud.objectSpace, cud.objectId, setOps as any, false, Date.now(), core.account.System
+    ))
+  }
+  if (Object.keys(unsetOps).length > 0) {
+    reverts.push(control.txFactory.createTxUpdateDoc(
+      cud.objectClass, cud.objectSpace, cud.objectId, { $unset: unsetOps } as any, false, Date.now(),
+      core.account.System
+    ))
+  }
+  if (reverts.length > 0) await control.apply(control.ctx, reverts)
+}
+
 export async function OnEmployeeHrGuard (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     // Loop-safety guard - see file header above. Must stay first.
@@ -390,9 +518,14 @@ export async function OnEmployeeHrGuard (txes: Tx[], control: TriggerControl): P
       tx._class === core.class.TxUpdateDoc ||
       tx._class === core.class.TxRemoveDoc
     ) {
-      const cud = tx as TxCUD<EmergencyContact>
-      if (cud.objectClass !== ygHr.class.EmergencyContact) continue
-      await guardEmergencyContactWrite(cud, control)
+      const cud = tx as TxCUD<Doc>
+      if (cud.objectClass === ygHr.class.EmergencyContact) {
+        await guardEmergencyContactWrite(cud as TxCUD<EmergencyContact>, control)
+        continue
+      }
+      if (HR_CONFIG_FIELDS[cud.objectClass] !== undefined) {
+        await guardHrConfigWrite(cud, control)
+      }
     }
   }
   return []
