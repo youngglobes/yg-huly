@@ -115,7 +115,8 @@ export default plugin(ygHrId, {
     HrConfig: '' as Ref<Space>
   },
   component: {
-    HrLists: '' as AnyComponent
+    HrLists: '' as AnyComponent,
+    EmployeeProfile: '' as AnyComponent
   },
   string: {
     Personal: '' as IntlString,
@@ -166,6 +167,23 @@ export default plugin(ygHrId, {
     AddItem: '' as IntlString,
     NoItemsYet: '' as IntlString,
     RemoveItem: '' as IntlString,
-    HrSettingsRestricted: '' as IntlString
+    HrSettingsRestricted: '' as IntlString,
+    NotSet: '' as IntlString,
+    OpenEnded: '' as IntlString,
+    Active: '' as IntlString,
+    Inactive: '' as IntlString,
+    FromLogin: '' as IntlString,
+    Edit: '' as IntlString,
+    Identity: '' as IntlString,
+    Details: '' as IntlString,
+    Address: '' as IntlString,
+    Reach: '' as IntlString,
+    Role: '' as IntlString,
+    Dates: '' as IntlString,
+    FirstName: '' as IntlString,
+    LastName: '' as IntlString,
+    Phone: '' as IntlString,
+    Save: '' as IntlString,
+    Cancel: '' as IntlString
   }
 })

@@ -48,6 +48,23 @@
     "AddItem": "Add",
     "NoItemsYet": "No items yet",
     "RemoveItem": "Remove",
-    "HrSettingsRestricted": "HR Settings is limited to HR staff and workspace admins."
+    "HrSettingsRestricted": "HR Settings is limited to HR staff and workspace admins.",
+    "NotSet": "Not set",
+    "OpenEnded": "Open",
+    "Active": "Active",
+    "Inactive": "Inactive",
+    "FromLogin": "from login",
+    "Edit": "Edit",
+    "Identity": "Identity",
+    "Details": "Details",
+    "Address": "Address",
+    "Reach": "Reach",
+    "Role": "Role",
+    "Dates": "Dates",
+    "FirstName": "First name",
+    "LastName": "Last name",
+    "Phone": "Phone",
+    "Save": "Save",
+    "Cancel": "Cancel"
   }
 }

@@ -1,6 +1,18 @@
 //
 // YoungGlobes: yg-hr model.
 //
+// Task 10 (modern tabbed employee profile, ygHr.component.EmployeeProfile in yg-hr-resources) is
+// deliberately NOT registered here as the view.mixin.ObjectEditor for contact.mixin.Employee.
+// contact.class.Person already owns that mixin (pinned, models/contact/src/index.ts), and
+// EditDoc.svelte resolves the editor off Hierarchy.mixinOrClass(object) - which class wins depends
+// on whatever `_class` the CALLER opened the panel with (contact.mixin.Employee vs the base
+// contact.class.Person), not on anything this model controls. Overriding it here would apply
+// globally to every Employee panel across the whole app - native Contacts "Employees" list, the
+// built-in HR module's team view, Recruit's hired-candidate view, AccountBox/Members popups - none
+// of which this task audited. Task 11 (the yg-hr directory) instead opens EmployeeProfile directly
+// by employee id, sidestepping that blast radius entirely. Revisit registering it here only after
+// confirming every _class-passing call site that can reach an Employee panel.
+//
 import { type Domain, type Ref, type Timestamp } from '@hcengineering/core'
 import {
   type Builder,
