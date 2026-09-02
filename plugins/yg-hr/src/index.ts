@@ -70,6 +70,12 @@ export interface EmployeeJob extends Employee {
   contractEnd?: Timestamp
 }
 
+export const HR_DESIGNATION_FALLBACK = 'HR Executive'
+
+export function formatEmployeeId (seq: number, prefix = 'YGS', width = 4): string {
+  return `${prefix}${String(seq).padStart(width, '0')}`
+}
+
 export const ygHrId = 'yg-hr' as Plugin
 
 export default plugin(ygHrId, {
