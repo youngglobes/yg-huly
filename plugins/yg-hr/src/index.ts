@@ -51,7 +51,7 @@ export interface EmployeePersonal extends Employee {
 export interface EmployeeContact extends Employee {
   street1?: string
   street2?: string
-  city?: string
+  addressCity?: string
   state?: string
   zip?: string
   country?: string

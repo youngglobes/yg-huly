@@ -78,7 +78,7 @@ export class TEmployeePersonal extends TEmployee implements EmployeePersonal {
 export class TEmployeeContact extends TEmployee implements EmployeeContact {
   @Prop(TypeString(), ygHr.string.Street1) street1?: string
   @Prop(TypeString(), ygHr.string.Street2) street2?: string
-  @Prop(TypeString(), ygHr.string.City) city?: string
+  @Prop(TypeString(), ygHr.string.City) addressCity?: string
   @Prop(TypeString(), ygHr.string.State) state?: string
   @Prop(TypeString(), ygHr.string.Zip) zip?: string
   @Prop(TypeString(), ygHr.string.Country) country?: string
