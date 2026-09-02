@@ -203,11 +203,11 @@ const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
   [ygHr.class.Location]: ['name']
 }
 
-// Resolves a Designation doc by id - but if `cud` is itself the tx that just wrote THIS SAME
-// Designation (a write to ygHr.class.Designation with matching objectId), reads its PRE-tx state
-// instead of the current (POST-APPLY, possibly tainted) one.
+// Resolves a Designation doc by id - but if `tx` is itself a write to THIS SAME Designation (a
+// TxCUD on ygHr.class.Designation with matching objectId), reads its PRE-tx state instead of the
+// current (POST-APPLY, possibly tainted) one.
 //
-// Why this matters: isHrAuthorized below decides authorization by re-reading the actor's OWN
+// Why this matters: isHrAuthorized below decides authorization by re-reading the actor's own
 // resolved Designation's `isHr` flag. Without this guard, a non-HR member could
 // `updateDoc(ygHr.class.Designation, ..., theirOwnDesignationId, { isHr: true })` and have THAT
 // SAME evaluation see the just-applied isHr=true (control.findAll always returns POST-APPLY state,
@@ -219,9 +219,10 @@ const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
 async function resolveDesignation (
   control: TriggerControl,
   designationId: Ref<Designation>,
-  cud: TxCUD<Doc> | undefined
+  tx: Tx | undefined
 ): Promise<Designation | undefined> {
-  if (cud !== undefined && cud.objectClass === ygHr.class.Designation && cud.objectId === designationId) {
+  const cud = tx as TxCUD<Doc> | undefined
+  if (cud?.objectClass === ygHr.class.Designation && cud.objectId === designationId) {
     const logTxes = Array.from(
       await control.findAll(control.ctx, core.class.TxCUD, { objectId: designationId })
     ).filter((it) => it._id !== cud._id)
@@ -230,22 +231,56 @@ async function resolveDesignation (
   return (await control.findAll(control.ctx, ygHr.class.Designation, { _id: designationId }, { limit: 1 }))[0]
 }
 
-// `cud`, when supplied, is the CUD tx currently being authorized - passed through so
-// resolveDesignation can avoid reading its own not-yet-authorized effect on the actor's
-// designation (see resolveDesignation's comment). Existing callers (guardMixinWrite,
-// guardEmergencyContactWrite) never pass it - they can never BE a write to the Designation class,
-// so there is nothing to guard against and their behavior is unchanged.
-async function isHrAuthorized (control: TriggerControl, actorId: PersonId, cud?: TxCUD<Doc>): Promise<boolean> {
+// Resolves which Designation the actor's EmployeeJob currently points at - but if `tx` is itself a
+// write to the actor's OWN Employee record (objectId === actor._id), reconstructs the PRE-tx
+// EmployeeJob state instead of reading the live (possibly just-mutated) one.
+//
+// Why this matters: a second, distinct self-authorizing TOCTOU from the one resolveDesignation
+// closes. A non-HR member could `updateMixin(EmployeeJob, ..., { designation: <ref to an
+// EXISTING, already-isHr Designation> })` on their OWN record. That target Designation is
+// unmodified by this tx (resolveDesignation would find nothing wrong with reading it directly),
+// but the REF isHrAuthorized reads to find it - EmployeeJob.designation - was just changed by
+// this exact tx, and control.findAll always returns POST-APPLY state. Reading it live would see
+// the just-set ref, resolve the (legitimately HR, but irrelevant here) target Designation, and
+// authorize the very write that repointed the actor there. Editing someone ELSE's EmployeeJob is
+// safe as-is (the actor's own designation ref lives on a different object, unaffected by that
+// tx) - this only needs to special-case objectId === actor._id.
+async function resolveActorDesignationRef (
+  control: TriggerControl,
+  actor: Employee,
+  tx: Tx | undefined
+): Promise<Ref<Designation> | undefined> {
+  const cud = tx as TxCUD<Doc> | undefined
+  if (cud !== undefined && cud.objectId === actor._id) {
+    const logTxes = Array.from(
+      await control.findAll(control.ctx, core.class.TxCUD, { objectId: actor._id })
+    ).filter((it) => it._id !== cud._id)
+    const prevDoc = TxProcessor.buildDoc2Doc<Person>(logTxes)
+    const prevJob =
+      prevDoc !== undefined && prevDoc !== null ? control.hierarchy.as(prevDoc, ygHr.mixin.EmployeeJob) : undefined
+    return prevJob?.designation
+  }
+  const job = (
+    await control.findAll(control.ctx, ygHr.mixin.EmployeeJob, { _id: actor._id }, { limit: 1 })
+  )[0]
+  return job?.designation
+}
+
+// `tx`, when supplied, is the tx currently being authorized (a TxMixin or a TxCUD - anything with
+// objectId/objectClass) - passed through so resolveActorDesignationRef/resolveDesignation can
+// avoid reading their own not-yet-authorized effect on the actor's HR status (see their
+// comments). guardEmergencyContactWrite never passes it - an EmergencyContact's objectId can never
+// equal the actor's own Employee id or a Designation id, so there is nothing to guard against
+// there and its behavior is unchanged.
+async function isHrAuthorized (control: TriggerControl, actorId: PersonId, tx?: Tx): Promise<boolean> {
   if (hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)) return true
 
   const actor = await getEmployee(control, actorId)
   if (actor === undefined) return false
 
-  const job = (
-    await control.findAll(control.ctx, ygHr.mixin.EmployeeJob, { _id: actor._id }, { limit: 1 })
-  )[0]
+  const designationRef = await resolveActorDesignationRef(control, actor, tx)
   const designation: Designation | undefined =
-    job?.designation === undefined ? undefined : await resolveDesignation(control, job.designation, cud)
+    designationRef === undefined ? undefined : await resolveDesignation(control, designationRef, tx)
 
   return isHrDesignationByFlag(designation)
 }
@@ -265,7 +300,10 @@ async function guardMixinWrite (mtx: TxMixin<Person, Employee>, control: Trigger
   const fields = GUARDED_MIXIN_FIELDS[mtx.mixin]
   if (fields === undefined) return // not one of the three guarded HR mixins
 
-  if (await isHrAuthorized(control, mtx.modifiedBy)) return
+  // Pass mtx through so resolveActorDesignationRef can tell whether THIS tx is the actor
+  // repointing their OWN EmployeeJob.designation - see its comment for why that must be judged
+  // against the pre-tx designation, not the live one this same tx may have just set.
+  if (await isHrAuthorized(control, mtx.modifiedBy, mtx)) return
 
   const logTxes = Array.from(
     await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
