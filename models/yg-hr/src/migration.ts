@@ -19,7 +19,8 @@ import ygHr, {
   type Department,
   type Designation,
   type EmploymentStatus,
-  type Location
+  type Location,
+  type HrListItem
 } from '@hcengineering/yg-hr'
 
 // Same ~24 titles as the ygTimesheet.WorkDesignation union (plugins/yg-timesheet/src/index.ts) -
@@ -44,7 +45,7 @@ const LOCATIONS = ['Young Globes - Coimbatore']
 
 // Seed one admin-managed list (Department/Designation/EmploymentStatus/Location) into HrConfig,
 // keyed by `name`. Idempotent: skips any name already present, so it is safe to re-run.
-async function seedNames<T extends { name: string }> (
+async function seedNames<T extends HrListItem> (
   ops: TxOperations,
   _class: Ref<Class<T>>,
   names: readonly string[]
