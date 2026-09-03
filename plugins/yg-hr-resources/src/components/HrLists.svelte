@@ -14,27 +14,25 @@
 -->
 <!--
   HR "Settings" special: manage the four admin lists behind every employee profile (Department,
-  Designation, Employment status, Location). Each list lives as ygHr.class.* docs in the shared,
-  non-private ygHr.space.HrConfig space (so every workspace user can read them for their own
-  profile dropdowns). Add/rename/remove write straight to the doc, no separate save step, same
-  idiom as WorkProfileEditor.svelte. Designation additionally exposes the isHr flag that marks
-  which designation counts as HR staff (isHrDesignationByFlag reads it).
+  Designation, Employment status, Location). Each list lives as ygHr.class.* docs in
+  core.space.Workspace (a mainSpace, so every workspace user can read them for their own profile
+  dropdowns). Add/rename/remove write straight to the doc, no separate save step, same idiom as
+  WorkProfileEditor.svelte.
 
-  Gating: HrConfig is not private, but create/update/remove of these four classes IS guarded
-  server-side - guardHrConfigWrite (called from OnEmployeeHrGuard in server-plugins/yg-hr-resources)
-  reverts any write not made by an Owner/Maintainer or a workspace-flagged HR designation. This
+  Gating: create/update/remove of these four classes IS guarded server-side - guardHrConfigWrite
+  (called from OnEmployeeHrGuard in server-plugins/yg-hr-resources) reverts any write not made by an
+  Owner/Maintainer or a member of the Roster-managed HR team (ygTimesheet.space.HrData). This
   screen's HR/admin gate is the matching client-side affordance: it keeps the edit surface out of
   casual reach so a non-HR user never sees controls that would just be reverted, same idiom as
   HrLatePermissions.svelte's isHr check.
 -->
 <script lang="ts">
-  import { AccountRole, getCurrentAccount, hasAccountRole, type Class, type Data, type Doc, type DocumentUpdate, type Ref } from '@hcengineering/core'
+  import core, { AccountRole, getCurrentAccount, hasAccountRole, type Class, type Data, type Doc, type DocumentUpdate, type Ref } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { IconAdd, IconDelete, Label } from '@hcengineering/ui'
-  import contact, { getCurrentEmployee } from '@hcengineering/contact'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
   import ygHr, {
-    isHrDesignationByFlag,
     type Department,
     type Designation,
     type EmploymentStatus,
@@ -43,21 +41,18 @@
   } from '@hcengineering/yg-hr'
 
   const client = getClient()
-  const h = client.getHierarchy()
 
-  // Who may edit: workspace Owner/Maintainer, or the current user's own designation is flagged HR.
-  // Mirrors HrLatePermissions.svelte's isAdmin || isHrDesignation(...) gate.
+  // Who may edit: workspace Owner/Maintainer, or a member of the Roster-managed HR team
+  // (ygTimesheet.space.HrData) - the single source of truth the timesheet features and the server
+  // guard use (replaced the old per-designation isHr flag). Same gate the directory/profile use.
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
-  const me = getCurrentEmployee()
 
   let empLoaded = false
-  let myDesignationRef: Ref<Designation> | undefined
-  const empQuery = createQuery()
-  empQuery.query(contact.mixin.Employee, { _id: me }, (res) => {
-    const emp = res[0]
-    myDesignationRef = emp !== undefined && h.hasMixin(emp, ygHr.mixin.EmployeeJob)
-      ? h.as(emp, ygHr.mixin.EmployeeJob).designation
-      : undefined
+  let isHrMember = false
+  const hrQuery = createQuery()
+  hrQuery.query(core.class.Space, { _id: ygTimesheet.space.HrData }, (res) => {
+    const space = res[0]
+    isHrMember = space !== undefined && (space.members ?? []).includes(getCurrentAccount().uuid)
     empLoaded = true
   })
 
@@ -77,8 +72,7 @@
   locQuery.query(ygHr.class.Location, {}, (res) => { locations = res })
 
   $: ready = empLoaded && desigLoaded
-  $: myDesignation = designations.find((d) => d._id === myDesignationRef)
-  $: isHr = isAdmin || isHrDesignationByFlag(myDesignation)
+  $: isHr = isAdmin || isHrMember
 
   const byName = <T extends { name: string }>(list: T[]): T[] => [...list].sort((a, b) => a.name.localeCompare(b.name))
   $: sortedDepartments = byName(departments)
@@ -90,7 +84,10 @@
     const trimmed = name.trim()
     if (trimmed === '') return
     const data: Data<T> = { name: trimmed }
-    await client.createDoc(_class, ygHr.space.HrConfig, data)
+    // core.space.Workspace (a mainSpace), NOT the old HrConfig space - that space's data was
+    // unreadable to non-members (see models/yg-hr/src/migration.ts's HR_LIST_SPACE note). Existing
+    // items were relocated there by the migration; new items must land there too.
+    await client.createDoc(_class, core.space.Workspace, data)
   }
 
   async function renameItem<T extends HrListItem> (doc: T, name: string): Promise<void> {
@@ -102,10 +99,6 @@
 
   async function removeItem<T extends Doc> (doc: T): Promise<void> {
     await client.removeDoc(doc._class, doc.space, doc._id)
-  }
-
-  async function toggleIsHr (doc: Designation): Promise<void> {
-    await client.updateDoc(ygHr.class.Designation, doc.space, doc._id, { isHr: doc.isHr !== true })
   }
 
   // One-shot label resolution for plain-string attributes (aria-label, placeholder) that can't
@@ -197,14 +190,6 @@
                   value={item.name}
                   on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
                 />
-                <label class="hs-toggle">
-                  <input
-                    type="checkbox"
-                    checked={item.isHr === true}
-                    on:change={() => { void toggleIsHr(item) }}
-                  />
-                  <Label label={ygHr.string.IsHr} />
-                </label>
                 <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
                   <IconDelete size={'small'} />
                 </button>
@@ -374,16 +359,6 @@
     background: var(--theme-comp-header-color);
   }
   .hs-input::placeholder { color: var(--theme-text-placeholder-color); }
-
-  .hs-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--theme-dark-color);
-    white-space: nowrap;
-    cursor: pointer;
-  }
 
   .hs-icon-btn {
     display: inline-flex;

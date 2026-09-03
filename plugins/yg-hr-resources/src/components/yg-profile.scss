@@ -87,11 +87,13 @@
 }
 .yg-input:focus {
   outline: none;
-  border-color: var(--yg-accent);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  border-color: var(--theme-divider-color);
 }
-:global(.theme-dark) .yg-input:focus {
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.14);
+// A select keeps focus after a value is picked, so a bright accent ring lingered on it and read as
+// "one box styled differently". Use a quiet neutral border on focus instead - just enough to show
+// the field is active, without pulling the eye.
+.yg-input:focus-visible {
+  border-color: var(--theme-content-color);
 }
 .yg-input::placeholder {
   color: var(--theme-text-placeholder-color);

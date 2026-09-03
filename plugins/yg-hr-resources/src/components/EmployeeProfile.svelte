@@ -31,14 +31,21 @@
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import { Avatar, EditableAvatar } from '@hcengineering/contact-resources'
-  import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
+  import core, {
+    AccountRole,
+    SocialIdType,
+    getCurrentAccount,
+    hasAccountRole,
+    type AccountUuid,
+    type Ref
+  } from '@hcengineering/core'
   import login from '@hcengineering/login'
   import { getResource, translate, type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { IconArrowLeft, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
   import ygHr, {
-    isHrDesignationByFlag,
     type Department,
     type Designation,
     type EmployeeStatus,
@@ -65,9 +72,12 @@
   const me = getCurrentEmployee()
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
 
-  let myEmployee: Employee | undefined
-  const myQuery = createQuery()
-  myQuery.query(contact.mixin.Employee, { _id: me }, (res) => { myEmployee = res[0] })
+  // "HR" = membership in the Roster-managed HR team (ygTimesheet.space.HrData), the same source the
+  // timesheet features and the server guard use (replaces the old per-designation isHr flag).
+  let hrMembers: AccountUuid[] = []
+  const hrQuery = createQuery()
+  hrQuery.query(core.class.Space, { _id: ygTimesheet.space.HrData }, (res) => { hrMembers = res[0]?.members ?? [] })
+  $: isHrMember = hrMembers.includes(getCurrentAccount().uuid)
 
   let designations: Designation[] = []
   let departments: Department[] = []
@@ -82,11 +92,7 @@
   const locQuery = createQuery()
   locQuery.query(ygHr.class.Location, {}, (res) => { locations = res })
 
-  $: myDesignationRef = myEmployee !== undefined && h.hasMixin(myEmployee, ygHr.mixin.EmployeeJob)
-    ? h.as(myEmployee, ygHr.mixin.EmployeeJob).designation
-    : undefined
-  $: myDesignation = designations.find((d) => d._id === myDesignationRef)
-  $: canEdit = !readonly && (isAdmin || isHrDesignationByFlag(myDesignation))
+  $: canEdit = !readonly && (isAdmin || isHrMember)
   $: isSelf = employee !== undefined && employee._id === me
   $: canEditPhoto = !readonly && (canEdit || isSelf)
 
@@ -99,7 +105,7 @@
   $: profileDesignation = designations.find((d) => d._id === profileJob?.designation)
   $: profileDepartmentName = departments.find((d) => d._id === profileJob?.department)?.name
   $: profileLocationName = locations.find((d) => d._id === profileJob?.location)?.name
-  $: profileIsHr = isHrDesignationByFlag(profileDesignation)
+  $: profileIsHr = employee?.personUuid !== undefined && hrMembers.includes(employee.personUuid)
 
   let workEmail: string | undefined
   const emailQuery = createQuery()

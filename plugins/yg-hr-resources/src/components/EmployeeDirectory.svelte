@@ -15,7 +15,7 @@
 <!--
   Modern employee directory (Task 11) - the "Employees" nav special. Read-only rows for everyone;
   the "+ Add employee" action is gated to HR/admin the same way HrLists.svelte gates its edit
-  surface (isAdmin || isHrDesignationByFlag(myDesignation)). Rows open EmployeeProfile.svelte
+  surface (isAdmin || member of the Roster HR team). Rows open EmployeeProfile.svelte
   (Task 10) as a FULL-WIDTH page in place of this list (a `selectedEmployee` toggle, matching the
   approved mockup's directory/profile swap) rather than a platform panel - see
   models/yg-hr/src/index.ts's file-header comment for why the directory opens it directly instead
@@ -28,14 +28,14 @@
   source of truth for "work email" across the module.
 -->
 <script lang="ts">
-  import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
+  import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
-  import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
+  import core, { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
+  import ygTimesheet from '@hcengineering/yg-timesheet'
   import ygHr, {
-    isHrDesignationByFlag,
     type Department,
     type Designation,
     type EmployeeJob,
@@ -69,22 +69,19 @@
   depQuery.query(ygHr.class.Department, {}, (res) => { departments = res; departmentsLoaded = true })
   $: listsLoaded = designationsLoaded && departmentsLoaded
 
-  // Who may add: workspace Owner/Maintainer, or the current user's own designation is flagged HR -
-  // same gate HrLists.svelte and EmployeeProfile.svelte use.
+  // Who may add: workspace Owner/Maintainer, or a member of the Roster-managed HR team
+  // (ygTimesheet.space.HrData) - the same source the timesheet features and the server guard use,
+  // replacing the old per-designation isHr flag. Same gate HrLists.svelte / EmployeeProfile.svelte use.
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
-  const me = getCurrentEmployee()
-  let myDesignationRef: Ref<Designation> | undefined
+  let isHrMember = false
   let meLoaded = false
-  const myQuery = createQuery()
-  myQuery.query(contact.mixin.Employee, { _id: me }, (res) => {
-    const emp = res[0]
-    myDesignationRef = emp !== undefined && h.hasMixin(emp, ygHr.mixin.EmployeeJob)
-      ? h.as(emp, ygHr.mixin.EmployeeJob).designation
-      : undefined
+  const hrQuery = createQuery()
+  hrQuery.query(core.class.Space, { _id: ygTimesheet.space.HrData }, (res) => {
+    const space = res[0]
+    isHrMember = space !== undefined && (space.members ?? []).includes(getCurrentAccount().uuid)
     meLoaded = true
   })
-  $: myDesignation = designations.find((d) => d._id === myDesignationRef)
-  $: canAdd = isAdmin || isHrDesignationByFlag(myDesignation)
+  $: canAdd = isAdmin || isHrMember
 
   $: ready = employeesLoaded && listsLoaded && meLoaded
 
@@ -115,7 +112,6 @@
     designation?: Designation
     departmentName?: string
     email?: string
-    isHr: boolean
     status: EmployeeStatus
   }
 
@@ -134,7 +130,6 @@
         designation,
         departmentName,
         email: emailByEmployee.get(employee._id),
-        isHr: isHrDesignationByFlag(designation),
         status: personal?.status ?? 'active'
       }
     })
