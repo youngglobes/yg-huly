@@ -11,11 +11,16 @@ export type Gender = 'male' | 'female' | 'other'
 export type MaritalStatus = 'single' | 'married' | 'other'
 
 // Employee lifecycle state (distinct from the EmploymentStatus list, which is the contract type -
-// Full Time / Part Time / ...). 'active' people appear everywhere; 'onhold' (on leave, will rejoin)
-// and 'deactivated' (ex-employee) are hidden from the regular directory and from assignee pickers.
-// 'deactivated' additionally has their workspace membership removed server-side so they cannot log
-// in (their Person record and work history are untouched - see OnEmployeeStatusChange).
-export type EmployeeStatus = 'active' | 'onhold' | 'deactivated'
+// Full Time / Part Time / ...). Only 'active' people appear in the regular directory and assignee
+// pickers; every other state is hidden there.
+//  - 'pending'     created but has not logged in yet (system default on create; auto-flips to
+//                  'active' on their first login - see SelfActivate.svelte). Whether an invite has
+//                  been sent is shown by the Send/Resend button, NOT the status.
+//  - 'active'      logged in and working.
+//  - 'onhold'      an active employee temporarily away (on leave, will rejoin).
+//  - 'deactivated' ex-employee; additionally has their workspace membership removed server-side so
+//                  they cannot log in (Person record + work history untouched - OnEmployeeStatusChange).
+export type EmployeeStatus = 'pending' | 'active' | 'onhold' | 'deactivated'
 
 // Admin-managed list item (Department / Designation / EmploymentStatus / Location)
 export interface HrListItem extends Doc {
@@ -133,7 +138,8 @@ export default plugin(ygHrId, {
   component: {
     HrLists: '' as AnyComponent,
     EmployeeProfile: '' as AnyComponent,
-    EmployeeDirectory: '' as AnyComponent
+    EmployeeDirectory: '' as AnyComponent,
+    SelfActivate: '' as AnyComponent
   },
   string: {
     Personal: '' as IntlString,
@@ -209,6 +215,7 @@ export default plugin(ygHrId, {
     EmployeeColumn: '' as IntlString,
     StatusColumn: '' as IntlString,
     Status: '' as IntlString,
+    StatusPending: '' as IntlString,
     StatusActive: '' as IntlString,
     StatusOnHold: '' as IntlString,
     StatusDeactivated: '' as IntlString,

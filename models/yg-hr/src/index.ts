@@ -29,6 +29,8 @@ import {
 } from '@hcengineering/model'
 import contact, { TEmployee } from '@hcengineering/model-contact'
 import core, { TAttachedDoc, TDoc } from '@hcengineering/model-core'
+import presentation from '@hcengineering/model-presentation'
+import workbench from '@hcengineering/workbench'
 import type {
   Department,
   Designation,
@@ -145,6 +147,14 @@ export function createModel (builder: Builder): void {
     TEmergencyContact,
     TEmployeeSeq
   )
+
+  // First-login auto-activate: mount SelfActivate on every workbench page (the same global slot
+  // presence/love/yg-timesheet use). It flips the current user's employee status from 'pending' to
+  // 'active' on their first login. Renders nothing.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WorkbenchExtensions,
+    component: ygHr.component.SelfActivate
+  })
 
   // NOTE: the shared ygHr.space.HrConfig space (which holds the Department / Designation /
   // Employment status / Location list docs) is created in the MIGRATION as a real doc in the

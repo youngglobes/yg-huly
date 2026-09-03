@@ -73,6 +73,7 @@
     "EmployeeColumn": "Employee",
     "StatusColumn": "Status",
     "Status": "Status",
+    "StatusPending": "Pending",
     "StatusActive": "Active",
     "StatusOnHold": "On hold",
     "StatusDeactivated": "Deactivated",

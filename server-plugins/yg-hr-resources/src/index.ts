@@ -227,6 +227,34 @@ async function isHrAuthorized (control: TriggerControl): Promise<boolean> {
   return hrSpace !== undefined && (hrSpace.members ?? []).includes(account.uuid)
 }
 
+// Narrow carve-out for the first-login auto-activate (SelfActivate.svelte). A plain employee may
+// flip ONLY their OWN EmployeePersonal.status from 'pending' to 'active', and touch nothing else.
+// Every other non-HR status write (and any other field, and anyone else's record) is still reverted
+// by guardMixinWrite. This is what lets a freshly-invited user's own client mark them active on
+// first login without HR intervention, without loosening the guard for anything else.
+async function isSelfPendingActivation (mtx: TxMixin<Person, Employee>, control: TriggerControl): Promise<boolean> {
+  if (mtx.mixin !== ygHr.mixin.EmployeePersonal) return false
+  const attrs = mtx.attributes as Record<string, any>
+  if (attrs == null || Object.keys(attrs).length !== 1 || attrs.status !== 'active') return false
+
+  // Prior status must be exactly 'pending' (reconstruct pre-tx state, same idiom as the reverts).
+  const logTxes = Array.from(
+    await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
+  ).filter((it) => it._id !== mtx._id)
+  const prevDoc = TxProcessor.buildDoc2Doc<Person>(logTxes)
+  const prevStatus =
+    prevDoc !== undefined && prevDoc !== null && control.hierarchy.hasMixin(prevDoc, ygHr.mixin.EmployeePersonal)
+      ? control.hierarchy.as(prevDoc, ygHr.mixin.EmployeePersonal).status
+      : undefined
+  if (prevStatus !== 'pending') return false
+
+  // The actor's own account must own this Person (personUuid === the acting account).
+  const person = (
+    await control.findAll(control.ctx, contact.class.Person, { _id: mtx.objectId }, { limit: 1 })
+  )[0]
+  return person !== undefined && String(person.personUuid) === String(control.ctx.contextData.account.uuid)
+}
+
 // Reverts an unauthorized write to one of the three guarded Employee mixins. Triggers only see
 // POST-APPLY state (control.findAll returns the doc with this tx's changes already merged in), so
 // the prior state is reconstructed by replaying the object's own tx log EXCLUDING this tx - the
@@ -243,6 +271,7 @@ async function guardMixinWrite (mtx: TxMixin<Person, Employee>, control: Trigger
   if (fields === undefined) return // not one of the three guarded HR mixins
 
   if (await isHrAuthorized(control)) return
+  if (await isSelfPendingActivation(mtx, control)) return
 
   const logTxes = Array.from(
     await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })

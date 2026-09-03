@@ -160,11 +160,13 @@
   // <Label> component).
   let allDepartmentsLabel = ''
   let allStatusesLabel = ''
+  let statusPendingLabel = ''
   let statusActiveLabel = ''
   let statusOnHoldLabel = ''
   let statusDeactivatedLabel = ''
   void translate(ygHr.string.AllDepartments, {}).then((r) => { allDepartmentsLabel = r })
   void translate(ygHr.string.AllStatuses, {}).then((r) => { allStatusesLabel = r })
+  void translate(ygHr.string.StatusPending, {}).then((r) => { statusPendingLabel = r })
   void translate(ygHr.string.StatusActive, {}).then((r) => { statusActiveLabel = r })
   void translate(ygHr.string.StatusOnHold, {}).then((r) => { statusOnHoldLabel = r })
   void translate(ygHr.string.StatusDeactivated, {}).then((r) => { statusDeactivatedLabel = r })
@@ -231,6 +233,7 @@
       {#if canAdd}
         <select class="yg-input yg-dir-select" bind:value={statusFilter}>
           <option value="all">{allStatusesLabel}</option>
+          <option value="pending">{statusPendingLabel}</option>
           <option value="active">{statusActiveLabel}</option>
           <option value="onhold">{statusOnHoldLabel}</option>
           <option value="deactivated">{statusDeactivatedLabel}</option>
@@ -279,6 +282,8 @@
               <td>
                 {#if row.status === 'active'}
                   <span class="yg-badge yg-badge--good yg-badge--dot"><Label label={ygHr.string.StatusActive} /></span>
+                {:else if row.status === 'pending'}
+                  <span class="yg-badge yg-badge--accent yg-badge--dot"><Label label={ygHr.string.StatusPending} /></span>
                 {:else if row.status === 'onhold'}
                   <span class="yg-badge yg-badge--amber yg-badge--dot"><Label label={ygHr.string.StatusOnHold} /></span>
                 {:else}

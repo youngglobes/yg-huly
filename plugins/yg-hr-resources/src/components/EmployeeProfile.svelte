@@ -180,9 +180,11 @@
   }
 
   // Pre-translated <option> labels (a <select>'s <option> cannot host a <Label> component).
+  let statusPendingLabel = ''
   let statusActiveLabel = ''
   let statusOnHoldLabel = ''
   let statusDeactivatedLabel = ''
+  void translate(ygHr.string.StatusPending, {}).then((r) => { statusPendingLabel = r })
   void translate(ygHr.string.StatusActive, {}).then((r) => { statusActiveLabel = r })
   void translate(ygHr.string.StatusOnHold, {}).then((r) => { statusOnHoldLabel = r })
   void translate(ygHr.string.StatusDeactivated, {}).then((r) => { statusDeactivatedLabel = r })
@@ -228,6 +230,8 @@
           {/if}
           {#if profileStatus === 'active'}
             <span class="yg-badge yg-badge--good yg-badge--dot"><Label label={ygHr.string.StatusActive} /></span>
+          {:else if profileStatus === 'pending'}
+            <span class="yg-badge yg-badge--accent yg-badge--dot"><Label label={ygHr.string.StatusPending} /></span>
           {:else if profileStatus === 'onhold'}
             <span class="yg-badge yg-badge--amber yg-badge--dot"><Label label={ygHr.string.StatusOnHold} /></span>
           {:else}
@@ -242,6 +246,11 @@
             <label class="yg-status-edit">
               <span><Label label={ygHr.string.Status} /></span>
               <select class="yg-input yg-status-select" value={profileStatus} on:change={changeStatus}>
+                <!-- Pending is system-assigned (created, not yet logged in) - shown so the value
+                     renders, but disabled so HR cannot set it back to Pending. -->
+                {#if profileStatus === 'pending'}
+                  <option value="pending" disabled>{statusPendingLabel}</option>
+                {/if}
                 <option value="active">{statusActiveLabel}</option>
                 <option value="onhold">{statusOnHoldLabel}</option>
                 <option value="deactivated">{statusDeactivatedLabel}</option>

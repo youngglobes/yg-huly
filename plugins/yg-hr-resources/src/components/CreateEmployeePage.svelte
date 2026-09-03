@@ -115,8 +115,11 @@
       }
       const employeeRef = (existingPerson?._id as Ref<Employee>) ?? id
 
+      // active: false - a Pending employee (created, not yet logged in) is inactive until first
+      // login (SelfActivate flips status Pending -> Active, which syncs active -> true). Keeping it
+      // false here matches the status and avoids a brief active flash for a person who has not joined.
       await client.createMixin(employeeRef, contact.class.Person, contact.space.Contacts, contact.mixin.Employee, {
-        active: true,
+        active: false,
         role: AccountRole.User
       })
 
@@ -130,9 +133,10 @@
         socialId as SocialIdentityRef
       )
 
-      // Stamp EmployeePersonal (status Active) - also triggers OnEmployeeCreate to assign the YGS id.
+      // Stamp EmployeePersonal (status Pending - they are not active until first login; SelfActivate
+      // flips it on login). Also triggers OnEmployeeCreate to assign the YGS id.
       await client.createMixin(employeeRef, contact.mixin.Employee, contact.space.Contacts, ygHr.mixin.EmployeePersonal, {
-        status: 'active'
+        status: 'pending'
       })
 
       const jobAttrs: Partial<EmployeeJob> = {}
