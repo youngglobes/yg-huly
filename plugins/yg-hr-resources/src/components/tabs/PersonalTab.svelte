@@ -15,9 +15,11 @@
 <!--
   Personal tab (Task 10): the EmployeePersonal mixin plus the Person's own first/last name.
   Identity card (name, middle name, employee id, gender, DOB) and Details card (marital status,
-  nationality, blood group) each carry their own Edit/Save/Cancel - read-only FieldRows by default,
-  plain inputs while editing. Employee id is HR/admin-editable like every other field here; nothing
-  auto-reassigns it once the OnEmployeeCreate trigger has set it once.
+  nationality, blood group) render read-only FieldRows or, while the profile-wide `editing` flag
+  (PO UI refinement - the header's single Edit/Done toggle, EmployeeProfile.svelte) is on, plain
+  inputs that live-save on change - no per-card Edit/Save/Cancel here anymore. Employee id is
+  HR/admin-editable like every other field here; nothing auto-reassigns it once the
+  OnEmployeeCreate trigger has set it once.
 -->
 <script lang="ts">
   import { combineName, getFirstName, getLastName, type Employee } from '@hcengineering/contact'
@@ -30,7 +32,7 @@
   import { capitalize, dateToInput, formatDisplayDate, inputToDate, saveEmployeeMixin } from '../../utils/profile'
 
   export let employee: Employee
-  export let canEdit: boolean
+  export let editing: boolean
 
   const client = getClient()
   const h = client.getHierarchy()
@@ -40,7 +42,6 @@
   const GENDERS: Gender[] = ['male', 'female', 'other']
   const MARITAL: MaritalStatus[] = ['single', 'married', 'other']
 
-  let editingIdentity = false
   let fFirstName = ''
   let fLastName = ''
   let fMiddleName = ''
@@ -48,14 +49,16 @@
   let fGender: Gender | '' = ''
   let fDob = ''
 
-  function beginIdentity (): void {
+  // Re-seed the edit-mode fields from the live doc whenever edit mode turns on (and keep them in
+  // sync with our own just-saved values afterwards) - there is no separate "begin edit" step now
+  // that editing is a single profile-wide toggle instead of a per-card one.
+  $: if (editing) {
     fFirstName = getFirstName(employee.name)
     fLastName = getLastName(employee.name)
     fMiddleName = personal?.middleName ?? ''
     fEmployeeId = personal?.employeeId ?? ''
     fGender = personal?.gender ?? ''
     fDob = dateToInput(personal?.dateOfBirth)
-    editingIdentity = true
   }
 
   async function saveIdentity (): Promise<void> {
@@ -70,19 +73,16 @@
       dateOfBirth: inputToDate(fDob)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeePersonal, upd)
-    editingIdentity = false
   }
 
-  let editingDetails = false
   let fMarital: MaritalStatus | '' = ''
   let fNationality = ''
   let fBloodGroup = ''
 
-  function beginDetails (): void {
+  $: if (editing) {
     fMarital = personal?.maritalStatus ?? ''
     fNationality = personal?.nationality ?? ''
     fBloodGroup = personal?.bloodGroup ?? ''
-    editingDetails = true
   }
 
   async function saveDetails (): Promise<void> {
@@ -92,49 +92,39 @@
       bloodGroup: fBloodGroup.trim() === '' ? undefined : fBloodGroup.trim()
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeePersonal, upd)
-    editingDetails = false
   }
 </script>
 
 <div class="yg-cards">
   <SectionCard label={ygHr.string.Identity}>
-    <svelte:fragment slot="actions">
-      {#if canEdit && !editingIdentity}
-        <button class="yg-iconbtn" on:click={beginIdentity}><Label label={ygHr.string.Edit} /></button>
-      {:else if editingIdentity}
-        <button class="yg-linkbtn" on:click={() => { editingIdentity = false }}><Label label={ygHr.string.Cancel} /></button>
-        <button class="yg-linkbtn yg-linkbtn--accent" on:click={saveIdentity}><Label label={ygHr.string.Save} /></button>
-      {/if}
-    </svelte:fragment>
-
-    {#if editingIdentity}
+    {#if editing}
       <FieldGroup>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.FirstName} /></span>
-          <input class="yg-input" type="text" bind:value={fFirstName} />
+          <input class="yg-input" type="text" bind:value={fFirstName} on:change={saveIdentity} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.LastName} /></span>
-          <input class="yg-input" type="text" bind:value={fLastName} />
+          <input class="yg-input" type="text" bind:value={fLastName} on:change={saveIdentity} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.MiddleName} /></span>
-          <input class="yg-input" type="text" bind:value={fMiddleName} />
+          <input class="yg-input" type="text" bind:value={fMiddleName} on:change={saveIdentity} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.EmployeeId} /></span>
-          <input class="yg-input" type="text" placeholder="YGS0000" bind:value={fEmployeeId} />
+          <input class="yg-input" type="text" placeholder="YGS0000" bind:value={fEmployeeId} on:change={saveIdentity} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Gender} /></span>
-          <select class="yg-input" bind:value={fGender}>
+          <select class="yg-input" bind:value={fGender} on:change={saveIdentity}>
             <option value="">-</option>
             {#each GENDERS as g (g)}<option value={g}>{capitalize(g)}</option>{/each}
           </select>
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.DateOfBirth} /></span>
-          <input class="yg-input" type="date" bind:value={fDob} />
+          <input class="yg-input" type="date" bind:value={fDob} on:change={saveIdentity} />
         </label>
       </FieldGroup>
     {:else}
@@ -150,31 +140,22 @@
   </SectionCard>
 
   <SectionCard label={ygHr.string.Details}>
-    <svelte:fragment slot="actions">
-      {#if canEdit && !editingDetails}
-        <button class="yg-iconbtn" on:click={beginDetails}><Label label={ygHr.string.Edit} /></button>
-      {:else if editingDetails}
-        <button class="yg-linkbtn" on:click={() => { editingDetails = false }}><Label label={ygHr.string.Cancel} /></button>
-        <button class="yg-linkbtn yg-linkbtn--accent" on:click={saveDetails}><Label label={ygHr.string.Save} /></button>
-      {/if}
-    </svelte:fragment>
-
-    {#if editingDetails}
+    {#if editing}
       <FieldGroup>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.MaritalStatus} /></span>
-          <select class="yg-input" bind:value={fMarital}>
+          <select class="yg-input" bind:value={fMarital} on:change={saveDetails}>
             <option value="">-</option>
             {#each MARITAL as m (m)}<option value={m}>{capitalize(m)}</option>{/each}
           </select>
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Nationality} /></span>
-          <input class="yg-input" type="text" bind:value={fNationality} />
+          <input class="yg-input" type="text" bind:value={fNationality} on:change={saveDetails} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.BloodGroup} /></span>
-          <input class="yg-input" type="text" placeholder="O+" bind:value={fBloodGroup} />
+          <input class="yg-input" type="text" placeholder="O+" bind:value={fBloodGroup} on:change={saveDetails} />
         </label>
       </FieldGroup>
     {:else}

@@ -16,8 +16,10 @@
   Modern employee directory (Task 11) - the "Employees" nav special. Read-only rows for everyone;
   the "+ Add employee" action is gated to HR/admin the same way HrLists.svelte gates its edit
   surface (isAdmin || isHrDesignationByFlag(myDesignation)). Rows open EmployeeProfile.svelte
-  (Task 10) via the platform panel (showPanel) - see models/yg-hr/src/index.ts's file-header
-  comment for why the directory opens it directly instead of registering a global ObjectEditor.
+  (Task 10) as a FULL-WIDTH page in place of this list (a `selectedEmployee` toggle, matching the
+  approved mockup's directory/profile swap) rather than a platform panel - see
+  models/yg-hr/src/index.ts's file-header comment for why the directory opens it directly instead
+  of registering a global ObjectEditor.
 
   Only active employees are listed (contact.mixin.Employee, active: true) - matches the brief.
   Designation/department chips resolve the EmployeeJob mixin's refs against the same admin-managed
@@ -31,13 +33,14 @@
   import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label, showPanel, showPopup, type AnyComponent } from '@hcengineering/ui'
+  import { Label, showPopup, type AnyComponent } from '@hcengineering/ui'
   import ygHr, {
     isHrDesignationByFlag,
     type Department,
     type Designation,
     type EmployeeJob
   } from '@hcengineering/yg-hr'
+  import EmployeeProfile from './EmployeeProfile.svelte'
 
   const client = getClient()
   const h = client.getHierarchy()
@@ -149,8 +152,13 @@
   let searchPlaceholder = ''
   void translate(ygHr.string.SearchEmployeesPlaceholder, {}).then((r) => { searchPlaceholder = r })
 
+  // Full-page swap (Task: PO UI refinement) - selecting a row hides this list and renders
+  // EmployeeProfile in its place, matching the approved mockup's directory/profile toggle. The
+  // profile's `back` event (its own "< Employees" link) returns here.
+  let selectedEmployee: Employee | undefined
+
   function openEmployee (employee: Employee): void {
-    showPanel(ygHr.component.EmployeeProfile, employee._id, contact.mixin.Employee, 'content')
+    selectedEmployee = employee
   }
 
   function openEmployeeKey (e: KeyboardEvent, employee: Employee): void {
@@ -158,6 +166,10 @@
       e.preventDefault()
       openEmployee(employee)
     }
+  }
+
+  function backToDirectory (): void {
+    selectedEmployee = undefined
   }
 
   function addEmployee (): void {
@@ -187,6 +199,9 @@
   }
 </script>
 
+{#if selectedEmployee !== undefined}
+  <EmployeeProfile _id={selectedEmployee._id} on:back={backToDirectory} />
+{:else}
 <div class="yg-directory">
   {#if ready}
     <div class="yg-dir-head">
@@ -273,6 +288,7 @@
     </div>
   {/if}
 </div>
+{/if}
 
 <style lang="scss">
   @use './yg-profile' as *;
@@ -306,32 +322,6 @@
   }
   .yg-spacer {
     flex: 1;
-  }
-
-  .yg-btn-dark {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font: inherit;
-    font-weight: 600;
-    font-size: 13.5px;
-    padding: 9px 14px;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    white-space: nowrap;
-    background: #14181b;
-    color: #ffffff;
-  }
-  .yg-btn-dark:hover {
-    background: #23292d;
-  }
-  :global(.theme-dark) .yg-btn-dark {
-    border-color: rgba(255, 255, 255, 0.16);
-  }
-  .yg-btn-dark svg {
-    width: 15px;
-    height: 15px;
   }
 
   .yg-dir-toolbar {

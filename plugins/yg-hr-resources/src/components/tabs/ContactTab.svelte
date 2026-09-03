@@ -15,8 +15,10 @@
 <!--
   Contact tab (Task 10): the EmployeeContact mixin (Address card, Reach card) plus a Work email row
   sourced from the person's login email SocialIdentity (queried by the shell, passed in as
-  `workEmail`) - always read-only, never part of the Reach card's edit form, with a small "from
-  login" lock badge next to its label, same as the approved mockup.
+  `workEmail`) - always read-only, never part of the Reach card's edit form even in edit mode, with
+  a small "from login" lock badge next to its label, same as the approved mockup. Both cards render
+  read-only FieldRows or, while the profile-wide `editing` flag (PO UI refinement - the header's
+  single Edit/Done toggle, EmployeeProfile.svelte) is on, plain inputs that live-save on change.
 -->
 <script lang="ts">
   import type { Employee } from '@hcengineering/contact'
@@ -29,7 +31,7 @@
   import { saveEmployeeMixin } from '../../utils/profile'
 
   export let employee: Employee
-  export let canEdit: boolean
+  export let editing: boolean
   export let workEmail: string | undefined
 
   const client = getClient()
@@ -37,7 +39,6 @@
 
   $: info = h.hasMixin(employee, ygHr.mixin.EmployeeContact) ? h.as(employee, ygHr.mixin.EmployeeContact) : undefined
 
-  let editingAddress = false
   let fStreet1 = ''
   let fStreet2 = ''
   let fCity = ''
@@ -45,14 +46,13 @@
   let fZip = ''
   let fCountry = ''
 
-  function beginAddress (): void {
+  $: if (editing) {
     fStreet1 = info?.street1 ?? ''
     fStreet2 = info?.street2 ?? ''
     fCity = info?.addressCity ?? ''
     fState = info?.state ?? ''
     fZip = info?.zip ?? ''
     fCountry = info?.country ?? ''
-    editingAddress = true
   }
 
   async function saveAddress (): Promise<void> {
@@ -65,19 +65,16 @@
       country: fCountry.trim() === '' ? undefined : fCountry.trim()
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeContact, upd)
-    editingAddress = false
   }
 
-  let editingReach = false
   let fMobile = ''
   let fHomePhone = ''
   let fOtherEmail = ''
 
-  function beginReach (): void {
+  $: if (editing) {
     fMobile = info?.mobile ?? ''
     fHomePhone = info?.homePhone ?? ''
     fOtherEmail = info?.otherEmail ?? ''
-    editingReach = true
   }
 
   async function saveReach (): Promise<void> {
@@ -87,46 +84,36 @@
       otherEmail: fOtherEmail.trim() === '' ? undefined : fOtherEmail.trim()
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeContact, upd)
-    editingReach = false
   }
 </script>
 
 <div class="yg-cards">
   <SectionCard label={ygHr.string.Address}>
-    <svelte:fragment slot="actions">
-      {#if canEdit && !editingAddress}
-        <button class="yg-iconbtn" on:click={beginAddress}><Label label={ygHr.string.Edit} /></button>
-      {:else if editingAddress}
-        <button class="yg-linkbtn" on:click={() => { editingAddress = false }}><Label label={ygHr.string.Cancel} /></button>
-        <button class="yg-linkbtn yg-linkbtn--accent" on:click={saveAddress}><Label label={ygHr.string.Save} /></button>
-      {/if}
-    </svelte:fragment>
-
-    {#if editingAddress}
+    {#if editing}
       <FieldGroup>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Street1} /></span>
-          <input class="yg-input" type="text" bind:value={fStreet1} />
+          <input class="yg-input" type="text" bind:value={fStreet1} on:change={saveAddress} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Street2} /></span>
-          <input class="yg-input" type="text" bind:value={fStreet2} />
+          <input class="yg-input" type="text" bind:value={fStreet2} on:change={saveAddress} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.City} /></span>
-          <input class="yg-input" type="text" bind:value={fCity} />
+          <input class="yg-input" type="text" bind:value={fCity} on:change={saveAddress} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.State} /></span>
-          <input class="yg-input" type="text" bind:value={fState} />
+          <input class="yg-input" type="text" bind:value={fState} on:change={saveAddress} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Zip} /></span>
-          <input class="yg-input" type="text" bind:value={fZip} />
+          <input class="yg-input" type="text" bind:value={fZip} on:change={saveAddress} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Country} /></span>
-          <input class="yg-input" type="text" bind:value={fCountry} />
+          <input class="yg-input" type="text" bind:value={fCountry} on:change={saveAddress} />
         </label>
       </FieldGroup>
     {:else}
@@ -142,24 +129,15 @@
   </SectionCard>
 
   <SectionCard label={ygHr.string.Reach}>
-    <svelte:fragment slot="actions">
-      {#if canEdit && !editingReach}
-        <button class="yg-iconbtn" on:click={beginReach}><Label label={ygHr.string.Edit} /></button>
-      {:else if editingReach}
-        <button class="yg-linkbtn" on:click={() => { editingReach = false }}><Label label={ygHr.string.Cancel} /></button>
-        <button class="yg-linkbtn yg-linkbtn--accent" on:click={saveReach}><Label label={ygHr.string.Save} /></button>
-      {/if}
-    </svelte:fragment>
-
-    {#if editingReach}
+    {#if editing}
       <FieldGroup>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Mobile} /></span>
-          <input class="yg-input" type="text" bind:value={fMobile} />
+          <input class="yg-input" type="text" bind:value={fMobile} on:change={saveReach} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.HomePhone} /></span>
-          <input class="yg-input" type="text" bind:value={fHomePhone} />
+          <input class="yg-input" type="text" bind:value={fHomePhone} on:change={saveReach} />
         </label>
         <FieldRow label={ygHr.string.WorkEmail} value={workEmail} full>
           <svelte:fragment slot="labelSuffix">
@@ -168,7 +146,7 @@
         </FieldRow>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.OtherEmail} /></span>
-          <input class="yg-input" type="text" bind:value={fOtherEmail} />
+          <input class="yg-input" type="text" bind:value={fOtherEmail} on:change={saveReach} />
         </label>
       </FieldGroup>
     {:else}

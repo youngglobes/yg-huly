@@ -16,7 +16,10 @@
   Job tab (Task 10): the EmployeeJob mixin. Designation/department/employmentStatus/location are
   refs into the admin-managed HrConfig lists (see HrLists.svelte) - the shell queries all four and
   passes them down here so both the read-only badges and the edit-mode <select>s resolve against
-  the same data. Contract end shows "Open" (not "Not set") when unset, matching the mockup.
+  the same data. Contract end shows "Open" (not "Not set") when unset, matching the mockup. Both
+  cards render read-only FieldRows or, while the profile-wide `editing` flag (PO UI refinement -
+  the header's single Edit/Done toggle, EmployeeProfile.svelte) is on, plain inputs that live-save
+  on change.
 -->
 <script lang="ts">
   import type { Employee } from '@hcengineering/contact'
@@ -36,7 +39,7 @@
   import { dateToInput, formatDisplayDate, inputToDate, saveEmployeeMixin } from '../../utils/profile'
 
   export let employee: Employee
-  export let canEdit: boolean
+  export let editing: boolean
   export let designations: Designation[]
   export let departments: Department[]
   export let employmentStatuses: EmploymentStatus[]
@@ -51,18 +54,16 @@
   $: employmentStatusName = employmentStatuses.find((d) => d._id === job?.employmentStatus)?.name
   $: locationName = locations.find((d) => d._id === job?.location)?.name
 
-  let editingRole = false
   let fDesignation = ''
   let fDepartment = ''
   let fEmploymentStatus = ''
   let fLocation = ''
 
-  function beginRole (): void {
+  $: if (editing) {
     fDesignation = job?.designation ?? ''
     fDepartment = job?.department ?? ''
     fEmploymentStatus = job?.employmentStatus ?? ''
     fLocation = job?.location ?? ''
-    editingRole = true
   }
 
   async function saveRole (): Promise<void> {
@@ -73,19 +74,16 @@
       location: fLocation === '' ? undefined : (fLocation as Ref<Location>)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeJob, upd)
-    editingRole = false
   }
 
-  let editingDates = false
   let fJoined = ''
   let fContractStart = ''
   let fContractEnd = ''
 
-  function beginDates (): void {
+  $: if (editing) {
     fJoined = dateToInput(job?.joinedDate)
     fContractStart = dateToInput(job?.contractStart)
     fContractEnd = dateToInput(job?.contractEnd)
-    editingDates = true
   }
 
   async function saveDates (): Promise<void> {
@@ -95,47 +93,37 @@
       contractEnd: inputToDate(fContractEnd)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeJob, upd)
-    editingDates = false
   }
 </script>
 
 <div class="yg-cards">
   <SectionCard label={ygHr.string.Role}>
-    <svelte:fragment slot="actions">
-      {#if canEdit && !editingRole}
-        <button class="yg-iconbtn" on:click={beginRole}><Label label={ygHr.string.Edit} /></button>
-      {:else if editingRole}
-        <button class="yg-linkbtn" on:click={() => { editingRole = false }}><Label label={ygHr.string.Cancel} /></button>
-        <button class="yg-linkbtn yg-linkbtn--accent" on:click={saveRole}><Label label={ygHr.string.Save} /></button>
-      {/if}
-    </svelte:fragment>
-
-    {#if editingRole}
+    {#if editing}
       <FieldGroup>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Designation} /></span>
-          <select class="yg-input" bind:value={fDesignation}>
+          <select class="yg-input" bind:value={fDesignation} on:change={saveRole}>
             <option value="">-</option>
             {#each designations as d (d._id)}<option value={d._id}>{d.name}</option>{/each}
           </select>
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Department} /></span>
-          <select class="yg-input" bind:value={fDepartment}>
+          <select class="yg-input" bind:value={fDepartment} on:change={saveRole}>
             <option value="">-</option>
             {#each departments as d (d._id)}<option value={d._id}>{d.name}</option>{/each}
           </select>
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.EmploymentStatus} /></span>
-          <select class="yg-input" bind:value={fEmploymentStatus}>
+          <select class="yg-input" bind:value={fEmploymentStatus} on:change={saveRole}>
             <option value="">-</option>
             {#each employmentStatuses as d (d._id)}<option value={d._id}>{d.name}</option>{/each}
           </select>
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.Location} /></span>
-          <select class="yg-input" bind:value={fLocation}>
+          <select class="yg-input" bind:value={fLocation} on:change={saveRole}>
             <option value="">-</option>
             {#each locations as d (d._id)}<option value={d._id}>{d.name}</option>{/each}
           </select>
@@ -156,28 +144,19 @@
   </SectionCard>
 
   <SectionCard label={ygHr.string.Dates}>
-    <svelte:fragment slot="actions">
-      {#if canEdit && !editingDates}
-        <button class="yg-iconbtn" on:click={beginDates}><Label label={ygHr.string.Edit} /></button>
-      {:else if editingDates}
-        <button class="yg-linkbtn" on:click={() => { editingDates = false }}><Label label={ygHr.string.Cancel} /></button>
-        <button class="yg-linkbtn yg-linkbtn--accent" on:click={saveDates}><Label label={ygHr.string.Save} /></button>
-      {/if}
-    </svelte:fragment>
-
-    {#if editingDates}
+    {#if editing}
       <FieldGroup>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.JoinedDate} /></span>
-          <input class="yg-input" type="date" bind:value={fJoined} />
+          <input class="yg-input" type="date" bind:value={fJoined} on:change={saveDates} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.ContractStart} /></span>
-          <input class="yg-input" type="date" bind:value={fContractStart} />
+          <input class="yg-input" type="date" bind:value={fContractStart} on:change={saveDates} />
         </label>
         <label class="yg-input-f">
           <span><Label label={ygHr.string.ContractEnd} /></span>
-          <input class="yg-input" type="date" bind:value={fContractEnd} />
+          <input class="yg-input" type="date" bind:value={fContractEnd} on:change={saveDates} />
         </label>
       </FieldGroup>
     {:else}

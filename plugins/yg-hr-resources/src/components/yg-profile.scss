@@ -133,3 +133,31 @@
   border-radius: 50%;
   background: currentColor;
 }
+
+// Black/white primary action button (YG theme) - the directory's "Add employee" button and the
+// profile header's single Edit/Done toggle share this exact treatment.
+.yg-btn-dark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  background: #14181b;
+  color: #ffffff;
+}
+.yg-btn-dark:hover {
+  background: #23292d;
+}
+:global(.theme-dark) .yg-btn-dark {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.yg-btn-dark svg {
+  width: 15px;
+  height: 15px;
+}

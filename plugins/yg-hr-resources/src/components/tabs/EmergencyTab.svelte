@@ -14,10 +14,14 @@
 -->
 <!--
   Emergency tab (Task 10): the emergencyContacts collection on the Employee (ygHr.class.
-  EmergencyContact, attachedTo the Employee). HR/admin get add/edit/remove inline (same
-  no-separate-save-step idiom as HrLists.svelte); everyone else sees a plain read-only list. The
-  server-side OnEmployeeHrGuard trigger (Task 8) is the real authorization boundary - this UI gate
-  just keeps the affordance out of casual reach.
+  EmergencyContact, attachedTo the Employee). While the profile-wide `editing` flag (PO UI
+  refinement - the header's single Edit/Done toggle, EmployeeProfile.svelte) is on, HR/admin get
+  add/edit/remove inline (same no-separate-save-step idiom as HrLists.svelte); everyone else, and
+  everyone outside edit mode, sees a plain read-only list. Unlike the other three tabs' simple
+  field cards, add/edit-row here keeps its own Save/Cancel - that's the inherent commit step for
+  entering a brand-new collection item, not a competing whole-card edit toggle. The server-side
+  OnEmployeeHrGuard trigger (Task 8) is the real authorization boundary - this UI gate just keeps
+  the affordance out of casual reach.
 -->
 <script lang="ts">
   import type { Employee } from '@hcengineering/contact'
@@ -31,7 +35,7 @@
   import { colorOf, initialsOf } from '../../utils/profile'
 
   export let employee: Employee
-  export let canEdit: boolean
+  export let editing: boolean
 
   const client = getClient()
 
@@ -92,6 +96,10 @@
     editingId = undefined
   }
 
+  // Header "Done" ends edit mode - drop any in-progress add/edit row rather than leaving it
+  // dangling (and inaccessible) behind the now-read-only view.
+  $: if (!editing) cancelForm()
+
   async function submitAdd (): Promise<void> {
     const name = fName.trim()
     if (name === '') return
@@ -134,7 +142,7 @@
 <div class="yg-cards">
   <SectionCard label={ygHr.string.EmergencyContacts} full>
     <svelte:fragment slot="actions">
-      {#if canEdit && !adding}
+      {#if editing && !adding}
         <button class="yg-iconbtn" on:click={beginAdd}><Label label={ygHr.string.AddItem} /></button>
       {/if}
     </svelte:fragment>
@@ -166,7 +174,7 @@
                 <small><Label label={phone.label} /></small>
               </div>
             {/if}
-            {#if canEdit}
+            {#if editing}
               <div class="yg-ec__actions">
                 <button class="yg-iconbtn" on:click={() => { beginEdit(c) }}><Label label={ygHr.string.Edit} /></button>
                 <button class="yg-iconbtn" on:click={() => { void removeContact(c) }}><Label label={ygHr.string.RemoveItem} /></button>

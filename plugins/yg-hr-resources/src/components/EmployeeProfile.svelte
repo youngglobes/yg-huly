@@ -18,11 +18,15 @@
   queries, same as every other yg-hr-resources component. NOT wired as the platform's
   view.mixin.ObjectEditor for contact.mixin.Employee/Person - see the file-header note in
   models/yg-hr/src/index.ts for why (blast radius across every other Employee panel in the app);
-  Task 11's directory opens this directly instead.
+  the directory (EmployeeDirectory.svelte) renders this directly, full-width, in place of its own
+  list - not via a platform panel - and handles the `back` event this dispatches.
 
-  Read-only by default. `canEdit` (HR/admin) unlocks every card's own Edit/Save/Cancel; a self
-  viewer who isn't HR gets ONLY the avatar as an editable affordance - everything else stays
-  FieldRow read-only. No activity feed, comments, Collaborators, or attachments anywhere here.
+  Read-only by default. `canEdit` (HR/admin) unlocks a SINGLE header Edit/Done toggle (`editing`)
+  that every tab receives as a prop and renders its inline editors against, live-saving each field
+  on change - there is no more per-card Edit/Save/Cancel. A self viewer who isn't HR gets ONLY the
+  avatar as an editable affordance - everything else stays FieldRow read-only, and `editing` can
+  never go true for them (no button to trigger it, and it self-resets if canEdit ever goes false).
+  No activity feed, comments, Collaborators, or attachments anywhere here.
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
@@ -30,7 +34,8 @@
   import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
   import type { IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { closePanel, IconArrowLeft, Label } from '@hcengineering/ui'
+  import { IconArrowLeft, Label } from '@hcengineering/ui'
+  import { createEventDispatcher } from 'svelte'
   import ygHr, {
     isHrDesignationByFlag,
     type Department,
@@ -42,6 +47,8 @@
   import EmergencyTab from './tabs/EmergencyTab.svelte'
   import JobTab from './tabs/JobTab.svelte'
   import PersonalTab from './tabs/PersonalTab.svelte'
+
+  const dispatch = createEventDispatcher<{ back: void }>()
 
   export let _id: Ref<Employee>
   export let readonly: boolean = false
@@ -124,20 +131,22 @@
     { key: 'emergency', label: ygHr.string.Emergency }
   ]
 
-  // The header's own Edit affordance jumps to the Personal tab, where the name/photo actually live
-  // - each SectionCard still owns its own Edit/Save/Cancel (see PersonalTab.svelte), so this is a
-  // shortcut into the editable surface rather than a second, competing edit-mode toggle.
-  function headerEditClick (): void {
-    activeTab = 'personal'
+  // The SINGLE profile-wide edit toggle (PO UI refinement) - every tab receives this as a prop and
+  // renders its inline, live-saving editors against it instead of owning a per-card Edit/Save/
+  // Cancel triad. Self-resets if canEdit ever goes false, so it can never read true for a viewer
+  // the header button was never shown to.
+  let editing = false
+  $: if (!canEdit) editing = false
+
+  function toggleEdit (): void {
+    editing = !editing
   }
 
-  // Task 11 opens this component in a platform panel (showPanel) rather than a Panel-chrome
-  // component, so there is otherwise no visible way back to the directory besides Escape/
-  // click-outside - this mirrors the approved mockup's own "< Employees" back link exactly.
-  // Harmless no-op if this component is ever rendered outside a panel (closePanel just clears an
-  // already-empty panel store).
+  // The directory (EmployeeDirectory.svelte) renders this component directly, full-width, in
+  // place of its own list rather than via a platform panel - this mirrors the approved mockup's
+  // own "< Employees" back link, and the parent clears its `selectedEmployee` on the event.
   function backClick (): void {
-    closePanel()
+    dispatch('back')
   }
 </script>
 
@@ -181,7 +190,14 @@
       </div>
       {#if canEdit}
         <div class="yg-idcard__actions">
-          <button class="yg-editbtn" on:click={headerEditClick}><Label label={ygHr.string.Edit} /></button>
+          <button class="yg-btn-dark" on:click={toggleEdit}>
+            {#if editing}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5" /></svg>
+            {:else}
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 20h4l10-10-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
+            {/if}
+            <Label label={editing ? ygHr.string.Done : ygHr.string.Edit} />
+          </button>
         </div>
       {/if}
     </div>
@@ -194,17 +210,19 @@
       {/each}
     </div>
 
-    <div class="yg-tabpane">
-      {#if activeTab === 'personal'}
-        <PersonalTab {employee} {canEdit} />
-      {:else if activeTab === 'contact'}
-        <ContactTab {employee} {canEdit} {workEmail} />
-      {:else if activeTab === 'job'}
-        <JobTab {employee} {canEdit} {designations} {departments} {employmentStatuses} {locations} />
-      {:else}
-        <EmergencyTab {employee} {canEdit} />
-      {/if}
-    </div>
+    {#key activeTab}
+      <div class="yg-tabpane">
+        {#if activeTab === 'personal'}
+          <PersonalTab {employee} {editing} />
+        {:else if activeTab === 'contact'}
+          <ContactTab {employee} {editing} {workEmail} />
+        {:else if activeTab === 'job'}
+          <JobTab {employee} {editing} {designations} {departments} {employmentStatuses} {locations} />
+        {:else}
+          <EmergencyTab {employee} {editing} />
+        {/if}
+      </div>
+    {/key}
   {/if}
 </div>
 
@@ -306,24 +324,6 @@
   .yg-idcard__actions {
     flex: none;
     align-self: flex-start;
-  }
-
-  .yg-editbtn {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font: inherit;
-    font-size: 13.5px;
-    font-weight: 600;
-    color: var(--theme-content-color);
-    background: var(--theme-panel-color);
-    border: 1px solid var(--theme-divider-color);
-    border-radius: 10px;
-    padding: 8px 14px;
-    cursor: pointer;
-  }
-  .yg-editbtn:hover {
-    border-color: var(--theme-trans-color);
   }
 
   .yg-tabs {

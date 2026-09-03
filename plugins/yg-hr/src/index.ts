@@ -175,6 +175,7 @@ export default plugin(ygHrId, {
     Inactive: '' as IntlString,
     FromLogin: '' as IntlString,
     Edit: '' as IntlString,
+    Done: '' as IntlString,
     Identity: '' as IntlString,
     Details: '' as IntlString,
     Address: '' as IntlString,
