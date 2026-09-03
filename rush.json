@@ -1837,6 +1837,11 @@
       "shouldPublish": false
     },
     {
+      "packageName": "@hcengineering/model-server-yg-hr",
+      "projectFolder": "models/server-yg-hr",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/server-guest",
       "projectFolder": "server-plugins/guest",
       "shouldPublish": false

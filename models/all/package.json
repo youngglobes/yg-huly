@@ -92,6 +92,7 @@
     "@hcengineering/model-hr": "workspace:^0.7.426",
     "@hcengineering/model-server-hr": "workspace:^0.7.426",
     "@hcengineering/model-server-yg-timesheet": "workspace:^0.7.426",
+    "@hcengineering/model-server-yg-hr": "workspace:^0.7.426",
     "@hcengineering/model-bitrix": "workspace:^0.7.426",
     "@hcengineering/model-request": "workspace:^0.7.426",
     "@hcengineering/model-support": "workspace:^0.7.426",

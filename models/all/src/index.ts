@@ -61,6 +61,7 @@ import { serverGmailId, createModel as serverGmailModel } from '@hcengineering/m
 import { serverGuestId, createModel as serverGuestModel } from '@hcengineering/model-server-guest'
 import { serverHrId, createModel as serverHrModel } from '@hcengineering/model-server-hr'
 import { serverYgTimesheetId, createModel as serverYgTimesheetModel } from '@hcengineering/model-server-yg-timesheet'
+import { serverYgHrId, createModel as serverYgHrModel } from '@hcengineering/model-server-yg-hr'
 import { serverInventoryId, createModel as serverInventoryModel } from '@hcengineering/model-server-inventory'
 import { serverLeadId, createModel as serverLeadModel } from '@hcengineering/model-server-lead'
 import { serverNotificationId, createModel as serverNotificationModel } from '@hcengineering/model-server-notification'
@@ -557,6 +558,7 @@ export default function buildModel (): Builder {
     [serverTelegramModel, serverTelegramId],
     [serverHrModel, serverHrId],
     [serverYgTimesheetModel, serverYgTimesheetId],
+    [serverYgHrModel, serverYgHrId],
     [serverNotificationModel, serverNotificationId],
     [serverRequestModel, serverRequestId],
     [serverViewModel, serverViewId],
