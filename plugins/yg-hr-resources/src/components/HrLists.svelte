@@ -329,7 +329,7 @@
     background: var(--theme-panel-color);
     border: 1px solid var(--theme-divider-color);
     border-radius: 14px;
-    padding: 18px 20px;
+    padding: 22px 26px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
   .hs-card__title {
@@ -338,34 +338,34 @@
     letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--theme-halfcontent-color);
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
 
   .hs-list { display: flex; flex-direction: column; }
   .hs-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 0;
+    gap: 10px;
+    padding: 9px 0;
     border-bottom: 1px solid var(--theme-divider-color);
   }
   .hs-row:last-child { border-bottom: none; }
   .hs-empty {
-    font-size: 13px;
+    font-size: 14px;
     color: var(--theme-trans-color);
-    padding: 8px 0;
+    padding: 10px 0;
   }
 
   .hs-input {
     flex: 1;
     min-width: 0;
     font: inherit;
-    font-size: 13.5px;
+    font-size: 14.5px;
     color: var(--theme-content-color);
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 8px;
-    padding: 6px 8px;
+    border-radius: 9px;
+    padding: 9px 11px;
   }
   .hs-input:hover { border-color: var(--theme-divider-color); }
   .hs-input:focus {
@@ -389,10 +389,10 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     flex: none;
-    border-radius: 8px;
+    border-radius: 9px;
     border: 1px solid transparent;
     background: transparent;
     cursor: pointer;
@@ -400,11 +400,16 @@
   }
   .hs-icon-btn:hover { background: var(--theme-comp-header-color); }
   .hs-icon-btn--danger:hover { color: var(--theme-caption-color); }
+  // Black/white primary action (YG theme) - same treatment as the directory's "Add employee" and
+  // the profile header's Edit toggle (.yg-btn-dark), replacing the earlier teal accent fill.
   .hs-icon-btn--accent {
-    background: var(--yg-accent);
-    color: #04211e;
+    background: #14181b;
+    color: #ffffff;
   }
-  .hs-icon-btn--accent:hover { filter: brightness(1.08); background: var(--yg-accent); }
+  .hs-icon-btn--accent:hover { background: #23292d; }
+  :global(.theme-dark) .hs-icon-btn--accent {
+    border-color: rgba(255, 255, 255, 0.16);
+  }
 
   .hs-add {
     display: flex;

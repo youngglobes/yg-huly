@@ -47,6 +47,33 @@ const DEPARTMENTS: WorkDepartment[] = ['Development', 'Testing', 'SEO', 'Sales',
 const EMPLOYMENT_STATUSES = ['Full Time', 'Part Time', 'Freelancer', 'Intern']
 const LOCATIONS = ['Young Globes - Coimbatore']
 
+// Create the shared HrConfig space as a REAL doc in the space data domain (core.space.Space), so
+// the server's SpaceSecurityMiddleware sees it at init (it does findAll(core.class.Space) against
+// DOMAIN_SPACE) and registers it as public. Without this the four admin lists live in a space
+// security never learns about, and every read is filtered to empty ("No items yet") for every user.
+// Public and memberless so every workspace user can read the lists for their profile dropdowns; the
+// create/update/remove guard (OnEmployeeHrGuard, server-plugins/yg-hr-resources) is what keeps
+// writes HR/admin-only. Same idiom as yg-timesheet's createApprovalsSpace. Idempotent: no-op once
+// the space doc exists.
+async function createHrConfigSpace (ops: TxOperations): Promise<void> {
+  const existing = await ops.findOne(core.class.Space, { _id: ygHr.space.HrConfig })
+  if (existing !== undefined) return
+  await ops.createDoc(
+    core.class.Space,
+    core.space.Space,
+    {
+      name: 'HR Configuration',
+      description: 'Department / Designation / Employment status / Location lists.',
+      private: false,
+      archived: false,
+      members: [],
+      owners: [],
+      autoJoin: false
+    },
+    ygHr.space.HrConfig
+  )
+}
+
 // Seed one admin-managed list (Department/Designation/EmploymentStatus/Location) into HrConfig,
 // keyed by `name`. Idempotent: skips any name already present, so it is safe to re-run.
 async function seedNames<T extends HrListItem> (
@@ -280,6 +307,7 @@ async function removeContactsEmployeeSpecial (ops: TxOperations): Promise<void> 
 
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
+  await createHrConfigSpace(ops)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
   await seedNames<Department>(ops, ygHr.class.Department, DEPARTMENTS)
   await seedNames<EmploymentStatus>(ops, ygHr.class.EmploymentStatus, EMPLOYMENT_STATUSES)
@@ -287,6 +315,18 @@ async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   await flagHrExecutiveDesignation(ops)
   await migrateWorkProfiles(ops)
   await ensureEmployeeSeq(ops)
+}
+
+// Repair state: materialize the shared HrConfig space into the space data domain (createHrConfigSpace)
+// so security marks it public and the four admin lists become readable. Its own tryUpgrade state
+// (not folded into migrateYgHr's 'seed-lists-and-migrate-workprofile-0001', which tryUpgrade skips
+// once recorded done) so it runs on workspaces that seeded their lists before this space-domain fix
+// existed - e.g. the beta `yg` workspace, whose lists showed "No items yet" because the space was
+// only ever a model doc. Idempotent (findOne guard), so harmless on fresh workspaces where
+// migrateYgHr already created the space.
+async function migrateHrConfigSpace (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await createHrConfigSpace(ops)
 }
 
 // Separate tryUpgrade state (not folded into migrateYgHr above) so it also runs against
@@ -326,6 +366,13 @@ export const ygHrOperation: MigrateOperation = {
         // designation/department/employeeId into the new EmployeeJob/EmployeePersonal mixins.
         state: 'seed-lists-and-migrate-workprofile-0001',
         func: migrateYgHr
+      },
+      {
+        // Repair: create the shared HrConfig space in the space data domain so security registers
+        // it public and the admin lists become readable (fixes "No items yet" on workspaces seeded
+        // before the space was moved out of the model).
+        state: 'create-hrconfig-space-0001',
+        func: migrateHrConfigSpace
       },
       {
         // Task 9: add the "HR Settings" special to the Human Resource app nav.

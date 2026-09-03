@@ -78,15 +78,43 @@
   color: var(--theme-content-color);
   background: var(--theme-bg-color);
   border: 1px solid var(--theme-divider-color);
-  border-radius: 8px;
-  padding: 7px 9px;
+  border-radius: 9px;
+  padding: 9px 11px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.yg-input:hover {
+  border-color: var(--theme-trans-color);
 }
 .yg-input:focus {
   outline: none;
   border-color: var(--yg-accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+:global(.theme-dark) .yg-input:focus {
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.14);
 }
 .yg-input::placeholder {
   color: var(--theme-text-placeholder-color);
+}
+
+// Modern select: drop the native browser chrome (the "old core" look) for a flat field matching the
+// text inputs, with a custom chevron drawn as an inline SVG data-URI (no asset load). The chevron
+// stroke is a neutral grey that reads in both themes. padding-right leaves room for it.
+select.yg-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 32px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a9199' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  background-size: 13px;
+}
+// Native option list can't be themed, but pin sane colors so it isn't white-on-white in dark mode.
+select.yg-input option {
+  color: var(--theme-content-color);
+  background: var(--theme-popup-color);
 }
 
 // Small pill/badge, used for status chips and the Job tab's designation/department values.

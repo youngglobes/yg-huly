@@ -144,20 +144,13 @@ export function createModel (builder: Builder): void {
     TEmployeeSeq
   )
 
-  // Shared space holding the admin-managed list items (Department / Designation /
-  // EmploymentStatus / Location). Not private so every workspace user can read the lists
-  // for their profile/dropdowns; not autoJoin since only HR/admins add members via the UI.
-  builder.createDoc(
-    core.class.Space,
-    core.space.Model,
-    {
-      name: 'HR Configuration',
-      description: 'Department / Designation / Employment status / Location',
-      private: false,
-      archived: false,
-      autoJoin: false,
-      members: []
-    },
-    ygHr.space.HrConfig
-  )
+  // NOTE: the shared ygHr.space.HrConfig space (which holds the Department / Designation /
+  // Employment status / Location list docs) is created in the MIGRATION as a real doc in the
+  // DOMAIN_SPACE data table (TxOperations.createDoc into core.space.Space), NOT here as a
+  // model-space doc. A space made with builder.createDoc(core.class.Space, core.space.Model, ...)
+  // exists only in the in-memory model, never in the space domain the server's
+  // SpaceSecurityMiddleware scans at init (it runs findAll(core.class.Space) against DOMAIN_SPACE).
+  // Such a space is therefore never registered as public, so every read of its docs is filtered to
+  // empty for every user - the "No items yet" bug. Creating it as data in the migration is the same
+  // idiom the working yg-timesheet spaces use (models/yg-timesheet/src/migration.ts).
 }
