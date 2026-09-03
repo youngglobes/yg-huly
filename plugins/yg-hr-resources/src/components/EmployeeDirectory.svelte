@@ -112,6 +112,7 @@
     designation?: Designation
     departmentName?: string
     email?: string
+    code?: string
     status: EmployeeStatus
   }
 
@@ -130,6 +131,7 @@
         designation,
         departmentName,
         email: emailByEmployee.get(employee._id),
+        code: personal?.employeeId,
         status: personal?.status ?? 'active'
       }
     })
@@ -151,15 +153,21 @@
     return hay.includes(q)
   })
 
-  const STATUS_FILTERS: Array<{ key: EmployeeStatus | 'all', label: typeof ygHr.string.AllStatuses }> = [
-    { key: 'all', label: ygHr.string.AllStatuses },
-    { key: 'active', label: ygHr.string.StatusActive },
-    { key: 'onhold', label: ygHr.string.StatusOnHold },
-    { key: 'deactivated', label: ygHr.string.StatusDeactivated }
-  ]
-
   let searchPlaceholder = ''
   void translate(ygHr.string.SearchEmployeesPlaceholder, {}).then((r) => { searchPlaceholder = r })
+
+  // Pre-translated <option> labels for the filter dropdowns (a <select>'s <option> cannot host a
+  // <Label> component).
+  let allDepartmentsLabel = ''
+  let allStatusesLabel = ''
+  let statusActiveLabel = ''
+  let statusOnHoldLabel = ''
+  let statusDeactivatedLabel = ''
+  void translate(ygHr.string.AllDepartments, {}).then((r) => { allDepartmentsLabel = r })
+  void translate(ygHr.string.AllStatuses, {}).then((r) => { allStatusesLabel = r })
+  void translate(ygHr.string.StatusActive, {}).then((r) => { statusActiveLabel = r })
+  void translate(ygHr.string.StatusOnHold, {}).then((r) => { statusOnHoldLabel = r })
+  void translate(ygHr.string.StatusDeactivated, {}).then((r) => { statusDeactivatedLabel = r })
 
   // Full-page swap (Task: PO UI refinement) - selecting a row hides this list and renders
   // EmployeeProfile in its place, matching the approved mockup's directory/profile toggle. The
@@ -216,27 +224,19 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.2-3.2" /></svg>
         <input type="text" placeholder={searchPlaceholder} bind:value={search} />
       </div>
-      <div class="yg-dir-filters">
-        <button class="yg-filter" class:yg-filter--on={departmentFilter === 'all'} on:click={() => { departmentFilter = 'all' }}>
-          <Label label={ygHr.string.AllDepartments} />
-        </button>
-        {#each sortedDepartments as dep (dep._id)}
-          <button class="yg-filter" class:yg-filter--on={departmentFilter === dep._id} on:click={() => { departmentFilter = dep._id }}>
-            {dep.name}
-          </button>
-        {/each}
-      </div>
+      <select class="yg-input yg-dir-select" bind:value={departmentFilter}>
+        <option value="all">{allDepartmentsLabel}</option>
+        {#each sortedDepartments as dep (dep._id)}<option value={dep._id}>{dep.name}</option>{/each}
+      </select>
+      {#if canAdd}
+        <select class="yg-input yg-dir-select" bind:value={statusFilter}>
+          <option value="all">{allStatusesLabel}</option>
+          <option value="active">{statusActiveLabel}</option>
+          <option value="onhold">{statusOnHoldLabel}</option>
+          <option value="deactivated">{statusDeactivatedLabel}</option>
+        </select>
+      {/if}
     </div>
-
-    {#if canAdd}
-      <div class="yg-dir-filters yg-dir-statusfilter">
-        {#each STATUS_FILTERS as sf (sf.key)}
-          <button class="yg-filter" class:yg-filter--on={statusFilter === sf.key} on:click={() => { statusFilter = sf.key }}>
-            <Label label={sf.label} />
-          </button>
-        {/each}
-      </div>
-    {/if}
 
     <div class="yg-dir-table-wrap">
       <table class="yg-dir-table">
@@ -263,9 +263,9 @@
                   <Avatar person={row.employee} size={'medium'} name={row.employee.name} />
                   <div class="yg-dir-person__text">
                     <div class="yg-dir-person__name">{formatName(row.employee.name)}</div>
-                    <div class="yg-dir-person__sub">
-                      {row.designation?.name ?? ''}{#if row.designation?.name !== undefined && row.departmentName !== undefined} - {/if}{row.departmentName ?? ''}
-                    </div>
+                    {#if row.code !== undefined && row.code !== ''}
+                      <div class="yg-dir-person__code">{row.code}</div>
+                    {/if}
                   </div>
                 </div>
               </td>
@@ -368,31 +368,14 @@
     color: var(--theme-text-placeholder-color);
   }
 
-  .yg-dir-filters {
-    display: flex;
-    gap: 7px;
-    flex-wrap: wrap;
-  }
-  .yg-filter {
-    font: inherit;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 7px 12px;
-    border-radius: 999px;
-    border: 1px solid var(--theme-divider-color);
-    background: var(--theme-panel-color);
-    color: var(--theme-dark-color);
-    cursor: pointer;
-    white-space: nowrap;
-  }
-  .yg-filter--on {
-    background: rgba(15, 118, 110, 0.12);
-    color: #0b5b54;
-    border-color: transparent;
-  }
-  :global(.theme-dark) .yg-filter--on {
-    background: rgba(45, 212, 191, 0.13);
-    color: #5eead4;
+  // Filter dropdowns (department + status) sit inline with the search box. They ride the shared
+  // .yg-input / select.yg-input styling (yg-profile.scss) for the chevron and 42px height; this only
+  // sizes them so they do not stretch like the profile's full-width fields.
+  .yg-dir-select {
+    flex: none;
+    width: auto;
+    min-width: 150px;
+    background-color: var(--theme-panel-color);
   }
 
   .yg-dir-table-wrap {
@@ -446,9 +429,13 @@
     font-weight: 600;
     color: var(--theme-caption-color);
   }
-  .yg-dir-person__sub {
-    font-size: 12.5px;
+  .yg-dir-person__code {
+    font-size: 12px;
     color: var(--theme-trans-color);
+    font-family: var(--theme-font-mono, ui-monospace, monospace);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+    margin-top: 1px;
   }
   .yg-dir-email {
     color: var(--theme-dark-color);

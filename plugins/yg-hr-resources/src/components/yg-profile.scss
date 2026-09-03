@@ -79,6 +79,8 @@
   background: var(--theme-bg-color);
   border: 1px solid var(--theme-divider-color);
   border-radius: 9px;
+  min-height: 42px;
+  box-sizing: border-box;
   padding: 9px 11px;
   transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
