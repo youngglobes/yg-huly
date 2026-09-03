@@ -42,9 +42,10 @@
   import login from '@hcengineering/login'
   import { getResource, translate, type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { IconArrowLeft, Label } from '@hcengineering/ui'
+  import { IconArrowLeft, Label, Spinner, addNotification, NotificationSeverity } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import ygTimesheet from '@hcengineering/yg-timesheet'
+  import YgToast from './YgToast.svelte'
   import ygHr, {
     type Department,
     type Designation,
@@ -165,15 +166,14 @@
   }
 
   let inviting = false
-  let invited = false
   async function sendInvitation (): Promise<void> {
     if (workEmail === undefined || inviting) return
     inviting = true
     try {
       const sendInvite = await getResource(login.function.SendInvite)
       await sendInvite(workEmail, AccountRole.User)
-      invited = true
-      setTimeout(() => { invited = false }, 4000)
+      const title = await translate(ygHr.string.InvitationSent, {})
+      addNotification(title, workEmail, YgToast, undefined, NotificationSeverity.Success)
     } finally {
       inviting = false
     }
@@ -250,7 +250,8 @@
           {/if}
           <div class="yg-idcard__btns">
             <button class="yg-ghostbtn" on:click={sendInvitation} disabled={workEmail === undefined || inviting}>
-              <Label label={invited ? ygHr.string.InvitationSent : ygHr.string.SendInvitation} />
+              {#if inviting}<span class="yg-btn-spin"><Spinner size={'small'} /></span>{/if}
+              <Label label={ygHr.string.SendInvitation} />
             </button>
             <button class="yg-btn-dark" on:click={toggleEdit}>
               {#if editing}
@@ -409,9 +410,14 @@
   .yg-status-select {
     min-width: 150px;
   }
+  .yg-btn-spin {
+    display: inline-flex;
+    align-items: center;
+  }
   .yg-ghostbtn {
     display: inline-flex;
     align-items: center;
+    gap: 6px;
     font: inherit;
     font-weight: 600;
     font-size: 13px;

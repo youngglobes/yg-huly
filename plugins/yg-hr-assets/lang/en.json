@@ -80,6 +80,7 @@
     "SendInvitation": "Send invitation",
     "ResendInvitation": "Resend invitation",
     "InvitationSent": "Invitation sent",
+    "EmployeeCreated": "Employee created",
     "CreateEmployeeTitle": "New employee",
     "CreateEmployeeIntro": "Create the employee record. Send the invitation later, when you onboard them.",
     "CreateAndReturn": "Create employee",

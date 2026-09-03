@@ -45,9 +45,11 @@
   } from '@hcengineering/core'
   import { getClient } from '@hcengineering/presentation'
   import { EditableAvatar, getAccountClient } from '@hcengineering/contact-resources'
-  import { IconArrowLeft, Label } from '@hcengineering/ui'
+  import { translate } from '@hcengineering/platform'
+  import { IconArrowLeft, Label, Spinner, addNotification, NotificationSeverity } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
   import ygHr, { type Department, type Designation, type EmployeeJob } from '@hcengineering/yg-hr'
+  import YgToast from './YgToast.svelte'
 
   export let designations: Designation[] = []
   export let departments: Department[] = []
@@ -140,6 +142,8 @@
         await client.createMixin(employeeRef, contact.mixin.Employee, contact.space.Contacts, ygHr.mixin.EmployeeJob, jobAttrs)
       }
 
+      const toastTitle = await translate(ygHr.string.EmployeeCreated, {})
+      addNotification(toastTitle, person.name, YgToast, undefined, NotificationSeverity.Success)
       dispatch('created', employeeRef)
     } finally {
       saving = false
@@ -203,6 +207,7 @@
 
       <div class="yg-create-actions">
         <button class="yg-btn-dark" disabled={!canSave} on:click={create}>
+          {#if saving}<span class="yg-btn-spin"><Spinner size={'small'} /></span>{/if}
           <Label label={saving ? ygHr.string.Creating : ygHr.string.CreateAndReturn} />
         </button>
       </div>
@@ -306,7 +311,11 @@
     justify-content: flex-end;
   }
   .yg-btn-dark[disabled] {
-    opacity: 0.45;
-    cursor: not-allowed;
+    opacity: 0.6;
+    cursor: progress;
+  }
+  .yg-btn-spin {
+    display: inline-flex;
+    align-items: center;
   }
 </style>

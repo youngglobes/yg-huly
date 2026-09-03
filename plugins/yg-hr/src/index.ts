@@ -216,6 +216,7 @@ export default plugin(ygHrId, {
     SendInvitation: '' as IntlString,
     ResendInvitation: '' as IntlString,
     InvitationSent: '' as IntlString,
+    EmployeeCreated: '' as IntlString,
     CreateEmployeeTitle: '' as IntlString,
     CreateEmployeeIntro: '' as IntlString,
     CreateAndReturn: '' as IntlString,
