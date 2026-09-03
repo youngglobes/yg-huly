@@ -4,7 +4,9 @@
 import core, {
   AccountRole,
   hasAccountRole,
+  systemAccountUuid,
   TxProcessor,
+  type AccountUuid,
   type Doc,
   type PersonId,
   type Ref,
@@ -16,14 +18,23 @@ import core, {
 import contact, { type Employee, type Person } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
 import { getEmployee } from '@hcengineering/server-contact'
+import { generateToken } from '@hcengineering/server-token'
+import { getClient as getAccountClient } from '@hcengineering/account-client'
 import ygHr, {
+  employeeActiveFromStatus,
   EMPLOYEE_SEQ_ID,
   formatEmployeeId,
   isHrDesignationByFlag,
+  ygHrId,
   type Designation,
   type EmergencyContact,
   type EmployeeSeq
 } from '@hcengineering/yg-hr'
+
+// The account URL is read from the transactor's own ACCOUNTS_URL env (see revokeWorkspaceAccess).
+// server-plugins normally take config through `control`, so node types are not in this package's
+// tsconfig; a minimal ambient declaration keeps this the only env access without pulling in @types/node.
+declare const process: { env: Record<string, string | undefined> }
 
 //
 // Auto-assign the next YGS#### employee id (Task 7). Fires whenever a write touches
@@ -179,7 +190,7 @@ async function nextEmployeeSeq (control: TriggerControl): Promise<number> {
 const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
   [ygHr.mixin.EmployeePersonal]: [
     'middleName', 'gender', 'dateOfBirth', 'maritalStatus', 'nationality', 'bloodGroup',
-    'employeeId', 'emergencyContacts'
+    'employeeId', 'status', 'emergencyContacts'
   ],
   [ygHr.mixin.EmployeeContact]: [
     'street1', 'street2', 'addressCity', 'state', 'zip', 'country', 'homePhone', 'mobile',
@@ -569,9 +580,120 @@ export async function OnEmployeeHrGuard (txes: Tx[], control: TriggerControl): P
   return []
 }
 
+//
+// Employee lifecycle status side effects (active/onhold/deactivated). Fires on an EmployeePersonal
+// mixin write that actually CHANGES status, and does two things System-authored:
+//   1. Keeps the native contact.mixin.Employee.active flag in sync (active only when status is
+//      'active') - this is what drops on-hold/deactivated people out of assignee pickers and the
+//      regular directory, without the client having to write `active` itself.
+//   2. On a transition INTO 'deactivated', revokes the person's workspace membership so they can no
+//      longer log in. Reactivation does NOT auto-restore access here (HR re-sends the invitation),
+//      so this trigger only ever removes membership, never grants it.
+//
+// The person's Person/Employee record and all their issue history are untouched - only the
+// global_account membership row is removed (see revokeWorkspaceAccess). The write authorization for
+// status itself is already enforced by OnEmployeeHrGuard (status is in GUARDED_MIXIN_FIELDS), so a
+// non-HR actor's status change is reverted before this trigger would act on it.
+//
+// Loop-safety: the only tx this trigger issues (the active-flag sync) is System-authored, and the
+// top-of-loop guard skips System txes - same idiom as every other trigger in this file.
+//
+export async function OnEmployeeStatusChange (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    // Loop-safety guard - see file header. Must stay first.
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxMixin) continue
+
+    const mtx = tx as TxMixin<Person, Employee>
+    if (mtx.mixin !== ygHr.mixin.EmployeePersonal) continue
+
+    // Cheap pre-filter: only proceed if this tx could have touched `status` (a plain set carries the
+    // key directly; an operator update carries a `$`-prefixed key). Skips the common profile edits
+    // (name/gender/...) without the tx-log reconstruction below.
+    const attrs = mtx.attributes as Record<string, any>
+    if (attrs == null) continue
+    const touchesStatus = 'status' in attrs || Object.keys(attrs).some((k) => k.startsWith('$'))
+    if (!touchesStatus) continue
+
+    const person = (
+      await control.findAll(control.ctx, contact.class.Person, { _id: mtx.objectId }, { limit: 1 })
+    )[0]
+    if (person === undefined || !control.hierarchy.hasMixin(person, contact.mixin.Employee)) continue
+
+    const employee = control.hierarchy.as(person, contact.mixin.Employee)
+    const currentStatus = control.hierarchy.as(person, ygHr.mixin.EmployeePersonal).status
+
+    // Reconstruct the PRE-tx status (triggers see post-apply state) to act only on a real change -
+    // same buildDoc2Doc replay idiom the guards above use.
+    const logTxes = Array.from(
+      await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
+    ).filter((it) => it._id !== mtx._id)
+    const prevDoc = TxProcessor.buildDoc2Doc<Person>(logTxes)
+    const prevStatus =
+      prevDoc !== undefined && prevDoc !== null && control.hierarchy.hasMixin(prevDoc, ygHr.mixin.EmployeePersonal)
+        ? control.hierarchy.as(prevDoc, ygHr.mixin.EmployeePersonal).status
+        : undefined
+    if (currentStatus === prevStatus) continue // status not actually changed by this tx
+
+    // 1) Sync the native active flag.
+    const desiredActive = employeeActiveFromStatus(currentStatus)
+    if (employee.active !== desiredActive) {
+      await control.apply(control.ctx, [
+        control.txFactory.createTxMixin(
+          person._id,
+          contact.class.Person,
+          person.space,
+          contact.mixin.Employee,
+          { active: desiredActive } as any,
+          Date.now(),
+          core.account.System
+        )
+      ])
+    }
+
+    // 2) Deactivation blocks login by removing the workspace membership.
+    if (currentStatus === 'deactivated' && prevStatus !== 'deactivated') {
+      await revokeWorkspaceAccess(control, person)
+    }
+  }
+  return []
+}
+
+// Remove a deactivated employee's membership row from the yg workspace so they can no longer log in.
+// Uses a System-scoped account token (server/account/src/operations.ts leaveWorkspace lets the System
+// account remove any member); the employee's account uuid is Person.personUuid. Best-effort: a
+// failure here (account service unreachable, no personUuid) leaves them hidden-but-still-a-member and
+// is logged, never fatal to the status change.
+async function revokeWorkspaceAccess (control: TriggerControl, person: Person): Promise<void> {
+  const accountUuid = person.personUuid
+  if (accountUuid === undefined || accountUuid === null) return
+  // The transactor does not register serverClient's Endpoint metadata, so the account URL is read
+  // from the same ACCOUNTS_URL env the pod itself uses and passed to the account client explicitly.
+  const accountsUrl = process.env.ACCOUNTS_URL
+  if (accountsUrl === undefined || accountsUrl === '') {
+    control.ctx.error('yg-hr: ACCOUNTS_URL not set - cannot revoke workspace access on deactivate', {
+      employee: person._id
+    })
+    return
+  }
+  try {
+    const token = generateToken(systemAccountUuid, control.workspace.uuid, { service: ygHrId })
+    const accountClient = getAccountClient(accountsUrl, token)
+    await accountClient.leaveWorkspace(accountUuid as AccountUuid)
+    control.ctx.info('yg-hr: revoked workspace access for deactivated employee', {
+      employee: person._id, account: accountUuid
+    })
+  } catch (err) {
+    control.ctx.error('yg-hr: could not revoke workspace access on deactivate (non-fatal)', {
+      employee: person._id, err
+    })
+  }
+}
+
 export default async () => ({
   trigger: {
     OnEmployeeCreate,
-    OnEmployeeHrGuard
+    OnEmployeeHrGuard,
+    OnEmployeeStatusChange
   }
 })

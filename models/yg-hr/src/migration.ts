@@ -26,6 +26,7 @@ import ygHr, {
   type Location,
   type HrListItem
 } from '@hcengineering/yg-hr'
+import { DOMAIN_YG_HR } from '.'
 
 // Same ~24 titles as the ygTimesheet.WorkDesignation union (plugins/yg-timesheet/src/index.ts) -
 // the admin-managed Designation list is seeded from these so existing WorkProfile data resolves
@@ -47,35 +48,17 @@ const DEPARTMENTS: WorkDepartment[] = ['Development', 'Testing', 'SEO', 'Sales',
 const EMPLOYMENT_STATUSES = ['Full Time', 'Part Time', 'Freelancer', 'Intern']
 const LOCATIONS = ['Young Globes - Coimbatore']
 
-// Create the shared HrConfig space as a REAL doc in the space data domain (core.space.Space), so
-// the server's SpaceSecurityMiddleware sees it at init (it does findAll(core.class.Space) against
-// DOMAIN_SPACE) and registers it as public. Without this the four admin lists live in a space
-// security never learns about, and every read is filtered to empty ("No items yet") for every user.
-// Public and memberless so every workspace user can read the lists for their profile dropdowns; the
-// create/update/remove guard (OnEmployeeHrGuard, server-plugins/yg-hr-resources) is what keeps
-// writes HR/admin-only. Same idiom as yg-timesheet's createApprovalsSpace. Idempotent: no-op once
-// the space doc exists.
-async function createHrConfigSpace (ops: TxOperations): Promise<void> {
-  const existing = await ops.findOne(core.class.Space, { _id: ygHr.space.HrConfig })
-  if (existing !== undefined) return
-  await ops.createDoc(
-    core.class.Space,
-    core.space.Space,
-    {
-      name: 'HR Configuration',
-      description: 'Department / Designation / Employment status / Location lists.',
-      private: false,
-      archived: false,
-      members: [],
-      owners: [],
-      autoJoin: false
-    },
-    ygHr.space.HrConfig
-  )
-}
+// The admin lists live in core.space.Workspace (a mainSpace), NOT a custom space. The server's
+// SpaceSecurityMiddleware IGNORES public spaces for data-domain reads (spaceSecurity.ts: a public
+// space grants read of its own space-doc, but a member-less public space grants no read of the DATA
+// docs inside it), so the four lists in the old memberless HrConfig space came back empty for every
+// user ("No items yet"). core.space.Workspace is unconditionally in every account's allowed set for
+// data reads (it is a mainSpace), so the lists are readable by all. moveListsToWorkspace (below,
+// MIGRATE phase) relocates any rows an earlier migration seeded into HrConfig.
+const HR_LIST_SPACE = core.space.Workspace
 
-// Seed one admin-managed list (Department/Designation/EmploymentStatus/Location) into HrConfig,
-// keyed by `name`. Idempotent: skips any name already present, so it is safe to re-run.
+// Seed one admin-managed list (Department/Designation/EmploymentStatus/Location), keyed by `name`.
+// Idempotent: skips any name already present, so it is safe to re-run.
 async function seedNames<T extends HrListItem> (
   ops: TxOperations,
   _class: Ref<Class<T>>,
@@ -84,7 +67,7 @@ async function seedNames<T extends HrListItem> (
   const existing = new Set((await ops.findAll(_class, {})).map((d) => d.name))
   for (const name of names) {
     if (existing.has(name)) continue // idempotent, keyed by name
-    await ops.createDoc(_class, ygHr.space.HrConfig, { name } as Data<T>)
+    await ops.createDoc(_class, HR_LIST_SPACE, { name } as Data<T>)
   }
 }
 
@@ -307,7 +290,6 @@ async function removeContactsEmployeeSpecial (ops: TxOperations): Promise<void> 
 
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
-  await createHrConfigSpace(ops)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
   await seedNames<Department>(ops, ygHr.class.Department, DEPARTMENTS)
   await seedNames<EmploymentStatus>(ops, ygHr.class.EmploymentStatus, EMPLOYMENT_STATUSES)
@@ -317,16 +299,51 @@ async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   await ensureEmployeeSeq(ops)
 }
 
-// Repair state: materialize the shared HrConfig space into the space data domain (createHrConfigSpace)
-// so security marks it public and the four admin lists become readable. Its own tryUpgrade state
-// (not folded into migrateYgHr's 'seed-lists-and-migrate-workprofile-0001', which tryUpgrade skips
-// once recorded done) so it runs on workspaces that seeded their lists before this space-domain fix
-// existed - e.g. the beta `yg` workspace, whose lists showed "No items yet" because the space was
-// only ever a model doc. Idempotent (findOne guard), so harmless on fresh workspaces where
-// migrateYgHr already created the space.
-async function migrateHrConfigSpace (client: MigrationUpgradeClient): Promise<void> {
-  const ops = new TxOperations(client, core.account.System)
-  await createHrConfigSpace(ops)
+// Hide the stock Contacts app from the left navigation for EVERY user (user decision: Contacts
+// becomes the invisible identity/backing store; people are reached only through the yg-hr
+// "Employees" directory). workbench.class.Application carries a `hidden` boolean; flipping it on the
+// model doc removes the app from the switcher globally without touching any Person/Employee data.
+// Best-effort + idempotent (no-op once already hidden), same cast caveat as the nav helpers above.
+async function hideContactsApp (ops: TxOperations): Promise<void> {
+  try {
+    const appId = contact.app.Contacts as Ref<Application>
+    const app = await ops.findOne(workbench.class.Application, { _id: appId })
+    if (app === undefined || app.hidden === true) return // idempotent
+    await ops.updateDoc<Application>(workbench.class.Application, core.space.Model, appId, { hidden: true })
+  } catch (err) {
+    console.error('yg-hr: could not hide Contacts app (non-fatal)', err)
+  }
+}
+
+// Backfill the new EmployeePersonal.status lifecycle field on existing employees. Derived from the
+// native contact.mixin.Employee.active flag that already governed visibility: an employee currently
+// active:false (e.g. an ex-employee HR already hid, like Melsiya) becomes 'deactivated'; everyone
+// else becomes 'active'. On-hold has no historical source, so it is never inferred here - HR sets it
+// going forward. Idempotent: skips any employee that already carries a status. Never revokes login
+// here (backfill only labels; the OnEmployeeStatusChange trigger only acts on an actual status
+// CHANGE), so simply recording an already-inactive ex-employee as 'deactivated' does not evict them.
+async function backfillEmployeeStatus (ops: TxOperations): Promise<void> {
+  const h = ops.getHierarchy()
+  const employees = await ops.findAll(contact.mixin.Employee, {})
+  for (const emp of employees) {
+    const personal = h.hasMixin(emp, ygHr.mixin.EmployeePersonal) ? h.as(emp, ygHr.mixin.EmployeePersonal) : undefined
+    if (personal?.status !== undefined) continue // idempotent
+    const status = emp.active === false ? 'deactivated' : 'active'
+    await ops.updateMixin(emp._id, contact.mixin.Employee, emp.space, ygHr.mixin.EmployeePersonal, { status })
+  }
+}
+
+// Relocate any admin-list rows an earlier migration seeded into the old memberless HrConfig space
+// into core.space.Workspace, where data-domain reads are actually permitted (see HR_LIST_SPACE).
+// Raw MIGRATE-phase domain update (a hoisted `space` column, the same shape yg-timesheet's
+// openApprovalsSpaceRaw uses) - a TxOperations.updateDoc cannot move a doc between spaces. Idempotent:
+// matches only rows still pointing at HrConfig, so re-running is a no-op once they are moved.
+async function moveListsToWorkspace (client: MigrationClient): Promise<void> {
+  await client.update(
+    DOMAIN_YG_HR,
+    { space: ygHr.space.HrConfig },
+    { space: core.space.Workspace }
+  )
 }
 
 // Separate tryUpgrade state (not folded into migrateYgHr above) so it also runs against
@@ -353,8 +370,22 @@ async function migrateRemoveContactsEmployeeNav (client: MigrationUpgradeClient)
   await removeContactsEmployeeSpecial(ops)
 }
 
+async function migrateHideContactsApp (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await hideContactsApp(ops)
+}
+
+async function migrateBackfillEmployeeStatus (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await backfillEmployeeStatus(ops)
+}
+
 export const ygHrOperation: MigrateOperation = {
-  async migrate (client: MigrationClient, mode: MigrateMode): Promise<void> {},
+  async migrate (client: MigrationClient, mode: MigrateMode): Promise<void> {
+    // Raw domain relocation of the admin lists out of the old HrConfig space - idempotent, so it
+    // runs every upgrade but is a no-op once the rows are in core.space.Workspace.
+    await moveListsToWorkspace(client)
+  },
   async upgrade (
     state: Map<string, Set<string>>,
     client: () => Promise<MigrationUpgradeClient>,
@@ -366,13 +397,6 @@ export const ygHrOperation: MigrateOperation = {
         // designation/department/employeeId into the new EmployeeJob/EmployeePersonal mixins.
         state: 'seed-lists-and-migrate-workprofile-0001',
         func: migrateYgHr
-      },
-      {
-        // Repair: create the shared HrConfig space in the space data domain so security registers
-        // it public and the admin lists become readable (fixes "No items yet" on workspaces seeded
-        // before the space was moved out of the model).
-        state: 'create-hrconfig-space-0001',
-        func: migrateHrConfigSpace
       },
       {
         // Task 9: add the "HR Settings" special to the Human Resource app nav.
@@ -388,6 +412,16 @@ export const ygHrOperation: MigrateOperation = {
         // Task 12: retire the stock Contacts app's "Employee" kind-list special.
         state: 'remove-contacts-employee-nav-special-0001',
         func: migrateRemoveContactsEmployeeNav
+      },
+      {
+        // Hide the whole Contacts app from the nav (Contacts becomes the invisible backing store).
+        state: 'hide-contacts-app-0001',
+        func: migrateHideContactsApp
+      },
+      {
+        // Backfill EmployeePersonal.status on existing employees (active flag -> active/deactivated).
+        state: 'backfill-employee-status-0001',
+        func: migrateBackfillEmployeeStatus
       }
     ])
   }

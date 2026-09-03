@@ -30662,6 +30662,9 @@ importers:
       '@hcengineering/core':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/core
+      '@hcengineering/login':
+        specifier: workspace:^0.7.426
+        version: link:../login
       '@hcengineering/notification':
         specifier: workspace:^0.7.426
         version: link:../notification
@@ -36687,6 +36690,9 @@ importers:
 
   ../../server-plugins/yg-hr-resources:
     dependencies:
+      '@hcengineering/account-client':
+        specifier: workspace:^0.7.426
+        version: link:../../foundations/core/packages/account-client
       '@hcengineering/contact':
         specifier: workspace:^0.7.426
         version: link:../../plugins/contact
@@ -36711,6 +36717,9 @@ importers:
       '@hcengineering/server-notification-resources':
         specifier: workspace:^0.7.426
         version: link:../notification-resources
+      '@hcengineering/server-token':
+        specifier: workspace:^0.7.426
+        version: link:../../foundations/core/packages/token
       '@hcengineering/server-yg-hr':
         specifier: workspace:^0.7.426
         version: link:../yg-hr

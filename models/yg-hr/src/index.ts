@@ -37,6 +37,7 @@ import type {
   EmployeeJob,
   EmployeePersonal,
   EmployeeSeq,
+  EmployeeStatus,
   EmploymentStatus,
   Gender,
   Location,
@@ -91,6 +92,7 @@ export class TEmployeePersonal extends TEmployee implements EmployeePersonal {
   @Prop(TypeString(), ygHr.string.Nationality) nationality?: string
   @Prop(TypeString(), ygHr.string.BloodGroup) bloodGroup?: string
   @Prop(TypeString(), ygHr.string.EmployeeId) employeeId?: string
+  @Prop(TypeString(), ygHr.string.Status) status?: EmployeeStatus
 
   @Prop(Collection(ygHr.class.EmergencyContact), ygHr.string.EmergencyContacts)
     emergencyContacts?: number

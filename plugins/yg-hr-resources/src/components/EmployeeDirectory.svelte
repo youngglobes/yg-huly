@@ -33,27 +33,27 @@
   import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label, showPopup, type AnyComponent } from '@hcengineering/ui'
+  import { Label } from '@hcengineering/ui'
   import ygHr, {
     isHrDesignationByFlag,
     type Department,
     type Designation,
-    type EmployeeJob
+    type EmployeeJob,
+    type EmployeeStatus
   } from '@hcengineering/yg-hr'
   import EmployeeProfile from './EmployeeProfile.svelte'
+  import CreateEmployeePage from './CreateEmployeePage.svelte'
 
   const client = getClient()
   const h = client.getHierarchy()
 
-  // Reference the stock create-employee dialog by its already-registered component id. We do NOT
-  // re-declare it via mergeIds/identify (that throws 'identify overwrites CreateEmployee' at
-  // model-build time), so the id is written as its literal resolved string.
-  const createEmployeeComponent = 'contact:component:CreateEmployee' as AnyComponent
-
   let employees: Employee[] = []
   let employeesLoaded = false
   const empQuery = createQuery()
-  empQuery.query(contact.mixin.Employee, { active: true }, (res) => {
+  // Regular users only ever receive ACTIVE employees (the server never sends them on-hold or
+  // deactivated people); HR/admin (canAdd) receive everyone so they can see and manage the full
+  // roster. Reactive so it re-subscribes if canAdd flips true once the actor's HR designation loads.
+  $: empQuery.query(contact.mixin.Employee, canAdd ? {} : { active: true }, (res) => {
     employees = res
     employeesLoaded = true
   })
@@ -116,6 +116,7 @@
     departmentName?: string
     email?: string
     isHr: boolean
+    status: EmployeeStatus
   }
 
   $: designationById = new Map(designations.map((d) => [d._id, d]))
@@ -126,28 +127,41 @@
       const job = h.hasMixin(employee, ygHr.mixin.EmployeeJob) ? h.as(employee, ygHr.mixin.EmployeeJob) : undefined
       const designation = job?.designation !== undefined ? designationById.get(job.designation) : undefined
       const departmentName = job?.department !== undefined ? departmentById.get(job.department)?.name : undefined
+      const personal = h.hasMixin(employee, ygHr.mixin.EmployeePersonal) ? h.as(employee, ygHr.mixin.EmployeePersonal) : undefined
       return {
         employee,
         job,
         designation,
         departmentName,
         email: emailByEmployee.get(employee._id),
-        isHr: isHrDesignationByFlag(designation)
+        isHr: isHrDesignationByFlag(designation),
+        status: personal?.status ?? 'active'
       }
     })
     .sort((a, b) => formatName(a.employee.name).localeCompare(formatName(b.employee.name)))
 
   let search = ''
   let departmentFilter: Ref<Department> | 'all' = 'all'
+  // Status filter is only meaningful for HR/admin (they are the only ones who receive non-active
+  // people); a regular user's list is always active-only regardless of this control.
+  let statusFilter: EmployeeStatus | 'all' = 'all'
   $: sortedDepartments = [...departments].sort((a, b) => a.name.localeCompare(b.name))
 
   $: filteredRows = rows.filter((r) => {
     if (departmentFilter !== 'all' && r.job?.department !== departmentFilter) return false
+    if (canAdd && statusFilter !== 'all' && r.status !== statusFilter) return false
     const q = search.trim().toLowerCase()
     if (q === '') return true
     const hay = `${formatName(r.employee.name)} ${r.designation?.name ?? ''} ${r.departmentName ?? ''}`.toLowerCase()
     return hay.includes(q)
   })
+
+  const STATUS_FILTERS: Array<{ key: EmployeeStatus | 'all', label: typeof ygHr.string.AllStatuses }> = [
+    { key: 'all', label: ygHr.string.AllStatuses },
+    { key: 'active', label: ygHr.string.StatusActive },
+    { key: 'onhold', label: ygHr.string.StatusOnHold },
+    { key: 'deactivated', label: ygHr.string.StatusDeactivated }
+  ]
 
   let searchPlaceholder = ''
   void translate(ygHr.string.SearchEmployeesPlaceholder, {}).then((r) => { searchPlaceholder = r })
@@ -156,6 +170,9 @@
   // EmployeeProfile in its place, matching the approved mockup's directory/profile toggle. The
   // profile's `back` event (its own "< Employees" link) returns here.
   let selectedEmployee: Employee | undefined
+  // Full-page create form shown in place of this list (same swap pattern as the profile), replacing
+  // the stock CreateEmployee popup.
+  let creating = false
 
   function openEmployee (employee: Employee): void {
     selectedEmployee = employee
@@ -173,33 +190,17 @@
   }
 
   function addEmployee (): void {
-    showPopup(
-      createEmployeeComponent,
-      {
-        // Reuse the platform's create-employee flow (Person + Employee mixin + account + login
-        // social id) unchanged, then additionally stamp EmployeePersonal so the OnEmployeeCreate
-        // trigger (which only fires on an Employee-descended MIXIN write, not the bare Employee
-        // add) assigns the new hire's YGS#### id. See models/yg-hr/src/index.ts's trigger
-        // registration comment for why the bare Employee create alone never fires it.
-        //
-        // objectClass here MUST be contact.mixin.Employee, not contact.class.Person: createMixin
-        // stores this argument verbatim as the resulting TxMixin.objectClass, and the trigger's
-        // txMatch { objectClass: contact.mixin.Employee } expands to Employee's DESCENDANTS
-        // (EmployeePersonal/Contact/Job/WorkProfile), not its ancestors - a Person-rooted objectClass
-        // would silently never match. Same idiom migrateWorkProfiles (models/yg-hr/src/migration.ts)
-        // uses for its own updateMixin calls. CreateEmployee.svelte's own bare createMixin call
-        // uses contact.class.Person correctly, but only because it is adding the FIRST mixin
-        // (Employee itself) onto a plain Person - not a second, Employee-descended one.
-        onCreate: async (employeeRef: Ref<Employee>) => {
-          await client.createMixin(employeeRef, contact.mixin.Employee, contact.space.Contacts, ygHr.mixin.EmployeePersonal, {})
-        }
-      },
-      'top'
-    )
+    creating = true
+  }
+
+  function onCreated (): void {
+    creating = false
   }
 </script>
 
-{#if selectedEmployee !== undefined}
+{#if creating}
+  <CreateEmployeePage {designations} {departments} on:created={onCreated} on:back={() => { creating = false }} />
+{:else if selectedEmployee !== undefined}
   <EmployeeProfile _id={selectedEmployee._id} on:back={backToDirectory} />
 {:else}
 <div class="yg-directory">
@@ -231,6 +232,16 @@
         {/each}
       </div>
     </div>
+
+    {#if canAdd}
+      <div class="yg-dir-filters yg-dir-statusfilter">
+        {#each STATUS_FILTERS as sf (sf.key)}
+          <button class="yg-filter" class:yg-filter--on={statusFilter === sf.key} on:click={() => { statusFilter = sf.key }}>
+            <Label label={sf.label} />
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <div class="yg-dir-table-wrap">
       <table class="yg-dir-table">
@@ -271,10 +282,12 @@
               </td>
               <td class="yg-dir-email">{row.email ?? ''}</td>
               <td>
-                {#if row.isHr}
-                  <span class="yg-badge yg-badge--amber yg-badge--dot"><Label label={ygHr.string.IsHr} /></span>
+                {#if row.status === 'active'}
+                  <span class="yg-badge yg-badge--good yg-badge--dot"><Label label={ygHr.string.StatusActive} /></span>
+                {:else if row.status === 'onhold'}
+                  <span class="yg-badge yg-badge--amber yg-badge--dot"><Label label={ygHr.string.StatusOnHold} /></span>
                 {:else}
-                  <span class="yg-badge yg-badge--good yg-badge--dot"><Label label={ygHr.string.Active} /></span>
+                  <span class="yg-badge yg-badge--dot"><Label label={ygHr.string.StatusDeactivated} /></span>
                 {/if}
               </td>
             </tr>

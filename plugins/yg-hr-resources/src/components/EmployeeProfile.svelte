@@ -32,7 +32,8 @@
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import { Avatar, EditableAvatar } from '@hcengineering/contact-resources'
   import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
-  import type { IntlString } from '@hcengineering/platform'
+  import login from '@hcengineering/login'
+  import { getResource, translate, type IntlString } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { IconArrowLeft, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -40,6 +41,7 @@
     isHrDesignationByFlag,
     type Department,
     type Designation,
+    type EmployeeStatus,
     type EmploymentStatus,
     type Location
   } from '@hcengineering/yg-hr'
@@ -142,6 +144,43 @@
     editing = !editing
   }
 
+  $: profileStatus = (profilePersonal?.status ?? 'active') as EmployeeStatus
+
+  // Set ONLY the lifecycle status. The server (OnEmployeeStatusChange) derives contact.mixin.
+  // Employee.active from it and, on Deactivated, revokes the workspace membership - the client must
+  // never write `active` or touch membership itself.
+  async function changeStatus (e: Event): Promise<void> {
+    if (employee === undefined) return
+    const value = (e.currentTarget as HTMLSelectElement).value as EmployeeStatus
+    if (value === profileStatus) return
+    await client.updateMixin(employee._id, contact.mixin.Employee, employee.space, ygHr.mixin.EmployeePersonal, {
+      status: value
+    })
+  }
+
+  let inviting = false
+  let invited = false
+  async function sendInvitation (): Promise<void> {
+    if (workEmail === undefined || inviting) return
+    inviting = true
+    try {
+      const sendInvite = await getResource(login.function.SendInvite)
+      await sendInvite(workEmail, AccountRole.User)
+      invited = true
+      setTimeout(() => { invited = false }, 4000)
+    } finally {
+      inviting = false
+    }
+  }
+
+  // Pre-translated <option> labels (a <select>'s <option> cannot host a <Label> component).
+  let statusActiveLabel = ''
+  let statusOnHoldLabel = ''
+  let statusDeactivatedLabel = ''
+  void translate(ygHr.string.StatusActive, {}).then((r) => { statusActiveLabel = r })
+  void translate(ygHr.string.StatusOnHold, {}).then((r) => { statusOnHoldLabel = r })
+  void translate(ygHr.string.StatusDeactivated, {}).then((r) => { statusDeactivatedLabel = r })
+
   // The directory (EmployeeDirectory.svelte) renders this component directly, full-width, in
   // place of its own list rather than via a platform panel - this mirrors the approved mockup's
   // own "< Employees" back link, and the parent clears its `selectedEmployee` on the event.
@@ -180,24 +219,42 @@
           {/if}
           {#if profileIsHr}
             <span class="yg-badge yg-badge--amber yg-badge--dot"><Label label={ygHr.string.IsHr} /></span>
+          {/if}
+          {#if profileStatus === 'active'}
+            <span class="yg-badge yg-badge--good yg-badge--dot"><Label label={ygHr.string.StatusActive} /></span>
+          {:else if profileStatus === 'onhold'}
+            <span class="yg-badge yg-badge--amber yg-badge--dot"><Label label={ygHr.string.StatusOnHold} /></span>
           {:else}
-            <span class="yg-badge yg-badge--good yg-badge--dot">
-              <Label label={employee.active ? ygHr.string.Active : ygHr.string.Inactive} />
-            </span>
+            <span class="yg-badge yg-badge--dot"><Label label={ygHr.string.StatusDeactivated} /></span>
           {/if}
           {#if profileLocationName !== undefined}<span class="yg-badge">{profileLocationName}</span>{/if}
         </div>
       </div>
       {#if canEdit}
         <div class="yg-idcard__actions">
-          <button class="yg-btn-dark" on:click={toggleEdit}>
-            {#if editing}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5" /></svg>
-            {:else}
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 20h4l10-10-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
-            {/if}
-            <Label label={editing ? ygHr.string.Done : ygHr.string.Edit} />
-          </button>
+          {#if editing}
+            <label class="yg-status-edit">
+              <span><Label label={ygHr.string.Status} /></span>
+              <select class="yg-input yg-status-select" value={profileStatus} on:change={changeStatus}>
+                <option value="active">{statusActiveLabel}</option>
+                <option value="onhold">{statusOnHoldLabel}</option>
+                <option value="deactivated">{statusDeactivatedLabel}</option>
+              </select>
+            </label>
+          {/if}
+          <div class="yg-idcard__btns">
+            <button class="yg-ghostbtn" on:click={sendInvitation} disabled={workEmail === undefined || inviting}>
+              <Label label={invited ? ygHr.string.InvitationSent : ygHr.string.SendInvitation} />
+            </button>
+            <button class="yg-btn-dark" on:click={toggleEdit}>
+              {#if editing}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5" /></svg>
+              {:else}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M4 20h4l10-10-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></svg>
+              {/if}
+              <Label label={editing ? ygHr.string.Done : ygHr.string.Edit} />
+            </button>
+          </div>
         </div>
       {/if}
     </div>
@@ -324,6 +381,48 @@
   .yg-idcard__actions {
     flex: none;
     align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .yg-idcard__btns {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .yg-status-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--theme-trans-color);
+  }
+  .yg-status-select {
+    min-width: 150px;
+  }
+  .yg-ghostbtn {
+    display: inline-flex;
+    align-items: center;
+    font: inherit;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 13px;
+    border-radius: 10px;
+    border: 1px solid var(--theme-divider-color);
+    background: var(--theme-button-default);
+    color: var(--theme-content-color);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .yg-ghostbtn:hover {
+    border-color: var(--theme-trans-color);
+  }
+  .yg-ghostbtn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .yg-tabs {

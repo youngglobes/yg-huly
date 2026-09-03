@@ -76,4 +76,19 @@ export function createModel (builder: Builder): void {
       }
     }
   })
+
+  // Employee lifecycle status side effects: sync the native Employee.active flag from
+  // EmployeePersonal.status and, on a transition into 'deactivated', revoke the person's workspace
+  // membership so they can no longer log in (see OnEmployeeStatusChange, server-plugins/
+  // yg-hr-resources). Matched on the EmployeePersonal mixin write (same `mixin`-keyed shape as the
+  // HR guard's mixin registration above); the trigger itself early-outs unless the tx actually
+  // changed `status`, and its own active-flag write is System-authored + loop-guarded.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgHr.trigger.OnEmployeeStatusChange,
+    isAsync: true,
+    txMatch: {
+      _class: core.class.TxMixin,
+      mixin: ygHr.mixin.EmployeePersonal
+    }
+  })
 }

@@ -71,6 +71,18 @@
     "AllDepartments": "All",
     "DirectoryNote": "Everyone sees this directory. Full profiles and editing are limited to HR and admins.",
     "EmployeeColumn": "Employee",
-    "StatusColumn": "Status"
+    "StatusColumn": "Status",
+    "Status": "Status",
+    "StatusActive": "Active",
+    "StatusOnHold": "On hold",
+    "StatusDeactivated": "Deactivated",
+    "AllStatuses": "All statuses",
+    "SendInvitation": "Send invitation",
+    "ResendInvitation": "Resend invitation",
+    "InvitationSent": "Invitation sent",
+    "CreateEmployeeTitle": "New employee",
+    "CreateEmployeeIntro": "Create the employee record. Send the invitation later, when you onboard them.",
+    "CreateAndReturn": "Create employee",
+    "Creating": "Creating..."
   }
 }

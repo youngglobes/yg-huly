@@ -1556,7 +1556,7 @@ export async function requestPasswordReset (
  * email+password as a secondary sign-in method.
  *
  * Requires authentication (session token). Only valid for accounts that have
- * no password set — accounts with an existing password must use changePassword.
+ * no password set (accounts with an existing password must use changePassword).
  */
 export async function requestPasswordSetup (
   ctx: MeasureContext,
@@ -1681,7 +1681,13 @@ export async function leaveWorkspace (
   const initiatorRole = await db.getWorkspaceRole(account, workspace)
   const targetRole = await db.getWorkspaceRole(targetAccount, workspace)
 
-  if (account !== targetAccount) {
+  // The System account (a trusted backend minting its own token - e.g. yg-hr's
+  // OnEmployeeStatusChange revoking a deactivated employee's access) may remove any member. System
+  // is never a workspace member, so it has no initiatorRole and would otherwise fail the
+  // Maintainer check below; this mirrors verifyAllowedRole's existing extra.admin bypass.
+  const isSystemInitiator = account === systemAccountUuid
+
+  if (account !== targetAccount && !isSystemInitiator) {
     if (initiatorRole == null || getRolePower(initiatorRole) < getRolePower(AccountRole.Maintainer)) {
       ctx.error("Need to be at least maintainer to remove someone else's account from workspace", {
         account,

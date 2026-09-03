@@ -10,6 +10,13 @@ import type { AnyComponent } from '@hcengineering/ui'
 export type Gender = 'male' | 'female' | 'other'
 export type MaritalStatus = 'single' | 'married' | 'other'
 
+// Employee lifecycle state (distinct from the EmploymentStatus list, which is the contract type -
+// Full Time / Part Time / ...). 'active' people appear everywhere; 'onhold' (on leave, will rejoin)
+// and 'deactivated' (ex-employee) are hidden from the regular directory and from assignee pickers.
+// 'deactivated' additionally has their workspace membership removed server-side so they cannot log
+// in (their Person record and work history are untouched - see OnEmployeeStatusChange).
+export type EmployeeStatus = 'active' | 'onhold' | 'deactivated'
+
 // Admin-managed list item (Department / Designation / EmploymentStatus / Location)
 export interface HrListItem extends Doc {
   name: string
@@ -53,6 +60,7 @@ export interface EmployeePersonal extends Employee {
   nationality?: string
   bloodGroup?: string
   employeeId?: string
+  status?: EmployeeStatus
   emergencyContacts?: number
 }
 
@@ -93,6 +101,14 @@ export function formatEmployeeId (seq: number, prefix = 'YGS', width = 4): strin
 export function isHrDesignationByFlag (designation?: { isHr?: boolean, name?: string }): boolean {
   if (designation == null) return false
   return designation.isHr === true || designation.name === HR_DESIGNATION_FALLBACK
+}
+
+// The native contact.mixin.Employee.active flag derived from our lifecycle status. Only a fully
+// 'active' employee is active in the platform sense (shows in assignee pickers, the regular
+// directory). Anyone on hold or deactivated is inactive. An employee with no status yet (created
+// before this field existed) is treated as active, matching the migration's backfill default.
+export function employeeActiveFromStatus (status?: EmployeeStatus): boolean {
+  return status === undefined || status === 'active'
 }
 
 export const ygHrId = 'yg-hr' as Plugin
@@ -191,6 +207,18 @@ export default plugin(ygHrId, {
     AllDepartments: '' as IntlString,
     DirectoryNote: '' as IntlString,
     EmployeeColumn: '' as IntlString,
-    StatusColumn: '' as IntlString
+    StatusColumn: '' as IntlString,
+    Status: '' as IntlString,
+    StatusActive: '' as IntlString,
+    StatusOnHold: '' as IntlString,
+    StatusDeactivated: '' as IntlString,
+    AllStatuses: '' as IntlString,
+    SendInvitation: '' as IntlString,
+    ResendInvitation: '' as IntlString,
+    InvitationSent: '' as IntlString,
+    CreateEmployeeTitle: '' as IntlString,
+    CreateEmployeeIntro: '' as IntlString,
+    CreateAndReturn: '' as IntlString,
+    Creating: '' as IntlString
   }
 })
