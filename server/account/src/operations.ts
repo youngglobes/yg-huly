@@ -994,6 +994,33 @@ export async function resendInvite (
 }
 
 /**
+ * Returns whether an invitation record already exists for the given email in the caller's
+ * workspace. Drives the "Send invitation" vs "Resend invitation" label in the Contacts UI.
+ */
+export async function hasPendingInvite (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { email: string }
+): Promise<boolean> {
+  const { email } = params
+
+  if (email == null || email === '') {
+    return false
+  }
+
+  const { workspace: workspaceUuid } = decodeTokenVerbose(ctx, token)
+  if (workspaceUuid == null) {
+    return false
+  }
+
+  const invite = await db.invite.findOne({ workspaceUuid, email })
+
+  return invite != null
+}
+
+/**
  * Given an invite and sign in information, assigns the user to the workspace in a given role.
  * If already a member, updates the role if necessary.
  * Returns the workspace login information.
@@ -1064,7 +1091,7 @@ export async function getInviteInfo (
     return { workspaceName: null }
   }
 
-  return { workspaceName: workspace.name }
+  return { workspaceName: workspace.name, email: invite.email ?? null }
 }
 
 /**
@@ -3310,6 +3337,7 @@ export type AccountMethods =
   | 'createAccessLink'
   | 'sendInvite'
   | 'resendInvite'
+  | 'hasPendingInvite'
   | 'selectWorkspace'
   | 'join'
   | 'joinByToken'
@@ -3377,7 +3405,10 @@ export type AccountMethods =
 /**
  * @public
  */
-export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMethods, AccountMethodHandler>> {
+export function getMethods (
+  hasSignUp: boolean = true,
+  canCreateWorkspace: boolean = true
+): Partial<Record<AccountMethods, AccountMethodHandler>> {
   return {
     /* OPERATIONS */
     login: wrap(login),
@@ -3386,12 +3417,17 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     ...(hasSignUp ? { signUp: wrap(signUp) } : {}),
     ...(hasSignUp ? { signUpOtp: wrap(signUpOtp) } : {}),
     validateOtp: wrap(validateOtp),
-    createWorkspace: wrap(createWorkspace),
+    // Workspace creation is gated: when disabled the method is not exposed at all, so no
+    // authenticated user can create a workspace via the API or by navigating to the create URL.
+    // The admin tool creates/restores workspaces through workspace-service directly (not this RPC),
+    // so it is unaffected.
+    ...(canCreateWorkspace ? { createWorkspace: wrap(createWorkspace) } : {}),
     createInvite: wrap(createInvite),
     createInviteLink: wrap(createInviteLink),
     createAccessLink: wrap(createAccessLink),
     sendInvite: wrap(sendInvite),
     resendInvite: wrap(resendInvite),
+    hasPendingInvite: wrap(hasPendingInvite),
     selectWorkspace: wrap(selectWorkspace),
     join: wrap(join),
     joinByToken: wrap(joinByToken),

@@ -22,7 +22,7 @@
     isUpgradingMode
   } from '@hcengineering/core'
   import { LoginInfo } from '@hcengineering/login'
-  import { OK, Severity, Status } from '@hcengineering/platform'
+  import { OK, Severity, Status, getMetadata } from '@hcengineering/platform'
   import presentation, { MessageBox, NavLink, isAdminUser, reduceCalls } from '@hcengineering/presentation'
   import {
     Button,
@@ -52,6 +52,10 @@
   import StatusControl from './StatusControl.svelte'
 
   export let navigateUrl: string | undefined = undefined
+
+  // YG fork: single-workspace deployment. When set, the "Create workspace" button is hidden here
+  // (the backend also refuses createWorkspace), so users can only use the workspace they belong to.
+  const wsCreationDisabled = getMetadata(login.metadata.DisableWorkspaceCreation) ?? false
 
   let workspaces: WorkspaceInfoWithStatus[] = []
   let status = OK
@@ -199,7 +203,7 @@
           </div>
         {/each}
 
-        {#if workspaces.length === 0 && account?.token != null}
+        {#if workspaces.length === 0 && account?.token != null && (isReadOnlyGuest || !wsCreationDisabled)}
           <div class="form-row send">
             <Button
               label={isReadOnlyGuest ? login.string.SignUp : login.string.CreateWorkspace}

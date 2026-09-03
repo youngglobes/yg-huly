@@ -87,6 +87,9 @@ export interface WorkspaceInviteInfo {
 /** Public invite details from getInviteInfo (no auth required). */
 export interface InviteInfo {
   workspaceName: string | null
+  // The address the invite was sent to, when the invite is bound to a specific email. Lets the
+  // join page pre-fill and lock the email so the invitee can only use the invited address.
+  email?: string | null
 }
 
 export interface OtpInfo {

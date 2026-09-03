@@ -58,6 +58,7 @@
   export let page: Pages = 'signup'
 
   const signUpDisabled = getMetadata(login.metadata.DisableSignUp) ?? false
+  const wsCreationDisabled = getMetadata(login.metadata.DisableWorkspaceCreation) ?? false
   const localLoginHidden = getMetadata(login.metadata.HideLocalLogin) ?? false
   const useOTP = getMetadata(presentation.metadata.MailUrl) != null && getMetadata(presentation.metadata.MailUrl) !== ''
   let navigateUrl: string | undefined
@@ -70,6 +71,10 @@
     page = (loc.path[1] as Pages) ?? (token != null ? 'selectWorkspace' : 'login')
     if (page === 'join' && loc.query?.autoJoin !== undefined) {
       page = 'autoJoin'
+    }
+    // YG fork: workspace creation is disabled, so the create route is not reachable even by URL.
+    if (page === 'createWorkspace' && wsCreationDisabled) {
+      page = token != null ? 'selectWorkspace' : 'login'
     }
 
     const allowedUnauthPages: Pages[] = [

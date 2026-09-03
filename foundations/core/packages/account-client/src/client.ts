@@ -82,6 +82,7 @@ export interface AccountClient {
   requestPasswordReset: (email: string) => Promise<void>
   sendInvite: (email: string, role: AccountRole) => Promise<void>
   resendInvite: (email: string, role: AccountRole) => Promise<void>
+  hasPendingInvite: (email: string) => Promise<boolean>
   createInviteLink: (
     email: string,
     role: AccountRole,
@@ -460,6 +461,15 @@ class AccountClientImpl implements AccountClient {
     }
 
     await this.rpc(request)
+  }
+
+  async hasPendingInvite (email: string): Promise<boolean> {
+    const request = {
+      method: 'hasPendingInvite' as const,
+      params: { email }
+    }
+
+    return await this.rpc(request)
   }
 
   async createInviteLink (

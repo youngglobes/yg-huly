@@ -31,8 +31,6 @@
     Ref,
     SocialIdType
   } from '@hcengineering/core'
-  import login from '@hcengineering/login'
-  import { getResource } from '@hcengineering/platform'
   import { Card, getClient } from '@hcengineering/presentation'
   import { createFocusManager, EditBox, FocusHandler, IconInfo, Label } from '@hcengineering/ui'
   import { createEventDispatcher } from 'svelte'
@@ -124,8 +122,8 @@
         socialId as SocialIdentityRef
       )
 
-      const sendInvite = await getResource(login.function.SendInvite)
-      await sendInvite(mail, AccountRole.User)
+      // YG fork: the invitation is NOT auto-sent on create. HR sends it explicitly from the
+      // employee panel ("Send invitation"), so creating a record does not fire an email.
 
       for (const channel of channels) {
         await client.addCollection(

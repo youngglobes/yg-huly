@@ -135,7 +135,8 @@ export function serveAccount (measureCtx: MeasureContext, brandings: BrandingMap
   setMetadata(serverToken.metadata.Service, undefined)
 
   const hasSignUp = process.env.DISABLE_SIGNUP !== 'true'
-  const methods = getMethods(hasSignUp)
+  const canCreateWorkspace = process.env.DISABLE_WORKSPACE_CREATION !== 'true'
+  const methods = getMethods(hasSignUp, canCreateWorkspace)
 
   const dbNs = process.env.DB_NS
   const accountsDb = getAccountDB(dbUrl, dbNs)

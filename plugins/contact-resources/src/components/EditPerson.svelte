@@ -15,12 +15,14 @@
 -->
 <script lang="ts">
   import { Channel, Person, combineName, getCurrentEmployee, getFirstName, getLastName } from '@hcengineering/contact'
-  import { AccountRole, Ref, getCurrentAccount, hasAccountRole, type AccountUuid } from '@hcengineering/core'
+  import { AccountRole, Ref, SocialIdType, getCurrentAccount, hasAccountRole, type AccountUuid } from '@hcengineering/core'
+  import login from '@hcengineering/login'
+  import { getResource } from '@hcengineering/platform'
   import { AttributeEditor, createQuery, getClient, hasResource } from '@hcengineering/presentation'
   import type { PersonRating } from '@hcengineering/rating'
   import ratingPlugin from '@hcengineering/rating'
   import setting, { IntegrationType } from '@hcengineering/setting'
-  import { Component, EditBox, FocusHandler, Scroller, createFocusManager } from '@hcengineering/ui'
+  import { Button, Component, EditBox, FocusHandler, Label, Scroller, createFocusManager } from '@hcengineering/ui'
   import { createEventDispatcher, onMount } from 'svelte'
   import contact from '../plugin'
   import Avatar from './Avatar.svelte'
@@ -107,6 +109,66 @@
     levelQuery.unsubscribe()
     personRating = undefined
   }
+
+  // YG fork: HR sends the workspace invitation manually from here (no auto-send on create). The
+  // label reflects whether an invite record already exists: "Send invitation" first, then "Resend
+  // invitation". Only shown for employees to managers/admins, never for editing your own record.
+  $: isEmployee = h.hasMixin(object, contact.mixin.Employee)
+  $: canInvite = isEmployee && !owner && editable
+
+  const inviteEmailQuery = createQuery()
+  let inviteEmail: string | undefined
+  $: if (canInvite) {
+    inviteEmailQuery.query(
+      contact.class.SocialIdentity,
+      { attachedTo: object._id, type: SocialIdType.EMAIL },
+      (res) => {
+        inviteEmail = res[0]?.value
+      }
+    )
+  } else {
+    inviteEmailQuery.unsubscribe()
+    inviteEmail = undefined
+  }
+
+  let inviteSent = false
+  let inviteChecking = false
+  let lastCheckedEmail: string | undefined
+  let justSent = false
+  let sending = false
+
+  $: void refreshInviteState(inviteEmail)
+
+  async function refreshInviteState (email: string | undefined): Promise<void> {
+    if (email == null || email === '') {
+      inviteSent = false
+      lastCheckedEmail = undefined
+      return
+    }
+    if (email === lastCheckedEmail) return
+    lastCheckedEmail = email
+    justSent = false
+    inviteChecking = true
+    try {
+      const hasInvite = await getResource(login.function.HasPendingInvite)
+      inviteSent = await hasInvite(email)
+    } finally {
+      inviteChecking = false
+    }
+  }
+
+  async function sendInvitation (): Promise<void> {
+    if (inviteEmail == null || inviteEmail === '') return
+    sending = true
+    try {
+      const resend = await getResource(login.function.ResendInvite)
+      await resend(inviteEmail, AccountRole.User)
+      inviteSent = true
+      justSent = true
+    } finally {
+      sending = false
+    }
+  }
 </script>
 
 <FocusHandler {manager} />
@@ -187,6 +249,21 @@
           />
         {/if}
       </Scroller>
+
+      {#if canInvite && inviteEmail != null && inviteEmail !== ''}
+        <div class="mt-4 flex-row-center">
+          <Button
+            label={inviteSent ? contact.string.ResendInvitation : contact.string.SendInvitation}
+            kind={'primary'}
+            loading={sending}
+            disabled={sending || inviteChecking}
+            on:click={sendInvitation}
+          />
+          {#if justSent}
+            <span class="ml-2 content-color"><Label label={contact.string.InvitationSent} /></span>
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
   {#if personRating != null && hasResource(ratingPlugin.component.RatingRing)}

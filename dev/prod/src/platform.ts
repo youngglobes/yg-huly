@@ -183,6 +183,7 @@ export interface Config {
   TELEGRAM_BOT_URL?: string
   AI_URL?: string
   DISABLE_SIGNUP?: string
+  DISABLE_WORKSPACE_CREATION?: string
   HIDE_LOCAL_LOGIN?: string
   LINK_PREVIEW_URL?: string
   PASSWORD_STRICTNESS?: 'very_strict' | 'strict' | 'normal' | 'none'
@@ -480,6 +481,10 @@ export async function configurePlatform() {
   // YG fork: self-hosted single-workspace deployment has no public sign-up. Signup is disabled by
   // default (hides the Sign Up tab on the login page); set DISABLE_SIGNUP=false to re-enable.
   setMetadata(login.metadata.DisableSignUp, config.DISABLE_SIGNUP !== 'false')
+  // YG fork: single-workspace deployment (yg only). Workspace creation is hidden by default (removes
+  // the "Create workspace" button and blocks the create route); set DISABLE_WORKSPACE_CREATION=false
+  // to re-enable. The backend also refuses createWorkspace unless explicitly allowed.
+  setMetadata(login.metadata.DisableWorkspaceCreation, config.DISABLE_WORKSPACE_CREATION !== 'false')
   setMetadata(login.metadata.HideLocalLogin, config.HIDE_LOCAL_LOGIN === 'true')
 
   setMetadata(login.metadata.PasswordValidations, PASSWORD_REQUIREMENTS[config.PASSWORD_STRICTNESS ?? 'none'])
