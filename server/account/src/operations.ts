@@ -274,15 +274,16 @@ export async function loginOtp (
   const emailSocialId = await getEmailSocialId(db, normalizedEmail)
 
   if (emailSocialId == null) {
+    // A completely unknown email (no social id at all) is rejected - nothing to send an OTP to.
     throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
   }
 
-  const account = await getAccount(db, emailSocialId.personUuid as AccountUuid)
-
-  if (account == null) {
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
-  }
-
+  // A KNOWN email whose social id has no account yet is allowed through (do NOT throw here). This is
+  // exactly an employee HR pre-created via ensurePerson (person + social id, no account) and then
+  // invited: sendOtp needs only the social id, and validateOtp creates the account on a valid code
+  // (the createAccount path). Without this, a fresh invitee hit "Account not found" on the locked
+  // OTP join even though a valid invite existed. Workspace access stays separately gated by the
+  // invite + membership, so allowing account creation on first OTP here grants no extra access.
   return await sendOtp(ctx, db, branding, emailSocialId)
 }
 

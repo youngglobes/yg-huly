@@ -317,5 +317,8 @@
   .yg-btn-spin {
     display: inline-flex;
     align-items: center;
+    // The Spinner fills with var(--caption-color) (a dark color), invisible on this black button -
+    // override it to white so the loader actually shows while the account provisions.
+    --caption-color: #ffffff;
   }
 </style>
