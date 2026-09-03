@@ -31,17 +31,21 @@
   import { AccountRole, SocialIdType, getCurrentAccount, hasAccountRole, type Ref } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
-  import { Label, showPanel, showPopup } from '@hcengineering/ui'
+  import { Label, showPanel, showPopup, type AnyComponent } from '@hcengineering/ui'
   import ygHr, {
     isHrDesignationByFlag,
     type Department,
     type Designation,
     type EmployeeJob
   } from '@hcengineering/yg-hr'
-  import { contactExt } from '../plugin'
 
   const client = getClient()
   const h = client.getHierarchy()
+
+  // Reference the stock create-employee dialog by its already-registered component id. We do NOT
+  // re-declare it via mergeIds/identify (that throws 'identify overwrites CreateEmployee' at
+  // model-build time), so the id is written as its literal resolved string.
+  const createEmployeeComponent = 'contact:component:CreateEmployee' as AnyComponent
 
   let employees: Employee[] = []
   let employeesLoaded = false
@@ -158,7 +162,7 @@
 
   function addEmployee (): void {
     showPopup(
-      contactExt.component.CreateEmployee,
+      createEmployeeComponent,
       {
         // Reuse the platform's create-employee flow (Person + Employee mixin + account + login
         // social id) unchanged, then additionally stamp EmployeePersonal so the OnEmployeeCreate

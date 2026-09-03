@@ -1801,6 +1801,15 @@ importers:
       '@hcengineering/workbench-resources':
         specifier: workspace:^0.7.426
         version: link:../../plugins/workbench-resources
+      '@hcengineering/yg-hr':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-hr
+      '@hcengineering/yg-hr-assets':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-hr-assets
+      '@hcengineering/yg-hr-resources':
+        specifier: workspace:^0.7.426
+        version: link:../../plugins/yg-hr-resources
       '@hcengineering/yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../../plugins/yg-timesheet
@@ -30473,9 +30482,6 @@ importers:
       '@hcengineering/platform':
         specifier: workspace:^0.7.426
         version: link:../../foundations/core/packages/platform
-      '@hcengineering/tracker':
-        specifier: workspace:^0.7.426
-        version: link:../tracker
       '@hcengineering/ui':
         specifier: workspace:^0.7.426
         version: link:../../packages/ui
