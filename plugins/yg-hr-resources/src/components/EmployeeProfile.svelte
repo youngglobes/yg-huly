@@ -49,15 +49,20 @@
   import ygHr, {
     type Department,
     type Designation,
+    type EducationLevel,
     type EmployeeStatus,
     type EmploymentStatus,
+    type LanguageType,
+    type LicenseType,
     type Location,
+    type SkillType,
     type TerminationReason
   } from '@hcengineering/yg-hr'
   import ContactTab from './tabs/ContactTab.svelte'
   import EmergencyTab from './tabs/EmergencyTab.svelte'
   import JobTab from './tabs/JobTab.svelte'
   import PersonalTab from './tabs/PersonalTab.svelte'
+  import QualificationsTab from './tabs/QualificationsTab.svelte'
 
   const dispatch = createEventDispatcher<{ back: void }>()
 
@@ -90,6 +95,10 @@
   let employmentStatuses: EmploymentStatus[] = []
   let locations: Location[] = []
   let terminationReasons: TerminationReason[] = []
+  let educationLevels: EducationLevel[] = []
+  let skillTypes: SkillType[] = []
+  let languageTypes: LanguageType[] = []
+  let licenseTypes: LicenseType[] = []
   const desigQuery = createQuery()
   desigQuery.query(ygHr.class.Designation, {}, (res) => { designations = res })
   const depQuery = createQuery()
@@ -100,6 +109,14 @@
   locQuery.query(ygHr.class.Location, {}, (res) => { locations = res })
   const termReasonQuery = createQuery()
   termReasonQuery.query(ygHr.class.TerminationReason, {}, (res) => { terminationReasons = res })
+  const eduLevelQuery = createQuery()
+  eduLevelQuery.query(ygHr.class.EducationLevel, {}, (res) => { educationLevels = res })
+  const skillTypeQuery = createQuery()
+  skillTypeQuery.query(ygHr.class.SkillType, {}, (res) => { skillTypes = res })
+  const langTypeQuery = createQuery()
+  langTypeQuery.query(ygHr.class.LanguageType, {}, (res) => { languageTypes = res })
+  const licenseTypeQuery = createQuery()
+  licenseTypeQuery.query(ygHr.class.LicenseType, {}, (res) => { licenseTypes = res })
 
   $: canEdit = !readonly && (isAdmin || isHrMember)
   $: isSelf = employee !== undefined && employee._id === me
@@ -139,13 +156,14 @@
     await client.diffUpdate(employee, avatar)
   }
 
-  type TabKey = 'personal' | 'contact' | 'job' | 'emergency'
+  type TabKey = 'personal' | 'contact' | 'job' | 'emergency' | 'qualifications'
   let activeTab: TabKey = 'personal'
   const TABS: Array<{ key: TabKey, label: IntlString }> = [
     { key: 'personal', label: ygHr.string.Personal },
     { key: 'contact', label: ygHr.string.Contact },
     { key: 'job', label: ygHr.string.Job },
-    { key: 'emergency', label: ygHr.string.Emergency }
+    { key: 'emergency', label: ygHr.string.Emergency },
+    { key: 'qualifications', label: ygHr.string.Qualifications }
   ]
 
   // The SINGLE profile-wide edit toggle (PO UI refinement) - every tab receives this as a prop and
@@ -321,8 +339,10 @@
           <ContactTab {employee} {editing} {workEmail} />
         {:else if activeTab === 'job'}
           <JobTab {employee} {editing} {designations} {departments} {employmentStatuses} {locations} {terminationReasons} />
-        {:else}
+        {:else if activeTab === 'emergency'}
           <EmergencyTab {employee} {editing} />
+        {:else if activeTab === 'qualifications'}
+          <QualificationsTab {employee} {editing} {educationLevels} {skillTypes} {languageTypes} {licenseTypes} />
         {/if}
       </div>
     {/key}
