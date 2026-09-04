@@ -156,73 +156,69 @@
     return undefined
   }
 
-  // Read-only row rendering: each row's set fields, label + resolved display value, in field order.
-  // Refs resolve to their list's name; enums resolve to their translated label; unset fields are
-  // simply omitted from the row (matching FieldRow's "omit rather than show empty" spirit without
-  // pulling in FieldGroup's two-column layout, which doesn't fit a variable-length row).
-  interface QField { label: IntlString, value: string, mono?: boolean }
+  // Read-only row rendering: each row's fields, in fixed column order, aligned to the *Cols
+  // header labels below. Every field is always emitted (value '' when unset) so each row lines
+  // up under its table header - refs resolve to their list's name, enums to their translated
+  // label, dates via formatDisplayDate, numbers via String().
+  interface QField { value: string, mono?: boolean }
 
   function weFields (row: WorkExperience): QField[] {
-    const out: QField[] = []
-    if (row.jobTitle != null && row.jobTitle !== '') out.push({ label: ygHr.string.JobTitle, value: row.jobTitle })
-    if (row.employer != null && row.employer !== '') out.push({ label: ygHr.string.Employer, value: row.employer })
-    const from = formatDisplayDate(row.fromDate)
-    const to = formatDisplayDate(row.toDate)
-    if (from !== undefined) out.push({ label: ygHr.string.FromDate, value: from, mono: true })
-    if (to !== undefined) out.push({ label: ygHr.string.ToDate, value: to, mono: true })
-    if (row.comments != null && row.comments !== '') out.push({ label: ygHr.string.Comments, value: row.comments })
-    return out
+    return [
+      { value: row.jobTitle ?? '' },
+      { value: row.employer ?? '' },
+      { value: formatDisplayDate(row.fromDate) ?? '', mono: true },
+      { value: formatDisplayDate(row.toDate) ?? '', mono: true },
+      { value: row.comments ?? '' }
+    ]
   }
 
   function eduFields (row: Education): QField[] {
-    const out: QField[] = []
     const levelName = educationLevels.find((l) => l._id === row.level)?.name
-    if (levelName !== undefined) out.push({ label: ygHr.string.Level, value: levelName })
-    if (row.institute != null && row.institute !== '') out.push({ label: ygHr.string.Institute, value: row.institute })
-    if (row.major != null && row.major !== '') out.push({ label: ygHr.string.Major, value: row.major })
-    if (row.year != null) out.push({ label: ygHr.string.Year, value: String(row.year), mono: true })
-    if (row.score != null && row.score !== '') out.push({ label: ygHr.string.Score, value: row.score })
-    const start = formatDisplayDate(row.startDate)
-    const end = formatDisplayDate(row.endDate)
-    if (start !== undefined) out.push({ label: ygHr.string.StartDate, value: start, mono: true })
-    if (end !== undefined) out.push({ label: ygHr.string.EndDate, value: end, mono: true })
-    return out
+    return [
+      { value: levelName ?? '' },
+      { value: row.institute ?? '' },
+      { value: row.major ?? '' },
+      { value: row.year != null ? String(row.year) : '', mono: true },
+      { value: row.score ?? '' },
+      { value: formatDisplayDate(row.startDate) ?? '', mono: true },
+      { value: formatDisplayDate(row.endDate) ?? '', mono: true }
+    ]
   }
 
   function skillFields (row: EmployeeSkill): QField[] {
-    const out: QField[] = []
     const skillName = skillTypes.find((t) => t._id === row.skill)?.name
-    if (skillName !== undefined) out.push({ label: ygHr.string.Skill, value: skillName })
-    if (row.yearsOfExperience != null) {
-      out.push({ label: ygHr.string.YearsOfExperience, value: String(row.yearsOfExperience), mono: true })
-    }
-    if (row.comments != null && row.comments !== '') out.push({ label: ygHr.string.Comments, value: row.comments })
-    return out
+    return [
+      { value: skillName ?? '' },
+      { value: row.yearsOfExperience != null ? String(row.yearsOfExperience) : '', mono: true },
+      { value: row.comments ?? '' }
+    ]
   }
 
   function langFields (row: EmployeeLanguage): QField[] {
-    const out: QField[] = []
     const languageName = languageTypes.find((t) => t._id === row.language)?.name
-    if (languageName !== undefined) out.push({ label: ygHr.string.Language, value: languageName })
-    const fluency = fluencyLabel(row.fluency)
-    if (fluency !== undefined) out.push({ label: ygHr.string.Fluency, value: fluency })
-    const competency = competencyLabel(row.competency)
-    if (competency !== undefined) out.push({ label: ygHr.string.Competency, value: competency })
-    if (row.comments != null && row.comments !== '') out.push({ label: ygHr.string.Comments, value: row.comments })
-    return out
+    return [
+      { value: languageName ?? '' },
+      { value: fluencyLabel(row.fluency) ?? '' },
+      { value: competencyLabel(row.competency) ?? '' },
+      { value: row.comments ?? '' }
+    ]
   }
 
   function licFields (row: EmployeeLicense): QField[] {
-    const out: QField[] = []
     const typeName = licenseTypes.find((t) => t._id === row.licenseType)?.name
-    if (typeName !== undefined) out.push({ label: ygHr.string.LicenseType, value: typeName })
-    if (row.licenseNo != null && row.licenseNo !== '') out.push({ label: ygHr.string.LicenseNo, value: row.licenseNo })
-    const issued = formatDisplayDate(row.issuedDate)
-    const expiry = formatDisplayDate(row.expiryDate)
-    if (issued !== undefined) out.push({ label: ygHr.string.IssuedDate, value: issued, mono: true })
-    if (expiry !== undefined) out.push({ label: ygHr.string.ExpiryDate, value: expiry, mono: true })
-    return out
+    return [
+      { value: typeName ?? '' },
+      { value: row.licenseNo ?? '' },
+      { value: formatDisplayDate(row.issuedDate) ?? '', mono: true },
+      { value: formatDisplayDate(row.expiryDate) ?? '', mono: true }
+    ]
   }
+
+  const weCols: IntlString[] = [ygHr.string.JobTitle, ygHr.string.Employer, ygHr.string.FromDate, ygHr.string.ToDate, ygHr.string.Comments]
+  const eduCols: IntlString[] = [ygHr.string.Level, ygHr.string.Institute, ygHr.string.Major, ygHr.string.Year, ygHr.string.Score, ygHr.string.StartDate, ygHr.string.EndDate]
+  const skCols: IntlString[] = [ygHr.string.Skill, ygHr.string.YearsOfExperience, ygHr.string.Comments]
+  const lgCols: IntlString[] = [ygHr.string.Language, ygHr.string.Fluency, ygHr.string.Competency, ygHr.string.Comments]
+  const licCols: IntlString[] = [ygHr.string.LicenseType, ygHr.string.LicenseNo, ygHr.string.IssuedDate, ygHr.string.ExpiryDate]
 
   // --- Work Experience ---------------------------------------------------
   let weAdding = false
@@ -570,420 +566,507 @@
   <SectionCard label={ygHr.string.WorkExperience} full>
     <svelte:fragment slot="actions">
       {#if editing && !weAdding}
-        <button class="yg-iconbtn" on:click={beginAddWe}><Label label={ygHr.string.AddItem} /></button>
+        <button class="yg-qbtn" on:click={beginAddWe}><Label label={ygHr.string.AddItem} /></button>
       {/if}
     </svelte:fragment>
 
-    <div class="yg-q-list">
-      {#each workExperiences as row (row._id)}
-        {#if weEditingId === row._id}
-          <div class="yg-q-form">
-            <input class="yg-input" type="text" placeholder={jobTitlePlaceholder} bind:value={fWeJobTitle} />
-            <input class="yg-input" type="text" placeholder={employerPlaceholder} bind:value={fWeEmployer} />
-            <input class="yg-input" type="date" bind:value={fWeFromDate} />
-            <input class="yg-input" type="date" bind:value={fWeToDate} />
-            <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fWeComments} />
-            <div class="yg-q-form__actions">
-              <button class="yg-linkbtn" on:click={cancelWe}><Label label={ygHr.string.Cancel} /></button>
-              <button class="yg-linkbtn yg-linkbtn--accent" on:click={() => submitEditWe(row)}><Label label={ygHr.string.Save} /></button>
-            </div>
-          </div>
-        {:else}
-          <div class="yg-q-row">
-            <div class="yg-q-row__fields">
-              {#each weFields(row) as f}
-                <div class="yg-q-f">
-                  <span class="yg-q-f__label"><Label label={f.label} /></span>
-                  <span class="yg-q-f__value" class:mono={f.mono}>{f.value}</span>
-                </div>
-              {/each}
-            </div>
-            {#if editing}
-              <div class="yg-q-row__actions">
-                <button class="yg-iconbtn" on:click={() => { beginEditWe(row) }}><Label label={ygHr.string.Edit} /></button>
-                <button class="yg-iconbtn" on:click={() => { void removeWe(row) }}><Label label={ygHr.string.RemoveItem} /></button>
-              </div>
+    {#if workExperiences.length > 0 || weAdding}
+      <div class="yg-qtable-wrap">
+        <table class="yg-qtable">
+          <thead>
+            <tr>
+              {#each weCols as c}<th><Label label={c} /></th>{/each}
+              {#if editing}<th class="yg-qtable__acth" aria-label="actions" />{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each workExperiences as row (row._id)}
+              {#if weEditingId === row._id}
+                <tr class="yg-qtable__formrow">
+                  <td colspan={6}>
+                    <div class="yg-q-form">
+                      <input class="yg-input" type="text" placeholder={jobTitlePlaceholder} bind:value={fWeJobTitle} />
+                      <input class="yg-input" type="text" placeholder={employerPlaceholder} bind:value={fWeEmployer} />
+                      <input class="yg-input" type="date" bind:value={fWeFromDate} />
+                      <input class="yg-input" type="date" bind:value={fWeToDate} />
+                      <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fWeComments} />
+                      <div class="yg-q-form__actions">
+                        <button class="yg-linkbtn" on:click={cancelWe}><Label label={ygHr.string.Cancel} /></button>
+                        <button class="yg-qbtn" on:click={() => submitEditWe(row)}><Label label={ygHr.string.Save} /></button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {:else}
+                <tr>
+                  {#each weFields(row) as f}
+                    <td class:mono={f.mono}>{#if f.value !== ''}{f.value}{:else}<span class="yg-qtable__empty">-</span>{/if}</td>
+                  {/each}
+                  {#if editing}
+                    <td class="yg-qtable__act">
+                      <button class="yg-iconbtn" on:click={() => { beginEditWe(row) }}><Label label={ygHr.string.Edit} /></button>
+                      <button class="yg-iconbtn" on:click={() => { void removeWe(row) }}><Label label={ygHr.string.RemoveItem} /></button>
+                    </td>
+                  {/if}
+                </tr>
+              {/if}
+            {/each}
+            {#if weAdding}
+              <tr class="yg-qtable__formrow">
+                <td colspan={6}>
+                  <div class="yg-q-form">
+                    <input class="yg-input" type="text" placeholder={jobTitlePlaceholder} bind:value={fWeJobTitle} />
+                    <input class="yg-input" type="text" placeholder={employerPlaceholder} bind:value={fWeEmployer} />
+                    <input class="yg-input" type="date" bind:value={fWeFromDate} />
+                    <input class="yg-input" type="date" bind:value={fWeToDate} />
+                    <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fWeComments} />
+                    <div class="yg-q-form__actions">
+                      <button class="yg-linkbtn" on:click={cancelWe}><Label label={ygHr.string.Cancel} /></button>
+                      <button class="yg-qbtn" on:click={submitAddWe}><Label label={ygHr.string.Save} /></button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             {/if}
-          </div>
-        {/if}
-      {:else}
-        {#if !weAdding}
-          <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
-        {/if}
-      {/each}
-
-      {#if weAdding}
-        <div class="yg-q-form">
-          <input class="yg-input" type="text" placeholder={jobTitlePlaceholder} bind:value={fWeJobTitle} />
-          <input class="yg-input" type="text" placeholder={employerPlaceholder} bind:value={fWeEmployer} />
-          <input class="yg-input" type="date" bind:value={fWeFromDate} />
-          <input class="yg-input" type="date" bind:value={fWeToDate} />
-          <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fWeComments} />
-          <div class="yg-q-form__actions">
-            <button class="yg-linkbtn" on:click={cancelWe}><Label label={ygHr.string.Cancel} /></button>
-            <button class="yg-linkbtn yg-linkbtn--accent" on:click={submitAddWe}><Label label={ygHr.string.Save} /></button>
-          </div>
-        </div>
-      {/if}
-    </div>
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+    {/if}
   </SectionCard>
 
   <SectionCard label={ygHr.string.Educations} full>
     <svelte:fragment slot="actions">
       {#if editing && !eduAdding}
-        <button class="yg-iconbtn" on:click={beginAddEdu}><Label label={ygHr.string.AddItem} /></button>
+        <button class="yg-qbtn" on:click={beginAddEdu}><Label label={ygHr.string.AddItem} /></button>
       {/if}
     </svelte:fragment>
 
-    <div class="yg-q-list">
-      {#each educations as row (row._id)}
-        {#if eduEditingId === row._id}
-          <div class="yg-q-form">
-            <select class="yg-input" bind:value={fEduLevel}>
-              <option value="">{levelPlaceholder}</option>
-              {#each educationLevels as l (l._id)}<option value={l._id}>{l.name}</option>{/each}
-            </select>
-            <input class="yg-input" type="text" placeholder={institutePlaceholder} bind:value={fEduInstitute} />
-            <input class="yg-input" type="text" placeholder={majorPlaceholder} bind:value={fEduMajor} />
-            <input
-              class="yg-input"
-              type="number"
-              placeholder={yearPlaceholder}
-              value={fEduYear}
-              on:input={(e) => { fEduYear = e.currentTarget.value }}
-            />
-            <input class="yg-input" type="text" placeholder={scorePlaceholder} bind:value={fEduScore} />
-            <input class="yg-input" type="date" bind:value={fEduStartDate} />
-            <input class="yg-input" type="date" bind:value={fEduEndDate} />
-            <div class="yg-q-form__actions">
-              <button class="yg-linkbtn" on:click={cancelEdu}><Label label={ygHr.string.Cancel} /></button>
-              <button class="yg-linkbtn yg-linkbtn--accent" on:click={() => submitEditEdu(row)}><Label label={ygHr.string.Save} /></button>
-            </div>
-          </div>
-        {:else}
-          <div class="yg-q-row">
-            <div class="yg-q-row__fields">
-              {#each eduFields(row) as f}
-                <div class="yg-q-f">
-                  <span class="yg-q-f__label"><Label label={f.label} /></span>
-                  <span class="yg-q-f__value" class:mono={f.mono}>{f.value}</span>
-                </div>
-              {/each}
-            </div>
-            {#if editing}
-              <div class="yg-q-row__actions">
-                <button class="yg-iconbtn" on:click={() => { beginEditEdu(row) }}><Label label={ygHr.string.Edit} /></button>
-                <button class="yg-iconbtn" on:click={() => { void removeEdu(row) }}><Label label={ygHr.string.RemoveItem} /></button>
-              </div>
+    {#if educations.length > 0 || eduAdding}
+      <div class="yg-qtable-wrap">
+        <table class="yg-qtable">
+          <thead>
+            <tr>
+              {#each eduCols as c}<th><Label label={c} /></th>{/each}
+              {#if editing}<th class="yg-qtable__acth" aria-label="actions" />{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each educations as row (row._id)}
+              {#if eduEditingId === row._id}
+                <tr class="yg-qtable__formrow">
+                  <td colspan={8}>
+                    <div class="yg-q-form">
+                      <select class="yg-input" bind:value={fEduLevel}>
+                        <option value="">{levelPlaceholder}</option>
+                        {#each educationLevels as l (l._id)}<option value={l._id}>{l.name}</option>{/each}
+                      </select>
+                      <input class="yg-input" type="text" placeholder={institutePlaceholder} bind:value={fEduInstitute} />
+                      <input class="yg-input" type="text" placeholder={majorPlaceholder} bind:value={fEduMajor} />
+                      <input
+                        class="yg-input"
+                        type="number"
+                        placeholder={yearPlaceholder}
+                        value={fEduYear}
+                        on:input={(e) => { fEduYear = e.currentTarget.value }}
+                      />
+                      <input class="yg-input" type="text" placeholder={scorePlaceholder} bind:value={fEduScore} />
+                      <input class="yg-input" type="date" bind:value={fEduStartDate} />
+                      <input class="yg-input" type="date" bind:value={fEduEndDate} />
+                      <div class="yg-q-form__actions">
+                        <button class="yg-linkbtn" on:click={cancelEdu}><Label label={ygHr.string.Cancel} /></button>
+                        <button class="yg-qbtn" on:click={() => submitEditEdu(row)}><Label label={ygHr.string.Save} /></button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {:else}
+                <tr>
+                  {#each eduFields(row) as f}
+                    <td class:mono={f.mono}>{#if f.value !== ''}{f.value}{:else}<span class="yg-qtable__empty">-</span>{/if}</td>
+                  {/each}
+                  {#if editing}
+                    <td class="yg-qtable__act">
+                      <button class="yg-iconbtn" on:click={() => { beginEditEdu(row) }}><Label label={ygHr.string.Edit} /></button>
+                      <button class="yg-iconbtn" on:click={() => { void removeEdu(row) }}><Label label={ygHr.string.RemoveItem} /></button>
+                    </td>
+                  {/if}
+                </tr>
+              {/if}
+            {/each}
+            {#if eduAdding}
+              <tr class="yg-qtable__formrow">
+                <td colspan={8}>
+                  <div class="yg-q-form">
+                    <select class="yg-input" bind:value={fEduLevel}>
+                      <option value="">{levelPlaceholder}</option>
+                      {#each educationLevels as l (l._id)}<option value={l._id}>{l.name}</option>{/each}
+                    </select>
+                    <input class="yg-input" type="text" placeholder={institutePlaceholder} bind:value={fEduInstitute} />
+                    <input class="yg-input" type="text" placeholder={majorPlaceholder} bind:value={fEduMajor} />
+                    <input
+                      class="yg-input"
+                      type="number"
+                      placeholder={yearPlaceholder}
+                      value={fEduYear}
+                      on:input={(e) => { fEduYear = e.currentTarget.value }}
+                    />
+                    <input class="yg-input" type="text" placeholder={scorePlaceholder} bind:value={fEduScore} />
+                    <input class="yg-input" type="date" bind:value={fEduStartDate} />
+                    <input class="yg-input" type="date" bind:value={fEduEndDate} />
+                    <div class="yg-q-form__actions">
+                      <button class="yg-linkbtn" on:click={cancelEdu}><Label label={ygHr.string.Cancel} /></button>
+                      <button class="yg-qbtn" on:click={submitAddEdu}><Label label={ygHr.string.Save} /></button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             {/if}
-          </div>
-        {/if}
-      {:else}
-        {#if !eduAdding}
-          <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
-        {/if}
-      {/each}
-
-      {#if eduAdding}
-        <div class="yg-q-form">
-          <select class="yg-input" bind:value={fEduLevel}>
-            <option value="">{levelPlaceholder}</option>
-            {#each educationLevels as l (l._id)}<option value={l._id}>{l.name}</option>{/each}
-          </select>
-          <input class="yg-input" type="text" placeholder={institutePlaceholder} bind:value={fEduInstitute} />
-          <input class="yg-input" type="text" placeholder={majorPlaceholder} bind:value={fEduMajor} />
-          <input
-            class="yg-input"
-            type="number"
-            placeholder={yearPlaceholder}
-            value={fEduYear}
-            on:input={(e) => { fEduYear = e.currentTarget.value }}
-          />
-          <input class="yg-input" type="text" placeholder={scorePlaceholder} bind:value={fEduScore} />
-          <input class="yg-input" type="date" bind:value={fEduStartDate} />
-          <input class="yg-input" type="date" bind:value={fEduEndDate} />
-          <div class="yg-q-form__actions">
-            <button class="yg-linkbtn" on:click={cancelEdu}><Label label={ygHr.string.Cancel} /></button>
-            <button class="yg-linkbtn yg-linkbtn--accent" on:click={submitAddEdu}><Label label={ygHr.string.Save} /></button>
-          </div>
-        </div>
-      {/if}
-    </div>
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+    {/if}
   </SectionCard>
 
   <SectionCard label={ygHr.string.Skills} full>
     <svelte:fragment slot="actions">
       {#if editing && !skAdding}
-        <button class="yg-iconbtn" on:click={beginAddSk}><Label label={ygHr.string.AddItem} /></button>
+        <button class="yg-qbtn" on:click={beginAddSk}><Label label={ygHr.string.AddItem} /></button>
       {/if}
     </svelte:fragment>
 
-    <div class="yg-q-list">
-      {#each skills as row (row._id)}
-        {#if skEditingId === row._id}
-          <div class="yg-q-form">
-            <select class="yg-input" bind:value={fSkSkill}>
-              <option value="">{skillPlaceholder}</option>
-              {#each skillTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
-            </select>
-            <input
-              class="yg-input"
-              type="number"
-              placeholder={yearsOfExperiencePlaceholder}
-              value={fSkYears}
-              on:input={(e) => { fSkYears = e.currentTarget.value }}
-            />
-            <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fSkComments} />
-            <div class="yg-q-form__actions">
-              <button class="yg-linkbtn" on:click={cancelSk}><Label label={ygHr.string.Cancel} /></button>
-              <button class="yg-linkbtn yg-linkbtn--accent" on:click={() => submitEditSk(row)}><Label label={ygHr.string.Save} /></button>
-            </div>
-          </div>
-        {:else}
-          <div class="yg-q-row">
-            <div class="yg-q-row__fields">
-              {#each skillFields(row) as f}
-                <div class="yg-q-f">
-                  <span class="yg-q-f__label"><Label label={f.label} /></span>
-                  <span class="yg-q-f__value" class:mono={f.mono}>{f.value}</span>
-                </div>
-              {/each}
-            </div>
-            {#if editing}
-              <div class="yg-q-row__actions">
-                <button class="yg-iconbtn" on:click={() => { beginEditSk(row) }}><Label label={ygHr.string.Edit} /></button>
-                <button class="yg-iconbtn" on:click={() => { void removeSk(row) }}><Label label={ygHr.string.RemoveItem} /></button>
-              </div>
+    {#if skills.length > 0 || skAdding}
+      <div class="yg-qtable-wrap">
+        <table class="yg-qtable">
+          <thead>
+            <tr>
+              {#each skCols as c}<th><Label label={c} /></th>{/each}
+              {#if editing}<th class="yg-qtable__acth" aria-label="actions" />{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each skills as row (row._id)}
+              {#if skEditingId === row._id}
+                <tr class="yg-qtable__formrow">
+                  <td colspan={4}>
+                    <div class="yg-q-form">
+                      <select class="yg-input" bind:value={fSkSkill}>
+                        <option value="">{skillPlaceholder}</option>
+                        {#each skillTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+                      </select>
+                      <input
+                        class="yg-input"
+                        type="number"
+                        placeholder={yearsOfExperiencePlaceholder}
+                        value={fSkYears}
+                        on:input={(e) => { fSkYears = e.currentTarget.value }}
+                      />
+                      <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fSkComments} />
+                      <div class="yg-q-form__actions">
+                        <button class="yg-linkbtn" on:click={cancelSk}><Label label={ygHr.string.Cancel} /></button>
+                        <button class="yg-qbtn" on:click={() => submitEditSk(row)}><Label label={ygHr.string.Save} /></button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {:else}
+                <tr>
+                  {#each skillFields(row) as f}
+                    <td class:mono={f.mono}>{#if f.value !== ''}{f.value}{:else}<span class="yg-qtable__empty">-</span>{/if}</td>
+                  {/each}
+                  {#if editing}
+                    <td class="yg-qtable__act">
+                      <button class="yg-iconbtn" on:click={() => { beginEditSk(row) }}><Label label={ygHr.string.Edit} /></button>
+                      <button class="yg-iconbtn" on:click={() => { void removeSk(row) }}><Label label={ygHr.string.RemoveItem} /></button>
+                    </td>
+                  {/if}
+                </tr>
+              {/if}
+            {/each}
+            {#if skAdding}
+              <tr class="yg-qtable__formrow">
+                <td colspan={4}>
+                  <div class="yg-q-form">
+                    <select class="yg-input" bind:value={fSkSkill}>
+                      <option value="">{skillPlaceholder}</option>
+                      {#each skillTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+                    </select>
+                    <input
+                      class="yg-input"
+                      type="number"
+                      placeholder={yearsOfExperiencePlaceholder}
+                      value={fSkYears}
+                      on:input={(e) => { fSkYears = e.currentTarget.value }}
+                    />
+                    <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fSkComments} />
+                    <div class="yg-q-form__actions">
+                      <button class="yg-linkbtn" on:click={cancelSk}><Label label={ygHr.string.Cancel} /></button>
+                      <button class="yg-qbtn" on:click={submitAddSk}><Label label={ygHr.string.Save} /></button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             {/if}
-          </div>
-        {/if}
-      {:else}
-        {#if !skAdding}
-          <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
-        {/if}
-      {/each}
-
-      {#if skAdding}
-        <div class="yg-q-form">
-          <select class="yg-input" bind:value={fSkSkill}>
-            <option value="">{skillPlaceholder}</option>
-            {#each skillTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
-          </select>
-          <input
-            class="yg-input"
-            type="number"
-            placeholder={yearsOfExperiencePlaceholder}
-            value={fSkYears}
-            on:input={(e) => { fSkYears = e.currentTarget.value }}
-          />
-          <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fSkComments} />
-          <div class="yg-q-form__actions">
-            <button class="yg-linkbtn" on:click={cancelSk}><Label label={ygHr.string.Cancel} /></button>
-            <button class="yg-linkbtn yg-linkbtn--accent" on:click={submitAddSk}><Label label={ygHr.string.Save} /></button>
-          </div>
-        </div>
-      {/if}
-    </div>
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+    {/if}
   </SectionCard>
 
   <SectionCard label={ygHr.string.Languages} full>
     <svelte:fragment slot="actions">
       {#if editing && !lgAdding}
-        <button class="yg-iconbtn" on:click={beginAddLg}><Label label={ygHr.string.AddItem} /></button>
+        <button class="yg-qbtn" on:click={beginAddLg}><Label label={ygHr.string.AddItem} /></button>
       {/if}
     </svelte:fragment>
 
-    <div class="yg-q-list">
-      {#each languages as row (row._id)}
-        {#if lgEditingId === row._id}
-          <div class="yg-q-form">
-            <select class="yg-input" bind:value={fLgLanguage}>
-              <option value="">{languagePlaceholder}</option>
-              {#each languageTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
-            </select>
-            <select class="yg-input" bind:value={fLgFluency}>
-              <option value="">{fluencyPlaceholder}</option>
-              <option value="speaking">{fluencySpeakingLabel}</option>
-              <option value="writing">{fluencyWritingLabel}</option>
-              <option value="reading">{fluencyReadingLabel}</option>
-            </select>
-            <select class="yg-input" bind:value={fLgCompetency}>
-              <option value="">{competencyPlaceholder}</option>
-              <option value="poor">{competencyPoorLabel}</option>
-              <option value="basic">{competencyBasicLabel}</option>
-              <option value="good">{competencyGoodLabel}</option>
-              <option value="mothertongue">{competencyMotherTongueLabel}</option>
-            </select>
-            <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fLgComments} />
-            <div class="yg-q-form__actions">
-              <button class="yg-linkbtn" on:click={cancelLg}><Label label={ygHr.string.Cancel} /></button>
-              <button class="yg-linkbtn yg-linkbtn--accent" on:click={() => submitEditLg(row)}><Label label={ygHr.string.Save} /></button>
-            </div>
-          </div>
-        {:else}
-          <div class="yg-q-row">
-            <div class="yg-q-row__fields">
-              {#each langFields(row) as f}
-                <div class="yg-q-f">
-                  <span class="yg-q-f__label"><Label label={f.label} /></span>
-                  <span class="yg-q-f__value" class:mono={f.mono}>{f.value}</span>
-                </div>
-              {/each}
-            </div>
-            {#if editing}
-              <div class="yg-q-row__actions">
-                <button class="yg-iconbtn" on:click={() => { beginEditLg(row) }}><Label label={ygHr.string.Edit} /></button>
-                <button class="yg-iconbtn" on:click={() => { void removeLg(row) }}><Label label={ygHr.string.RemoveItem} /></button>
-              </div>
+    {#if languages.length > 0 || lgAdding}
+      <div class="yg-qtable-wrap">
+        <table class="yg-qtable">
+          <thead>
+            <tr>
+              {#each lgCols as c}<th><Label label={c} /></th>{/each}
+              {#if editing}<th class="yg-qtable__acth" aria-label="actions" />{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each languages as row (row._id)}
+              {#if lgEditingId === row._id}
+                <tr class="yg-qtable__formrow">
+                  <td colspan={5}>
+                    <div class="yg-q-form">
+                      <select class="yg-input" bind:value={fLgLanguage}>
+                        <option value="">{languagePlaceholder}</option>
+                        {#each languageTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+                      </select>
+                      <select class="yg-input" bind:value={fLgFluency}>
+                        <option value="">{fluencyPlaceholder}</option>
+                        <option value="speaking">{fluencySpeakingLabel}</option>
+                        <option value="writing">{fluencyWritingLabel}</option>
+                        <option value="reading">{fluencyReadingLabel}</option>
+                      </select>
+                      <select class="yg-input" bind:value={fLgCompetency}>
+                        <option value="">{competencyPlaceholder}</option>
+                        <option value="poor">{competencyPoorLabel}</option>
+                        <option value="basic">{competencyBasicLabel}</option>
+                        <option value="good">{competencyGoodLabel}</option>
+                        <option value="mothertongue">{competencyMotherTongueLabel}</option>
+                      </select>
+                      <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fLgComments} />
+                      <div class="yg-q-form__actions">
+                        <button class="yg-linkbtn" on:click={cancelLg}><Label label={ygHr.string.Cancel} /></button>
+                        <button class="yg-qbtn" on:click={() => submitEditLg(row)}><Label label={ygHr.string.Save} /></button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {:else}
+                <tr>
+                  {#each langFields(row) as f}
+                    <td class:mono={f.mono}>{#if f.value !== ''}{f.value}{:else}<span class="yg-qtable__empty">-</span>{/if}</td>
+                  {/each}
+                  {#if editing}
+                    <td class="yg-qtable__act">
+                      <button class="yg-iconbtn" on:click={() => { beginEditLg(row) }}><Label label={ygHr.string.Edit} /></button>
+                      <button class="yg-iconbtn" on:click={() => { void removeLg(row) }}><Label label={ygHr.string.RemoveItem} /></button>
+                    </td>
+                  {/if}
+                </tr>
+              {/if}
+            {/each}
+            {#if lgAdding}
+              <tr class="yg-qtable__formrow">
+                <td colspan={5}>
+                  <div class="yg-q-form">
+                    <select class="yg-input" bind:value={fLgLanguage}>
+                      <option value="">{languagePlaceholder}</option>
+                      {#each languageTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+                    </select>
+                    <select class="yg-input" bind:value={fLgFluency}>
+                      <option value="">{fluencyPlaceholder}</option>
+                      <option value="speaking">{fluencySpeakingLabel}</option>
+                      <option value="writing">{fluencyWritingLabel}</option>
+                      <option value="reading">{fluencyReadingLabel}</option>
+                    </select>
+                    <select class="yg-input" bind:value={fLgCompetency}>
+                      <option value="">{competencyPlaceholder}</option>
+                      <option value="poor">{competencyPoorLabel}</option>
+                      <option value="basic">{competencyBasicLabel}</option>
+                      <option value="good">{competencyGoodLabel}</option>
+                      <option value="mothertongue">{competencyMotherTongueLabel}</option>
+                    </select>
+                    <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fLgComments} />
+                    <div class="yg-q-form__actions">
+                      <button class="yg-linkbtn" on:click={cancelLg}><Label label={ygHr.string.Cancel} /></button>
+                      <button class="yg-qbtn" on:click={submitAddLg}><Label label={ygHr.string.Save} /></button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             {/if}
-          </div>
-        {/if}
-      {:else}
-        {#if !lgAdding}
-          <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
-        {/if}
-      {/each}
-
-      {#if lgAdding}
-        <div class="yg-q-form">
-          <select class="yg-input" bind:value={fLgLanguage}>
-            <option value="">{languagePlaceholder}</option>
-            {#each languageTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
-          </select>
-          <select class="yg-input" bind:value={fLgFluency}>
-            <option value="">{fluencyPlaceholder}</option>
-            <option value="speaking">{fluencySpeakingLabel}</option>
-            <option value="writing">{fluencyWritingLabel}</option>
-            <option value="reading">{fluencyReadingLabel}</option>
-          </select>
-          <select class="yg-input" bind:value={fLgCompetency}>
-            <option value="">{competencyPlaceholder}</option>
-            <option value="poor">{competencyPoorLabel}</option>
-            <option value="basic">{competencyBasicLabel}</option>
-            <option value="good">{competencyGoodLabel}</option>
-            <option value="mothertongue">{competencyMotherTongueLabel}</option>
-          </select>
-          <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fLgComments} />
-          <div class="yg-q-form__actions">
-            <button class="yg-linkbtn" on:click={cancelLg}><Label label={ygHr.string.Cancel} /></button>
-            <button class="yg-linkbtn yg-linkbtn--accent" on:click={submitAddLg}><Label label={ygHr.string.Save} /></button>
-          </div>
-        </div>
-      {/if}
-    </div>
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+    {/if}
   </SectionCard>
 
   <SectionCard label={ygHr.string.Licenses} full>
     <svelte:fragment slot="actions">
       {#if editing && !licAdding}
-        <button class="yg-iconbtn" on:click={beginAddLic}><Label label={ygHr.string.AddItem} /></button>
+        <button class="yg-qbtn" on:click={beginAddLic}><Label label={ygHr.string.AddItem} /></button>
       {/if}
     </svelte:fragment>
 
-    <div class="yg-q-list">
-      {#each licenses as row (row._id)}
-        {#if licEditingId === row._id}
-          <div class="yg-q-form">
-            <select class="yg-input" bind:value={fLicType}>
-              <option value="">{licenseTypePlaceholder}</option>
-              {#each licenseTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
-            </select>
-            <input class="yg-input" type="text" placeholder={licenseNoPlaceholder} bind:value={fLicNo} />
-            <input class="yg-input" type="date" bind:value={fLicIssued} />
-            <input class="yg-input" type="date" bind:value={fLicExpiry} />
-            <div class="yg-q-form__actions">
-              <button class="yg-linkbtn" on:click={cancelLic}><Label label={ygHr.string.Cancel} /></button>
-              <button class="yg-linkbtn yg-linkbtn--accent" on:click={() => submitEditLic(row)}><Label label={ygHr.string.Save} /></button>
-            </div>
-          </div>
-        {:else}
-          <div class="yg-q-row">
-            <div class="yg-q-row__fields">
-              {#each licFields(row) as f}
-                <div class="yg-q-f">
-                  <span class="yg-q-f__label"><Label label={f.label} /></span>
-                  <span class="yg-q-f__value" class:mono={f.mono}>{f.value}</span>
-                </div>
-              {/each}
-            </div>
-            {#if editing}
-              <div class="yg-q-row__actions">
-                <button class="yg-iconbtn" on:click={() => { beginEditLic(row) }}><Label label={ygHr.string.Edit} /></button>
-                <button class="yg-iconbtn" on:click={() => { void removeLic(row) }}><Label label={ygHr.string.RemoveItem} /></button>
-              </div>
+    {#if licenses.length > 0 || licAdding}
+      <div class="yg-qtable-wrap">
+        <table class="yg-qtable">
+          <thead>
+            <tr>
+              {#each licCols as c}<th><Label label={c} /></th>{/each}
+              {#if editing}<th class="yg-qtable__acth" aria-label="actions" />{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each licenses as row (row._id)}
+              {#if licEditingId === row._id}
+                <tr class="yg-qtable__formrow">
+                  <td colspan={5}>
+                    <div class="yg-q-form">
+                      <select class="yg-input" bind:value={fLicType}>
+                        <option value="">{licenseTypePlaceholder}</option>
+                        {#each licenseTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+                      </select>
+                      <input class="yg-input" type="text" placeholder={licenseNoPlaceholder} bind:value={fLicNo} />
+                      <input class="yg-input" type="date" bind:value={fLicIssued} />
+                      <input class="yg-input" type="date" bind:value={fLicExpiry} />
+                      <div class="yg-q-form__actions">
+                        <button class="yg-linkbtn" on:click={cancelLic}><Label label={ygHr.string.Cancel} /></button>
+                        <button class="yg-qbtn" on:click={() => submitEditLic(row)}><Label label={ygHr.string.Save} /></button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              {:else}
+                <tr>
+                  {#each licFields(row) as f}
+                    <td class:mono={f.mono}>{#if f.value !== ''}{f.value}{:else}<span class="yg-qtable__empty">-</span>{/if}</td>
+                  {/each}
+                  {#if editing}
+                    <td class="yg-qtable__act">
+                      <button class="yg-iconbtn" on:click={() => { beginEditLic(row) }}><Label label={ygHr.string.Edit} /></button>
+                      <button class="yg-iconbtn" on:click={() => { void removeLic(row) }}><Label label={ygHr.string.RemoveItem} /></button>
+                    </td>
+                  {/if}
+                </tr>
+              {/if}
+            {/each}
+            {#if licAdding}
+              <tr class="yg-qtable__formrow">
+                <td colspan={5}>
+                  <div class="yg-q-form">
+                    <select class="yg-input" bind:value={fLicType}>
+                      <option value="">{licenseTypePlaceholder}</option>
+                      {#each licenseTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+                    </select>
+                    <input class="yg-input" type="text" placeholder={licenseNoPlaceholder} bind:value={fLicNo} />
+                    <input class="yg-input" type="date" bind:value={fLicIssued} />
+                    <input class="yg-input" type="date" bind:value={fLicExpiry} />
+                    <div class="yg-q-form__actions">
+                      <button class="yg-linkbtn" on:click={cancelLic}><Label label={ygHr.string.Cancel} /></button>
+                      <button class="yg-qbtn" on:click={submitAddLic}><Label label={ygHr.string.Save} /></button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
             {/if}
-          </div>
-        {/if}
-      {:else}
-        {#if !licAdding}
-          <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
-        {/if}
-      {/each}
-
-      {#if licAdding}
-        <div class="yg-q-form">
-          <select class="yg-input" bind:value={fLicType}>
-            <option value="">{licenseTypePlaceholder}</option>
-            {#each licenseTypes as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
-          </select>
-          <input class="yg-input" type="text" placeholder={licenseNoPlaceholder} bind:value={fLicNo} />
-          <input class="yg-input" type="date" bind:value={fLicIssued} />
-          <input class="yg-input" type="date" bind:value={fLicExpiry} />
-          <div class="yg-q-form__actions">
-            <button class="yg-linkbtn" on:click={cancelLic}><Label label={ygHr.string.Cancel} /></button>
-            <button class="yg-linkbtn yg-linkbtn--accent" on:click={submitAddLic}><Label label={ygHr.string.Save} /></button>
-          </div>
-        </div>
-      {/if}
-    </div>
+          </tbody>
+        </table>
+      </div>
+    {:else}
+      <div class="yg-q-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+    {/if}
   </SectionCard>
 </div>
 
 <style lang="scss">
   @use '../yg-profile' as *;
 
-  .yg-q-list {
-    display: flex;
-    flex-direction: column;
+  .yg-qtable-wrap {
+    overflow-x: auto;
   }
-  .yg-q-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 13px;
-    padding: 13px 0;
+  .yg-qtable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .yg-qtable thead th {
+    text-align: left;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--theme-trans-color);
+    padding: 0 16px 9px 0;
     border-bottom: 1px solid var(--theme-divider-color);
+    white-space: nowrap;
   }
-  .yg-q-row:last-child {
+  .yg-qtable tbody td {
+    padding: 12px 16px 12px 0;
+    color: var(--theme-content-color);
+    border-bottom: 1px solid var(--theme-divider-color);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+  .yg-qtable tbody tr:last-child td {
     border-bottom: none;
   }
-  .yg-q-row__fields {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 24px;
-    min-width: 0;
-  }
-  .yg-q-f {
-    display: flex;
-    flex-direction: column;
-  }
-  .yg-q-f__label {
-    font-size: 11px;
-    color: var(--theme-trans-color);
-  }
-  .yg-q-f__value {
-    font-size: 13.5px;
-    color: var(--theme-content-color);
-    font-weight: 500;
-  }
-  .yg-q-f__value.mono {
+  .yg-qtable td.mono {
     font-family: var(--theme-font-mono, ui-monospace, monospace);
     font-variant-numeric: tabular-nums;
   }
-  .yg-q-row__actions {
-    display: flex;
+  .yg-qtable__empty {
+    color: var(--theme-trans-color);
+  }
+  .yg-qtable__act {
+    text-align: right;
+    white-space: nowrap;
+    padding-right: 0;
+  }
+  .yg-qtable__act .yg-iconbtn {
+    margin-left: 6px;
+  }
+  .yg-qtable__formrow > td {
+    padding: 4px 0 14px;
+    border-bottom: 1px solid var(--theme-divider-color);
+  }
+  // Black/white primary action (Add / Save) - matches the theme's .yg-btn-dark, sized for these rows.
+  .yg-qbtn {
+    display: inline-flex;
+    align-items: center;
     gap: 6px;
-    flex: none;
+    font: inherit;
+    font-weight: 600;
+    font-size: 12.5px;
+    padding: 6px 13px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    background: #14181b;
+    color: #ffffff;
+  }
+  .yg-qbtn:hover {
+    background: #23292d;
+  }
+  :global(.theme-dark) .yg-qbtn {
+    border-color: rgba(255, 255, 255, 0.16);
   }
   .yg-q-empty {
     font-size: 13px;
