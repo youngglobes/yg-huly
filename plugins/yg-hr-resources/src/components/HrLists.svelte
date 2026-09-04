@@ -36,9 +36,13 @@
     isSystemDesignation,
     type Department,
     type Designation,
+    type EducationLevel,
     type EmploymentStatus,
     type HrListItem,
+    type LanguageType,
+    type LicenseType,
     type Location,
+    type SkillType,
     type TerminationReason
   } from '@hcengineering/yg-hr'
 
@@ -63,6 +67,10 @@
   let employmentStatuses: EmploymentStatus[] = []
   let locations: Location[] = []
   let terminationReasons: TerminationReason[] = []
+  let educationLevels: EducationLevel[] = []
+  let skillTypes: SkillType[] = []
+  let languageTypes: LanguageType[] = []
+  let licenseTypes: LicenseType[] = []
   let desigLoaded = false
 
   const depQuery = createQuery()
@@ -75,6 +83,14 @@
   locQuery.query(ygHr.class.Location, {}, (res) => { locations = res })
   const termQuery = createQuery()
   termQuery.query(ygHr.class.TerminationReason, {}, (res) => { terminationReasons = res })
+  const eduLevelQuery = createQuery()
+  eduLevelQuery.query(ygHr.class.EducationLevel, {}, (res) => { educationLevels = res })
+  const skillTypeQuery = createQuery()
+  skillTypeQuery.query(ygHr.class.SkillType, {}, (res) => { skillTypes = res })
+  const langTypeQuery = createQuery()
+  langTypeQuery.query(ygHr.class.LanguageType, {}, (res) => { languageTypes = res })
+  const licenseTypeQuery = createQuery()
+  licenseTypeQuery.query(ygHr.class.LicenseType, {}, (res) => { licenseTypes = res })
 
   $: ready = empLoaded && desigLoaded
   $: isHr = isAdmin || isHrMember
@@ -85,6 +101,10 @@
   $: sortedEmploymentStatuses = byName(employmentStatuses)
   $: sortedLocations = byName(locations)
   $: sortedTerminationReasons = byName(terminationReasons)
+  $: sortedEducationLevels = byName(educationLevels)
+  $: sortedSkillTypes = byName(skillTypes)
+  $: sortedLanguageTypes = byName(languageTypes)
+  $: sortedLicenseTypes = byName(licenseTypes)
 
   async function addItem<T extends HrListItem> (_class: Ref<Class<T>>, name: string): Promise<void> {
     const trimmed = name.trim()
@@ -118,6 +138,10 @@
   let employmentStatusPlaceholder = ''
   let locationPlaceholder = ''
   let terminationReasonPlaceholder = ''
+  let educationLevelPlaceholder = ''
+  let skillTypePlaceholder = ''
+  let languageTypePlaceholder = ''
+  let licenseTypePlaceholder = ''
   void translate(ygHr.string.AddItem, {}).then((r) => { addLabel = r })
   void translate(ygHr.string.RemoveItem, {}).then((r) => { removeLabel = r })
   void translate(ygHr.string.Department, {}).then((r) => { departmentPlaceholder = `+ ${r}` })
@@ -125,12 +149,20 @@
   void translate(ygHr.string.EmploymentStatus, {}).then((r) => { employmentStatusPlaceholder = `+ ${r}` })
   void translate(ygHr.string.Location, {}).then((r) => { locationPlaceholder = `+ ${r}` })
   void translate(ygHr.string.TerminationReason, {}).then((r) => { terminationReasonPlaceholder = `+ ${r}` })
+  void translate(ygHr.string.Level, {}).then((r) => { educationLevelPlaceholder = `+ ${r}` })
+  void translate(ygHr.string.Skill, {}).then((r) => { skillTypePlaceholder = `+ ${r}` })
+  void translate(ygHr.string.Language, {}).then((r) => { languageTypePlaceholder = `+ ${r}` })
+  void translate(ygHr.string.LicenseType, {}).then((r) => { licenseTypePlaceholder = `+ ${r}` })
 
   let newDepartment = ''
   let newDesignation = ''
   let newEmploymentStatus = ''
   let newLocation = ''
   let newTerminationReason = ''
+  let newEducationLevel = ''
+  let newSkillType = ''
+  let newLanguageType = ''
+  let newLicenseType = ''
 
   function submitDepartment (): void {
     void addItem(ygHr.class.Department, newDepartment)
@@ -151,6 +183,22 @@
   function submitTerminationReason (): void {
     void addItem(ygHr.class.TerminationReason, newTerminationReason)
     newTerminationReason = ''
+  }
+  function submitEducationLevel (): void {
+    void addItem(ygHr.class.EducationLevel, newEducationLevel)
+    newEducationLevel = ''
+  }
+  function submitSkillType (): void {
+    void addItem(ygHr.class.SkillType, newSkillType)
+    newSkillType = ''
+  }
+  function submitLanguageType (): void {
+    void addItem(ygHr.class.LanguageType, newLanguageType)
+    newLanguageType = ''
+  }
+  function submitLicenseType (): void {
+    void addItem(ygHr.class.LicenseType, newLicenseType)
+    newLicenseType = ''
   }
 </script>
 
@@ -304,6 +352,114 @@
           </div>
           <form class="hs-add" on:submit|preventDefault={submitTerminationReason}>
             <input class="hs-input" type="text" placeholder={terminationReasonPlaceholder} bind:value={newTerminationReason} />
+            <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
+              <IconAdd size={'small'} />
+            </button>
+          </form>
+        </div>
+
+        <div class="hs-card">
+          <div class="hs-card__title"><Label label={ygHr.string.EducationLevels} /></div>
+          <div class="hs-list">
+            {#each sortedEducationLevels as item (item._id)}
+              <div class="hs-row">
+                <input
+                  class="hs-input"
+                  type="text"
+                  value={item.name}
+                  on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
+                />
+                <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
+                  <IconDelete size={'small'} />
+                </button>
+              </div>
+            {:else}
+              <div class="hs-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+            {/each}
+          </div>
+          <form class="hs-add" on:submit|preventDefault={submitEducationLevel}>
+            <input class="hs-input" type="text" placeholder={educationLevelPlaceholder} bind:value={newEducationLevel} />
+            <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
+              <IconAdd size={'small'} />
+            </button>
+          </form>
+        </div>
+
+        <div class="hs-card">
+          <div class="hs-card__title"><Label label={ygHr.string.SkillTypes} /></div>
+          <div class="hs-list">
+            {#each sortedSkillTypes as item (item._id)}
+              <div class="hs-row">
+                <input
+                  class="hs-input"
+                  type="text"
+                  value={item.name}
+                  on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
+                />
+                <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
+                  <IconDelete size={'small'} />
+                </button>
+              </div>
+            {:else}
+              <div class="hs-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+            {/each}
+          </div>
+          <form class="hs-add" on:submit|preventDefault={submitSkillType}>
+            <input class="hs-input" type="text" placeholder={skillTypePlaceholder} bind:value={newSkillType} />
+            <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
+              <IconAdd size={'small'} />
+            </button>
+          </form>
+        </div>
+
+        <div class="hs-card">
+          <div class="hs-card__title"><Label label={ygHr.string.LanguageTypes} /></div>
+          <div class="hs-list">
+            {#each sortedLanguageTypes as item (item._id)}
+              <div class="hs-row">
+                <input
+                  class="hs-input"
+                  type="text"
+                  value={item.name}
+                  on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
+                />
+                <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
+                  <IconDelete size={'small'} />
+                </button>
+              </div>
+            {:else}
+              <div class="hs-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+            {/each}
+          </div>
+          <form class="hs-add" on:submit|preventDefault={submitLanguageType}>
+            <input class="hs-input" type="text" placeholder={languageTypePlaceholder} bind:value={newLanguageType} />
+            <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
+              <IconAdd size={'small'} />
+            </button>
+          </form>
+        </div>
+
+        <div class="hs-card">
+          <div class="hs-card__title"><Label label={ygHr.string.LicenseTypes} /></div>
+          <div class="hs-list">
+            {#each sortedLicenseTypes as item (item._id)}
+              <div class="hs-row">
+                <input
+                  class="hs-input"
+                  type="text"
+                  value={item.name}
+                  on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
+                />
+                <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
+                  <IconDelete size={'small'} />
+                </button>
+              </div>
+            {:else}
+              <div class="hs-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+            {/each}
+          </div>
+          <form class="hs-add" on:submit|preventDefault={submitLicenseType}>
+            <input class="hs-input" type="text" placeholder={licenseTypePlaceholder} bind:value={newLicenseType} />
             <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
               <IconAdd size={'small'} />
             </button>
