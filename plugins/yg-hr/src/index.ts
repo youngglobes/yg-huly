@@ -46,6 +46,48 @@ export interface EmergencyContact extends AttachedDoc {
   workPhone?: string
 }
 
+export type LanguageFluency = 'speaking' | 'writing' | 'reading'
+export type LanguageCompetency = 'poor' | 'basic' | 'good' | 'mothertongue'
+
+export type EducationLevel = HrListItem
+export type SkillType = HrListItem
+export type LanguageType = HrListItem
+export type LicenseType = HrListItem
+
+export interface WorkExperience extends AttachedDoc {
+  employer?: string
+  jobTitle?: string
+  fromDate?: Timestamp
+  toDate?: Timestamp
+  comments?: string
+}
+export interface Education extends AttachedDoc {
+  level?: Ref<EducationLevel>
+  institute?: string
+  major?: string
+  year?: number
+  score?: string
+  startDate?: Timestamp
+  endDate?: Timestamp
+}
+export interface EmployeeSkill extends AttachedDoc {
+  skill?: Ref<SkillType>
+  yearsOfExperience?: number
+  comments?: string
+}
+export interface EmployeeLanguage extends AttachedDoc {
+  language?: Ref<LanguageType>
+  fluency?: LanguageFluency
+  competency?: LanguageCompetency
+  comments?: string
+}
+export interface EmployeeLicense extends AttachedDoc {
+  licenseType?: Ref<LicenseType>
+  licenseNo?: string
+  issuedDate?: Timestamp
+  expiryDate?: Timestamp
+}
+
 // Monotonic per-workspace counter for employee ids (single doc).
 export interface EmployeeSeq extends Doc {
   last: number
@@ -72,6 +114,11 @@ export interface EmployeePersonal extends Employee {
   driverLicenseExpiry?: Timestamp
   status?: EmployeeStatus
   emergencyContacts?: number
+  workExperience?: number
+  educations?: number
+  skills?: number
+  languages?: number
+  licenses?: number
 }
 
 export interface EmployeeContact extends Employee {
@@ -150,7 +197,16 @@ export default plugin(ygHrId, {
     Location: '' as Ref<Class<Location>>,
     TerminationReason: '' as Ref<Class<TerminationReason>>,
     EmergencyContact: '' as Ref<Class<EmergencyContact>>,
-    EmployeeSeq: '' as Ref<Class<EmployeeSeq>>
+    EmployeeSeq: '' as Ref<Class<EmployeeSeq>>,
+    WorkExperience: '' as Ref<Class<WorkExperience>>,
+    Education: '' as Ref<Class<Education>>,
+    EmployeeSkill: '' as Ref<Class<EmployeeSkill>>,
+    EmployeeLanguage: '' as Ref<Class<EmployeeLanguage>>,
+    EmployeeLicense: '' as Ref<Class<EmployeeLicense>>,
+    EducationLevel: '' as Ref<Class<EducationLevel>>,
+    SkillType: '' as Ref<Class<SkillType>>,
+    LanguageType: '' as Ref<Class<LanguageType>>,
+    LicenseType: '' as Ref<Class<LicenseType>>
   },
   mixin: {
     EmployeePersonal: '' as Ref<Mixin<EmployeePersonal>>,
@@ -262,6 +318,44 @@ export default plugin(ygHrId, {
     CreateEmployeeTitle: '' as IntlString,
     CreateEmployeeIntro: '' as IntlString,
     CreateAndReturn: '' as IntlString,
-    Creating: '' as IntlString
+    Creating: '' as IntlString,
+    Qualifications: '' as IntlString,
+    WorkExperience: '' as IntlString,
+    Educations: '' as IntlString,
+    Skills: '' as IntlString,
+    Languages: '' as IntlString,
+    Licenses: '' as IntlString,
+    Employer: '' as IntlString,
+    JobTitle: '' as IntlString,
+    FromDate: '' as IntlString,
+    ToDate: '' as IntlString,
+    Comments: '' as IntlString,
+    Level: '' as IntlString,
+    Institute: '' as IntlString,
+    Major: '' as IntlString,
+    Year: '' as IntlString,
+    Score: '' as IntlString,
+    StartDate: '' as IntlString,
+    EndDate: '' as IntlString,
+    Skill: '' as IntlString,
+    YearsOfExperience: '' as IntlString,
+    Language: '' as IntlString,
+    Fluency: '' as IntlString,
+    Competency: '' as IntlString,
+    LicenseType: '' as IntlString,
+    LicenseNo: '' as IntlString,
+    IssuedDate: '' as IntlString,
+    ExpiryDate: '' as IntlString,
+    EducationLevels: '' as IntlString,
+    SkillTypes: '' as IntlString,
+    LanguageTypes: '' as IntlString,
+    LicenseTypes: '' as IntlString,
+    FluencySpeaking: '' as IntlString,
+    FluencyWriting: '' as IntlString,
+    FluencyReading: '' as IntlString,
+    CompetencyPoor: '' as IntlString,
+    CompetencyBasic: '' as IntlString,
+    CompetencyGood: '' as IntlString,
+    CompetencyMotherTongue: '' as IntlString
   }
 })
