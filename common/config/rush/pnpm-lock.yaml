@@ -30653,6 +30653,9 @@ importers:
 
   ../../plugins/yg-hr-resources:
     dependencies:
+      '@hcengineering/attachment':
+        specifier: workspace:^0.7.426
+        version: link:../attachment
       '@hcengineering/contact':
         specifier: workspace:^0.7.426
         version: link:../contact

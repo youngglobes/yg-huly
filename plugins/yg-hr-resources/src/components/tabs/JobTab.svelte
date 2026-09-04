@@ -36,6 +36,7 @@
   } from '@hcengineering/yg-hr'
   import FieldGroup from '../FieldGroup.svelte'
   import FieldRow from '../FieldRow.svelte'
+  import SectionAttachments from '../SectionAttachments.svelte'
   import SectionCard from '../SectionCard.svelte'
   import { dateToInput, formatDisplayDate, inputToDate, saveEmployeeMixin } from '../../utils/profile'
 
@@ -236,6 +237,8 @@
       </FieldGroup>
     {/if}
   </SectionCard>
+
+  <SectionAttachments {employee} collection={'jobFiles'} canEdit={editing} />
 </div>
 
 <style lang="scss">
