@@ -84,8 +84,11 @@ presenters, and the `TxAccessLevel` model already exist). Do NOT build a bespoke
 - New classes/fields => **model change** => build + `upgrade-workspace` (beta first, then prod later).
 - New fields optional => **no per-employee data migration**; migration only **seeds
   `TerminationReason`** (idempotent, same guard style as the current list seeds).
-- Front + model packages: `plugins/yg-hr`, `plugins/yg-hr-resources`, `plugins/yg-hr-assets`,
-  `models/yg-hr`. No server-plugin change (no new trigger; attachments reuse existing infra).
+- Packages: `plugins/yg-hr`, `plugins/yg-hr-resources`, `plugins/yg-hr-assets`, `models/yg-hr`, and
+  `server-plugins/yg-hr-resources`. The server change is guard-only (no new trigger): the new mixin
+  fields join `GUARDED_MIXIN_FIELDS` and `TerminationReason` joins `HR_CONFIG_FIELDS`, so only HR/admin
+  can write them (an unguarded new field would otherwise be writable by any member). Attachments reuse
+  existing infra; their write-enforcement is the tracked follow-up in section 5.
 
 ## 8. Testing
 
