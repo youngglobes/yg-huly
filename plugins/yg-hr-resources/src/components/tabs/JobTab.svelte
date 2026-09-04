@@ -31,7 +31,8 @@
     type Designation,
     type EmployeeJob,
     type EmploymentStatus,
-    type Location
+    type Location,
+    type TerminationReason
   } from '@hcengineering/yg-hr'
   import FieldGroup from '../FieldGroup.svelte'
   import FieldRow from '../FieldRow.svelte'
@@ -44,6 +45,7 @@
   export let departments: Department[]
   export let employmentStatuses: EmploymentStatus[]
   export let locations: Location[]
+  export let terminationReasons: TerminationReason[]
 
   const client = getClient()
   const h = client.getHierarchy()
@@ -110,6 +112,21 @@
       joinedDate: inputToDate(fJoined),
       contractStart: inputToDate(fContractStart),
       contractEnd: inputToDate(fContractEnd)
+    }
+    await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeJob, upd)
+  }
+
+  $: terminationReasonName = terminationReasons.find((d) => d._id === job?.terminationReason)?.name
+  let fTerminationDate = ''
+  let fTerminationReason = ''
+  $: if (editing) {
+    fTerminationDate = dateToInput(job?.terminationDate)
+    fTerminationReason = job?.terminationReason ?? ''
+  }
+  async function saveTermination (): Promise<void> {
+    const upd: Partial<EmployeeJob> = {
+      terminationDate: inputToDate(fTerminationDate),
+      terminationReason: fTerminationReason === '' ? undefined : (fTerminationReason as Ref<TerminationReason>)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeJob, upd)
   }
@@ -193,6 +210,29 @@
           mono
           emptyLabel={ygHr.string.OpenEnded}
         />
+      </FieldGroup>
+    {/if}
+  </SectionCard>
+
+  <SectionCard label={ygHr.string.Termination}>
+    {#if editing}
+      <FieldGroup>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.TerminationDate} /></span>
+          <input class="yg-input" type="date" bind:value={fTerminationDate} on:change={saveTermination} />
+        </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.TerminationReason} /></span>
+          <select class="yg-input" bind:value={fTerminationReason} on:change={saveTermination}>
+            <option value="">-</option>
+            {#each terminationReasons as d (d._id)}<option value={d._id}>{d.name}</option>{/each}
+          </select>
+        </label>
+      </FieldGroup>
+    {:else}
+      <FieldGroup>
+        <FieldRow label={ygHr.string.TerminationDate} value={formatDisplayDate(job?.terminationDate)} mono />
+        <FieldRow label={ygHr.string.TerminationReason} value={terminationReasonName} />
       </FieldGroup>
     {/if}
   </SectionCard>

@@ -51,7 +51,8 @@
     type Designation,
     type EmployeeStatus,
     type EmploymentStatus,
-    type Location
+    type Location,
+    type TerminationReason
   } from '@hcengineering/yg-hr'
   import ContactTab from './tabs/ContactTab.svelte'
   import EmergencyTab from './tabs/EmergencyTab.svelte'
@@ -88,6 +89,7 @@
   let departments: Department[] = []
   let employmentStatuses: EmploymentStatus[] = []
   let locations: Location[] = []
+  let terminationReasons: TerminationReason[] = []
   const desigQuery = createQuery()
   desigQuery.query(ygHr.class.Designation, {}, (res) => { designations = res })
   const depQuery = createQuery()
@@ -96,6 +98,8 @@
   statusQuery.query(ygHr.class.EmploymentStatus, {}, (res) => { employmentStatuses = res })
   const locQuery = createQuery()
   locQuery.query(ygHr.class.Location, {}, (res) => { locations = res })
+  const termReasonQuery = createQuery()
+  termReasonQuery.query(ygHr.class.TerminationReason, {}, (res) => { terminationReasons = res })
 
   $: canEdit = !readonly && (isAdmin || isHrMember)
   $: isSelf = employee !== undefined && employee._id === me
@@ -316,7 +320,7 @@
         {:else if activeTab === 'contact'}
           <ContactTab {employee} {editing} {workEmail} />
         {:else if activeTab === 'job'}
-          <JobTab {employee} {editing} {designations} {departments} {employmentStatuses} {locations} />
+          <JobTab {employee} {editing} {designations} {departments} {employmentStatuses} {locations} {terminationReasons} />
         {:else}
           <EmergencyTab {employee} {editing} />
         {/if}
