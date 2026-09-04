@@ -48,6 +48,7 @@
   let fEmployeeId = ''
   let fGender: Gender | '' = ''
   let fDob = ''
+  let fNickname = ''
 
   // Re-seed the edit-mode fields from the live doc whenever edit mode turns on (and keep them in
   // sync with our own just-saved values afterwards) - there is no separate "begin edit" step now
@@ -59,6 +60,7 @@
     fEmployeeId = personal?.employeeId ?? ''
     fGender = personal?.gender ?? ''
     fDob = dateToInput(personal?.dateOfBirth)
+    fNickname = personal?.nickname ?? ''
   }
 
   async function saveIdentity (): Promise<void> {
@@ -70,7 +72,8 @@
       middleName: fMiddleName.trim() === '' ? undefined : fMiddleName.trim(),
       employeeId: fEmployeeId.trim() === '' ? undefined : fEmployeeId.trim(),
       gender: fGender === '' ? undefined : fGender,
-      dateOfBirth: inputToDate(fDob)
+      dateOfBirth: inputToDate(fDob),
+      nickname: fNickname.trim() === '' ? undefined : fNickname.trim()
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeePersonal, upd)
   }
@@ -78,18 +81,27 @@
   let fMarital: MaritalStatus | '' = ''
   let fNationality = ''
   let fBloodGroup = ''
+  let fOtherId = ''
+  let fDriverLicenseNo = ''
+  let fDriverLicenseExpiry = ''
 
   $: if (editing) {
     fMarital = personal?.maritalStatus ?? ''
     fNationality = personal?.nationality ?? ''
     fBloodGroup = personal?.bloodGroup ?? ''
+    fOtherId = personal?.otherId ?? ''
+    fDriverLicenseNo = personal?.driverLicenseNo ?? ''
+    fDriverLicenseExpiry = dateToInput(personal?.driverLicenseExpiry)
   }
 
   async function saveDetails (): Promise<void> {
     const upd: Partial<EmployeePersonal> = {
       maritalStatus: fMarital === '' ? undefined : fMarital,
       nationality: fNationality.trim() === '' ? undefined : fNationality.trim(),
-      bloodGroup: fBloodGroup.trim() === '' ? undefined : fBloodGroup.trim()
+      bloodGroup: fBloodGroup.trim() === '' ? undefined : fBloodGroup.trim(),
+      otherId: fOtherId.trim() === '' ? undefined : fOtherId.trim(),
+      driverLicenseNo: fDriverLicenseNo.trim() === '' ? undefined : fDriverLicenseNo.trim(),
+      driverLicenseExpiry: inputToDate(fDriverLicenseExpiry)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeePersonal, upd)
   }
@@ -126,6 +138,10 @@
           <span><Label label={ygHr.string.DateOfBirth} /></span>
           <input class="yg-input" type="date" bind:value={fDob} on:change={saveIdentity} />
         </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.Nickname} /></span>
+          <input class="yg-input" type="text" bind:value={fNickname} on:change={saveIdentity} />
+        </label>
       </FieldGroup>
     {:else}
       <FieldGroup>
@@ -135,6 +151,7 @@
         <FieldRow label={ygHr.string.EmployeeId} value={personal?.employeeId} mono />
         <FieldRow label={ygHr.string.Gender} value={capitalize(personal?.gender)} />
         <FieldRow label={ygHr.string.DateOfBirth} value={formatDisplayDate(personal?.dateOfBirth)} mono />
+        <FieldRow label={ygHr.string.Nickname} value={personal?.nickname} />
       </FieldGroup>
     {/if}
   </SectionCard>
@@ -157,12 +174,27 @@
           <span><Label label={ygHr.string.BloodGroup} /></span>
           <input class="yg-input" type="text" placeholder="O+" bind:value={fBloodGroup} on:change={saveDetails} />
         </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.OtherId} /></span>
+          <input class="yg-input" type="text" bind:value={fOtherId} on:change={saveDetails} />
+        </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.DriverLicenseNo} /></span>
+          <input class="yg-input" type="text" bind:value={fDriverLicenseNo} on:change={saveDetails} />
+        </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.DriverLicenseExpiry} /></span>
+          <input class="yg-input" type="date" bind:value={fDriverLicenseExpiry} on:change={saveDetails} />
+        </label>
       </FieldGroup>
     {:else}
       <FieldGroup>
         <FieldRow label={ygHr.string.MaritalStatus} value={capitalize(personal?.maritalStatus)} />
         <FieldRow label={ygHr.string.Nationality} value={personal?.nationality} />
         <FieldRow label={ygHr.string.BloodGroup} value={personal?.bloodGroup} />
+        <FieldRow label={ygHr.string.OtherId} value={personal?.otherId} />
+        <FieldRow label={ygHr.string.DriverLicenseNo} value={personal?.driverLicenseNo} mono />
+        <FieldRow label={ygHr.string.DriverLicenseExpiry} value={formatDisplayDate(personal?.driverLicenseExpiry)} mono />
       </FieldGroup>
     {/if}
   </SectionCard>
