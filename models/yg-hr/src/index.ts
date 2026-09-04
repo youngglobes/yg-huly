@@ -43,7 +43,8 @@ import type {
   EmploymentStatus,
   Gender,
   Location,
-  MaritalStatus
+  MaritalStatus,
+  TerminationReason
 } from '@hcengineering/yg-hr'
 import ygHr from './plugin'
 
@@ -77,6 +78,12 @@ export class TLocation extends TDoc {
   @Prop(TypeString(), ygHr.string.Location) name!: string
 }
 
+@Model(ygHr.class.TerminationReason, core.class.Doc, DOMAIN_YG_HR)
+@UX(ygHr.string.TerminationReason)
+export class TTerminationReason extends TDoc {
+  @Prop(TypeString(), ygHr.string.TerminationReason) name!: string
+}
+
 // Monotonic per-workspace counter for employee ids (single doc, no UX label - internal only).
 // Seeded at 24 and incremented atomically by OnEmployeeCreate (server-plugins/yg-hr-resources)
 // so the next assigned id continues the YGS series after the existing YGS0024.
@@ -94,6 +101,10 @@ export class TEmployeePersonal extends TEmployee implements EmployeePersonal {
   @Prop(TypeString(), ygHr.string.Nationality) nationality?: string
   @Prop(TypeString(), ygHr.string.BloodGroup) bloodGroup?: string
   @Prop(TypeString(), ygHr.string.EmployeeId) employeeId?: string
+  @Prop(TypeString(), ygHr.string.Nickname) nickname?: string
+  @Prop(TypeString(), ygHr.string.OtherId) otherId?: string
+  @Prop(TypeString(), ygHr.string.DriverLicenseNo) driverLicenseNo?: string
+  @Prop(TypeDate(), ygHr.string.DriverLicenseExpiry) driverLicenseExpiry?: Timestamp
   @Prop(TypeString(), ygHr.string.Status) status?: EmployeeStatus
 
   @Prop(Collection(ygHr.class.EmergencyContact), ygHr.string.EmergencyContacts)
@@ -124,6 +135,8 @@ export class TEmployeeJob extends TEmployee implements EmployeeJob {
   @Prop(TypeNumber(), ygHr.string.ShiftStart) shiftStart?: number
   @Prop(TypeDate(), ygHr.string.ContractStart) contractStart?: Timestamp
   @Prop(TypeDate(), ygHr.string.ContractEnd) contractEnd?: Timestamp
+  @Prop(TypeDate(), ygHr.string.TerminationDate) terminationDate?: Timestamp
+  @Prop(TypeRef(ygHr.class.TerminationReason), ygHr.string.TerminationReason) terminationReason?: Ref<TerminationReason>
 }
 
 @Model(ygHr.class.EmergencyContact, core.class.AttachedDoc, DOMAIN_YG_HR)
@@ -142,6 +155,7 @@ export function createModel (builder: Builder): void {
     TDesignation,
     TEmploymentStatus,
     TLocation,
+    TTerminationReason,
     TEmployeePersonal,
     TEmployeeContact,
     TEmployeeJob,
