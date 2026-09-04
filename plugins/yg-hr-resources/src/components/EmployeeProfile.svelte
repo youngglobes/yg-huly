@@ -62,6 +62,10 @@
 
   export let _id: Ref<Employee>
   export let readonly: boolean = false
+  // Set by the directory only on the post-create redirect: open straight into Edit mode so HR can
+  // fill in the pending fields immediately. Applied once canEdit resolves (isHrMember loads async),
+  // and never for a viewer who cannot edit.
+  export let startInEdit: boolean = false
 
   const client = getClient()
   const h = client.getHierarchy()
@@ -146,6 +150,13 @@
   // the header button was never shown to.
   let editing = false
   $: if (!canEdit) editing = false
+  // One-shot: honor startInEdit as soon as canEdit first resolves true (it can start false while the
+  // HR-membership query loads). Guarded so it fires once and never fights a later manual Done.
+  let appliedStartEdit = false
+  $: if (startInEdit && canEdit && !appliedStartEdit) {
+    editing = true
+    appliedStartEdit = true
+  }
 
   function toggleEdit (): void {
     editing = !editing
@@ -165,13 +176,28 @@
     })
   }
 
+  // Flip the invite button to "Resend" once an unaccepted invite already exists for this work
+  // email. hasPendingInvite reads the account service's invite table (the same one SendInvite/
+  // ResendInvite write), so the label survives a reload, not just this session.
+  let alreadyInvited = false
+  $: void refreshInviteState(workEmail)
+  async function refreshInviteState (email: string | undefined): Promise<void> {
+    if (email === undefined) {
+      alreadyInvited = false
+      return
+    }
+    const check = await getResource(login.function.HasPendingInvite)
+    alreadyInvited = await check(email)
+  }
+
   let inviting = false
   async function sendInvitation (): Promise<void> {
     if (workEmail === undefined || inviting) return
     inviting = true
     try {
-      const sendInvite = await getResource(login.function.SendInvite)
-      await sendInvite(workEmail, AccountRole.User)
+      const invite = await getResource(alreadyInvited ? login.function.ResendInvite : login.function.SendInvite)
+      await invite(workEmail, AccountRole.User)
+      alreadyInvited = true
       const title = await translate(ygHr.string.InvitationSent, {})
       addNotification(title, workEmail, YgToast, undefined, NotificationSeverity.Success)
     } finally {
@@ -242,25 +268,25 @@
       </div>
       {#if canEdit}
         <div class="yg-idcard__actions">
-          {#if editing}
-            <label class="yg-status-edit">
-              <span><Label label={ygHr.string.Status} /></span>
-              <select class="yg-input yg-status-select" value={profileStatus} on:change={changeStatus}>
-                <!-- Pending is system-assigned (created, not yet logged in) - shown so the value
-                     renders, but disabled so HR cannot set it back to Pending. -->
-                {#if profileStatus === 'pending'}
-                  <option value="pending" disabled>{statusPendingLabel}</option>
-                {/if}
-                <option value="active">{statusActiveLabel}</option>
-                <option value="onhold">{statusOnHoldLabel}</option>
-                <option value="deactivated">{statusDeactivatedLabel}</option>
-              </select>
-            </label>
-          {/if}
           <div class="yg-idcard__btns">
+            {#if editing}
+              <label class="yg-status-edit">
+                <span><Label label={ygHr.string.Status} /></span>
+                <select class="yg-input yg-status-select" value={profileStatus} on:change={changeStatus}>
+                  <!-- Pending is system-assigned (created, not yet logged in) - shown so the value
+                       renders, but disabled so HR cannot set it back to Pending. -->
+                  {#if profileStatus === 'pending'}
+                    <option value="pending" disabled>{statusPendingLabel}</option>
+                  {/if}
+                  <option value="active">{statusActiveLabel}</option>
+                  <option value="onhold">{statusOnHoldLabel}</option>
+                  <option value="deactivated">{statusDeactivatedLabel}</option>
+                </select>
+              </label>
+            {/if}
             <button class="yg-ghostbtn" on:click={sendInvitation} disabled={workEmail === undefined || inviting}>
               {#if inviting}<span class="yg-btn-spin"><Spinner size={'small'} /></span>{/if}
-              <Label label={ygHr.string.SendInvitation} />
+              <Label label={alreadyInvited ? ygHr.string.ResendInvitation : ygHr.string.SendInvitation} />
             </button>
             <button class="yg-btn-dark" on:click={toggleEdit}>
               {#if editing}
@@ -405,19 +431,22 @@
   .yg-idcard__btns {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 8px;
   }
   .yg-status-edit {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--theme-trans-color);
+    white-space: nowrap;
   }
   .yg-status-select {
-    min-width: 150px;
+    min-width: 140px;
   }
   .yg-btn-spin {
     display: inline-flex;

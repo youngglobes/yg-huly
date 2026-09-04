@@ -16,7 +16,7 @@
   Modern employee directory (Task 11) - the "Employees" nav special. Read-only rows for everyone;
   the "+ Add employee" action is gated to HR/admin the same way HrLists.svelte gates its edit
   surface (isAdmin || member of the Roster HR team). Rows open EmployeeProfile.svelte
-  (Task 10) as a FULL-WIDTH page in place of this list (a `selectedEmployee` toggle, matching the
+  (Task 10) as a FULL-WIDTH page in place of this list (a `selectedEmployeeId` toggle, matching the
   approved mockup's directory/profile swap) rather than a platform panel - see
   models/yg-hr/src/index.ts's file-header comment for why the directory opens it directly instead
   of registering a global ObjectEditor.
@@ -174,13 +174,18 @@
   // Full-page swap (Task: PO UI refinement) - selecting a row hides this list and renders
   // EmployeeProfile in its place, matching the approved mockup's directory/profile toggle. The
   // profile's `back` event (its own "< Employees" link) returns here.
-  let selectedEmployee: Employee | undefined
+  let selectedEmployeeId: Ref<Employee> | undefined
+  // Open the profile straight into Edit mode - set ONLY on the post-create redirect (below), so a
+  // freshly created record lands ready for HR to fill in the rest of the fields. A normal row click
+  // leaves it false (read-only until HR clicks Edit).
+  let openInEdit = false
   // Full-page create form shown in place of this list (same swap pattern as the profile), replacing
   // the stock CreateEmployee popup.
   let creating = false
 
   function openEmployee (employee: Employee): void {
-    selectedEmployee = employee
+    selectedEmployeeId = employee._id
+    openInEdit = false
   }
 
   function openEmployeeKey (e: KeyboardEvent, employee: Employee): void {
@@ -191,22 +196,27 @@
   }
 
   function backToDirectory (): void {
-    selectedEmployee = undefined
+    selectedEmployeeId = undefined
+    openInEdit = false
   }
 
   function addEmployee (): void {
     creating = true
   }
 
-  function onCreated (): void {
+  // Redirect to the just-created employee's profile (the `created` event carries its ref) so HR can
+  // fill in the pending information right away, opened directly in Edit mode.
+  function onCreated (e: CustomEvent<Ref<Employee>>): void {
     creating = false
+    selectedEmployeeId = e.detail
+    openInEdit = true
   }
 </script>
 
 {#if creating}
   <CreateEmployeePage {designations} {departments} on:created={onCreated} on:back={() => { creating = false }} />
-{:else if selectedEmployee !== undefined}
-  <EmployeeProfile _id={selectedEmployee._id} on:back={backToDirectory} />
+{:else if selectedEmployeeId !== undefined}
+  <EmployeeProfile _id={selectedEmployeeId} startInEdit={openInEdit} on:back={backToDirectory} />
 {:else}
 <div class="yg-directory">
   {#if ready}
