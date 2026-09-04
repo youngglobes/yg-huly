@@ -24,7 +24,8 @@ import ygHr, {
   type Designation,
   type EmploymentStatus,
   type Location,
-  type HrListItem
+  type HrListItem,
+  type TerminationReason
 } from '@hcengineering/yg-hr'
 import { DOMAIN_YG_HR } from '.'
 
@@ -47,6 +48,13 @@ const DEPARTMENTS: WorkDepartment[] = ['Development', 'Testing', 'SEO', 'Sales',
 // yg-hr has no existing enum for these - seeded with the values agreed in the phase-1 brief.
 const EMPLOYMENT_STATUSES = ['Full Time', 'Part Time', 'Freelancer', 'Intern']
 const LOCATIONS = ['Young Globes - Coimbatore']
+
+// Seeded from ohrm_emp_termination_reason in the OrangeHRM dump (hr.youngglobe.com). Hyphens are
+// intentional (source values), not dashes.
+const TERMINATION_REASONS = [
+  'Other', 'Retired', 'Contract Not Renewed', 'Resigned', 'Resigned - Company Requested',
+  'Resigned - Self Proposed', 'Deceased', 'Physically Disabled/Compensated', 'Laid-off', 'Dismissed'
+]
 
 // The admin lists live in core.space.Workspace (a mainSpace), NOT a custom space. The server's
 // SpaceSecurityMiddleware IGNORES public spaces for data-domain reads (spaceSecurity.ts: a public
@@ -291,6 +299,13 @@ async function removeContactsEmployeeSpecial (ops: TxOperations): Promise<void> 
   }
 }
 
+// Its own tryUpgrade state so it also runs on the existing yg workspace, which already completed the
+// earlier seed state (tryUpgrade skips a state once recorded done).
+async function migrateSeedTerminationReasons (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await seedNames<TerminationReason>(ops, ygHr.class.TerminationReason, TERMINATION_REASONS)
+}
+
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
@@ -483,6 +498,11 @@ export const ygHrOperation: MigrateOperation = {
         // Remove the Team Profiles special from the HR app nav (unified into the employee profile).
         state: 'remove-team-profiles-nav-0001',
         func: migrateRemoveTeamProfilesNav
+      },
+      {
+        // Seed the TerminationReason admin list (Job tab termination reason).
+        state: 'seed-termination-reasons-0001',
+        func: migrateSeedTerminationReasons
       }
     ])
   }
