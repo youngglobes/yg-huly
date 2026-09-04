@@ -38,7 +38,8 @@
     type Designation,
     type EmploymentStatus,
     type HrListItem,
-    type Location
+    type Location,
+    type TerminationReason
   } from '@hcengineering/yg-hr'
 
   const client = getClient()
@@ -61,6 +62,7 @@
   let designations: Designation[] = []
   let employmentStatuses: EmploymentStatus[] = []
   let locations: Location[] = []
+  let terminationReasons: TerminationReason[] = []
   let desigLoaded = false
 
   const depQuery = createQuery()
@@ -71,6 +73,8 @@
   statusQuery.query(ygHr.class.EmploymentStatus, {}, (res) => { employmentStatuses = res })
   const locQuery = createQuery()
   locQuery.query(ygHr.class.Location, {}, (res) => { locations = res })
+  const termQuery = createQuery()
+  termQuery.query(ygHr.class.TerminationReason, {}, (res) => { terminationReasons = res })
 
   $: ready = empLoaded && desigLoaded
   $: isHr = isAdmin || isHrMember
@@ -80,6 +84,7 @@
   $: sortedDesignations = byName(designations)
   $: sortedEmploymentStatuses = byName(employmentStatuses)
   $: sortedLocations = byName(locations)
+  $: sortedTerminationReasons = byName(terminationReasons)
 
   async function addItem<T extends HrListItem> (_class: Ref<Class<T>>, name: string): Promise<void> {
     const trimmed = name.trim()
@@ -112,17 +117,20 @@
   let designationPlaceholder = ''
   let employmentStatusPlaceholder = ''
   let locationPlaceholder = ''
+  let terminationReasonPlaceholder = ''
   void translate(ygHr.string.AddItem, {}).then((r) => { addLabel = r })
   void translate(ygHr.string.RemoveItem, {}).then((r) => { removeLabel = r })
   void translate(ygHr.string.Department, {}).then((r) => { departmentPlaceholder = `+ ${r}` })
   void translate(ygHr.string.Designation, {}).then((r) => { designationPlaceholder = `+ ${r}` })
   void translate(ygHr.string.EmploymentStatus, {}).then((r) => { employmentStatusPlaceholder = `+ ${r}` })
   void translate(ygHr.string.Location, {}).then((r) => { locationPlaceholder = `+ ${r}` })
+  void translate(ygHr.string.TerminationReason, {}).then((r) => { terminationReasonPlaceholder = `+ ${r}` })
 
   let newDepartment = ''
   let newDesignation = ''
   let newEmploymentStatus = ''
   let newLocation = ''
+  let newTerminationReason = ''
 
   function submitDepartment (): void {
     void addItem(ygHr.class.Department, newDepartment)
@@ -139,6 +147,10 @@
   function submitLocation (): void {
     void addItem(ygHr.class.Location, newLocation)
     newLocation = ''
+  }
+  function submitTerminationReason (): void {
+    void addItem(ygHr.class.TerminationReason, newTerminationReason)
+    newTerminationReason = ''
   }
 </script>
 
@@ -265,6 +277,33 @@
           </div>
           <form class="hs-add" on:submit|preventDefault={submitLocation}>
             <input class="hs-input" type="text" placeholder={locationPlaceholder} bind:value={newLocation} />
+            <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
+              <IconAdd size={'small'} />
+            </button>
+          </form>
+        </div>
+
+        <div class="hs-card">
+          <div class="hs-card__title"><Label label={ygHr.string.TerminationReasons} /></div>
+          <div class="hs-list">
+            {#each sortedTerminationReasons as item (item._id)}
+              <div class="hs-row">
+                <input
+                  class="hs-input"
+                  type="text"
+                  value={item.name}
+                  on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
+                />
+                <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
+                  <IconDelete size={'small'} />
+                </button>
+              </div>
+            {:else}
+              <div class="hs-empty"><Label label={ygHr.string.NoItemsYet} /></div>
+            {/each}
+          </div>
+          <form class="hs-add" on:submit|preventDefault={submitTerminationReason}>
+            <input class="hs-input" type="text" placeholder={terminationReasonPlaceholder} bind:value={newTerminationReason} />
             <button class="hs-icon-btn hs-icon-btn--accent" type="submit" aria-label={addLabel}>
               <IconAdd size={'small'} />
             </button>
