@@ -47,10 +47,11 @@ Enums (string unions, stored as the value, shown as the label):
 - `LanguageFluency = 'speaking' | 'writing' | 'reading'`
 - `LanguageCompetency = 'poor' | 'basic' | 'good' | 'mothertongue'` (label "Mother Tongue")
 
-The child-collection counter props follow the `EmergencyContact` idiom: a `@Prop(Collection(...))`
-counter for each, declared on a new `EmployeeQualifications` mixin on `contact.mixin.Employee` (keeps the
-five counters namespaced to this tab rather than swelling `EmployeePersonal`). The implementation plan
-confirms this against the exact `EmergencyContact` registration.
+The child-collection counter props follow the `EmergencyContact` idiom exactly: a `@Prop(Collection(...))`
+counter for each of the five, declared on the existing `EmployeePersonal` mixin (the same place
+`emergencyContacts` lives, the proven location the platform's collection-count middleware maintains).
+`addCollection` uses `attachedToClass = contact.mixin.Employee` with the collection names above, mirroring
+`EmergencyTab`. No new mixin is introduced.
 
 ## 4. Admin-managed lists (four)
 
@@ -86,7 +87,8 @@ Both guard layers, matching sub-phase 1's lesson:
 
 ## 7. Model change, migration, deploy
 
-- New classes (5 child + 4 list + 1 mixin) => **model change** => build + `upgrade-workspace`.
+- New classes (5 child AttachedDoc + 4 list) + 5 counter props on `EmployeePersonal` => **model change**
+  => build + `upgrade-workspace`.
 - All new => **no per-employee data migration**; migration only **seeds the three non-empty lists** in a
   new idempotent `tryUpgrade` state.
 - Packages: `plugins/yg-hr`, `plugins/yg-hr-assets`, `plugins/yg-hr-resources`, `models/yg-hr`,
