@@ -470,7 +470,12 @@
     white-space: nowrap;
   }
   .yg-status-select {
-    min-width: 140px;
+    min-width: 116px;
+    // The shared .yg-input is 42px tall, which read as oversized next to the header buttons - shrink
+    // this one to sit level with the Send invitation / Done buttons.
+    min-height: 34px;
+    font-size: 13px;
+    padding: 5px 11px;
   }
   .yg-btn-spin {
     display: inline-flex;

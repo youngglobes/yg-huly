@@ -1012,14 +1012,16 @@
     font-weight: 600;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: var(--theme-trans-color);
-    padding: 0 16px 9px 0;
+    // Darker label on a real header band so the table reads prominently instead of floating text.
+    color: var(--theme-halfcontent-color);
+    background: var(--theme-comp-header-color);
+    padding: 9px 14px;
     border-bottom: 1px solid var(--theme-divider-color);
     white-space: nowrap;
   }
   .yg-qtable tbody td {
-    padding: 12px 16px 12px 0;
-    color: var(--theme-content-color);
+    padding: 12px 14px;
+    color: var(--theme-caption-color);
     border-bottom: 1px solid var(--theme-divider-color);
     vertical-align: middle;
     white-space: nowrap;
