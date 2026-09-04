@@ -650,7 +650,7 @@
               type="number"
               placeholder={yearPlaceholder}
               value={fEduYear}
-              on:input={(e) => { fEduYear = (e.currentTarget as HTMLInputElement).value }}
+              on:input={(e) => { fEduYear = e.currentTarget.value }}
             />
             <input class="yg-input" type="text" placeholder={scorePlaceholder} bind:value={fEduScore} />
             <input class="yg-input" type="date" bind:value={fEduStartDate} />
@@ -697,7 +697,7 @@
             type="number"
             placeholder={yearPlaceholder}
             value={fEduYear}
-            on:input={(e) => { fEduYear = (e.currentTarget as HTMLInputElement).value }}
+            on:input={(e) => { fEduYear = e.currentTarget.value }}
           />
           <input class="yg-input" type="text" placeholder={scorePlaceholder} bind:value={fEduScore} />
           <input class="yg-input" type="date" bind:value={fEduStartDate} />
@@ -731,7 +731,7 @@
               type="number"
               placeholder={yearsOfExperiencePlaceholder}
               value={fSkYears}
-              on:input={(e) => { fSkYears = (e.currentTarget as HTMLInputElement).value }}
+              on:input={(e) => { fSkYears = e.currentTarget.value }}
             />
             <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fSkComments} />
             <div class="yg-q-form__actions">
@@ -774,7 +774,7 @@
             type="number"
             placeholder={yearsOfExperiencePlaceholder}
             value={fSkYears}
-            on:input={(e) => { fSkYears = (e.currentTarget as HTMLInputElement).value }}
+            on:input={(e) => { fSkYears = e.currentTarget.value }}
           />
           <input class="yg-input" type="text" placeholder={commentsPlaceholder} bind:value={fSkComments} />
           <div class="yg-q-form__actions">
