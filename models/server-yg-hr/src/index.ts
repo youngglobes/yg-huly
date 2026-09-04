@@ -50,23 +50,36 @@ export function createModel (builder: Builder): void {
     }
   })
 
-  // EmergencyContact create/update/remove: a flat CUD tx (this schema version has no separate
-  // TxCollectionCUD class - see the guard's own comment), so an objectClass-only match covers all
-  // three tx kinds, same as e.g. OnTimeSpendReportChange's registration.
+  // Guarded Employee child-collection create/update/remove: a flat CUD tx (this schema version has
+  // no separate TxCollectionCUD class - see the guard's own comment), so an objectClass `$in` match
+  // covers all six child-collection classes (EmergencyContact/WorkExperience/Education/
+  // EmployeeSkill/EmployeeLanguage/EmployeeLicense) and all three tx kinds in one registration, same
+  // idiom as e.g. OnTimeSpendReportChange's registration.
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverYgHr.trigger.OnEmployeeHrGuard,
     isAsync: true,
-    txMatch: { objectClass: ygHr.class.EmergencyContact }
+    txMatch: {
+      objectClass: {
+        $in: [
+          ygHr.class.EmergencyContact,
+          ygHr.class.WorkExperience,
+          ygHr.class.Education,
+          ygHr.class.EmployeeSkill,
+          ygHr.class.EmployeeLanguage,
+          ygHr.class.EmployeeLicense
+        ]
+      }
+    }
   })
 
-  // The five admin-managed HrConfig list classes (Department/Designation/EmploymentStatus/
-  // Location/TerminationReason, all in ygHr.space.HrConfig) had no server-side write guard - the
-  // UI gate on HrLists.svelte does not stop a direct API call, and since HR-status is decided off
-  // Designation.isHr, an unguarded Designation write let any member self-elevate
-  // (updateDoc(Designation, ..., theirOwnDesignationId, { isHr: true })), after which the mixin/
-  // EmergencyContact guards above would treat them as authorized. objectClass `$in` covers all
-  // five classes and all three tx kinds in one registration, same idiom as the EmergencyContact
-  // match above.
+  // The nine admin-managed HrConfig list classes (Department/Designation/EmploymentStatus/
+  // Location/TerminationReason/EducationLevel/SkillType/LanguageType/LicenseType, all in
+  // ygHr.space.HrConfig) had no server-side write guard - the UI gate on HrLists.svelte does not
+  // stop a direct API call, and since HR-status is decided off Designation.isHr, an unguarded
+  // Designation write let any member self-elevate (updateDoc(Designation, ...,
+  // theirOwnDesignationId, { isHr: true })), after which the mixin/child-doc guards above would
+  // treat them as authorized. objectClass `$in` covers all nine classes and all three tx kinds in
+  // one registration, same idiom as the child-collection match above.
   builder.createDoc(serverCore.class.Trigger, core.space.Model, {
     trigger: serverYgHr.trigger.OnEmployeeHrGuard,
     isAsync: true,
@@ -74,7 +87,8 @@ export function createModel (builder: Builder): void {
       objectClass: {
         $in: [
           ygHr.class.Department, ygHr.class.Designation, ygHr.class.EmploymentStatus, ygHr.class.Location,
-          ygHr.class.TerminationReason
+          ygHr.class.TerminationReason, ygHr.class.EducationLevel, ygHr.class.SkillType,
+          ygHr.class.LanguageType, ygHr.class.LicenseType
         ]
       }
     }
