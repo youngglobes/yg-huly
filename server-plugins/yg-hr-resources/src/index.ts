@@ -187,7 +187,8 @@ async function nextEmployeeSeq (control: TriggerControl): Promise<number> {
 const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
   [ygHr.mixin.EmployeePersonal]: [
     'middleName', 'gender', 'dateOfBirth', 'maritalStatus', 'nationality', 'bloodGroup',
-    'employeeId', 'status', 'emergencyContacts'
+    'employeeId', 'nickname', 'otherId', 'driverLicenseNo', 'driverLicenseExpiry', 'status',
+    'emergencyContacts'
   ],
   [ygHr.mixin.EmployeeContact]: [
     'street1', 'street2', 'addressCity', 'state', 'zip', 'country', 'homePhone', 'mobile',
@@ -195,7 +196,7 @@ const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
   ],
   [ygHr.mixin.EmployeeJob]: [
     'designation', 'department', 'employmentStatus', 'joinedDate', 'location', 'contractStart',
-    'contractEnd'
+    'contractEnd', 'terminationDate', 'terminationReason'
   ]
 }
 
@@ -208,7 +209,8 @@ const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
   [ygHr.class.Department]: ['name'],
   [ygHr.class.Designation]: ['name', 'isHr'],
   [ygHr.class.EmploymentStatus]: ['name'],
-  [ygHr.class.Location]: ['name']
+  [ygHr.class.Location]: ['name'],
+  [ygHr.class.TerminationReason]: ['name']
 }
 
 // "HR" = membership in the Roster-managed HR team (ygTimesheet.space.HrData) - the single source of
