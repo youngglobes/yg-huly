@@ -22,9 +22,12 @@ import ygHr, {
   EMPLOYEE_SEQ_ID,
   type Department,
   type Designation,
+  type EducationLevel,
   type EmploymentStatus,
   type Location,
   type HrListItem,
+  type LanguageType,
+  type LicenseType,
   type TerminationReason
 } from '@hcengineering/yg-hr'
 import { DOMAIN_YG_HR } from '.'
@@ -55,6 +58,12 @@ const TERMINATION_REASONS = [
   'Other', 'Retired', 'Contract Not Renewed', 'Resigned', 'Resigned - Company Requested',
   'Resigned - Self Proposed', 'Deceased', 'Physically Disabled/Compensated', 'Laid-off', 'Dismissed'
 ]
+
+// Seeded from ohrm_education / ohrm_language / ohrm_license in the OrangeHRM dump. Hyphens intentional.
+const EDUCATION_LEVELS = ['UG - Under Graduate', 'PG - Post Graduate', 'Diploma', 'SSLC', 'HSC']
+const LANGUAGE_TYPES = ['English', 'Tamil', 'Malayalam']
+const LICENSE_TYPES = ['Driving License']
+// SkillType is intentionally NOT seeded (HR populates it).
 
 // The admin lists live in core.space.Workspace (a mainSpace), NOT a custom space. The server's
 // SpaceSecurityMiddleware IGNORES public spaces for data-domain reads (spaceSecurity.ts: a public
@@ -306,6 +315,13 @@ async function migrateSeedTerminationReasons (client: MigrationUpgradeClient): P
   await seedNames<TerminationReason>(ops, ygHr.class.TerminationReason, TERMINATION_REASONS)
 }
 
+async function migrateSeedQualificationLists (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await seedNames<EducationLevel>(ops, ygHr.class.EducationLevel, EDUCATION_LEVELS)
+  await seedNames<LanguageType>(ops, ygHr.class.LanguageType, LANGUAGE_TYPES)
+  await seedNames<LicenseType>(ops, ygHr.class.LicenseType, LICENSE_TYPES)
+}
+
 async function migrateYgHr (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await seedNames<Designation>(ops, ygHr.class.Designation, DESIGNATIONS)
@@ -503,6 +519,11 @@ export const ygHrOperation: MigrateOperation = {
         // Seed the TerminationReason admin list (Job tab termination reason).
         state: 'seed-termination-reasons-0001',
         func: migrateSeedTerminationReasons
+      },
+      {
+        // Seed the Qualifications admin lists (EducationLevel / LanguageType / LicenseType; Skills empty).
+        state: 'seed-qualification-lists-0001',
+        func: migrateSeedQualificationLists
       }
     ])
   }
