@@ -202,7 +202,15 @@ const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
   ]
 }
 
-const EMERGENCY_CONTACT_FIELDS = ['name', 'relationship', 'homePhone', 'mobile', 'workPhone'] as const
+// Own content fields per guarded child class, restored on an unauthorized UPDATE (see guardChildDocWrite).
+const CHILD_DOC_FIELDS: Record<string, readonly string[]> = {
+  [ygHr.class.EmergencyContact]: ['name', 'relationship', 'homePhone', 'mobile', 'workPhone'],
+  [ygHr.class.WorkExperience]: ['employer', 'jobTitle', 'fromDate', 'toDate', 'comments'],
+  [ygHr.class.Education]: ['level', 'institute', 'major', 'year', 'score', 'startDate', 'endDate'],
+  [ygHr.class.EmployeeSkill]: ['skill', 'yearsOfExperience', 'comments'],
+  [ygHr.class.EmployeeLanguage]: ['language', 'fluency', 'competency', 'comments'],
+  [ygHr.class.EmployeeLicense]: ['licenseType', 'licenseNo', 'issuedDate', 'expiryDate']
+}
 
 // Own fields of each guarded HrConfig list class (Department/EmploymentStatus/Location/
 // TerminationReason carry only `name`; Designation also carries `isHr`, the field this whole
@@ -386,7 +394,8 @@ async function guardChildDocWrite (cud: TxCUD<AttachedDoc>, control: TriggerCont
   // is what actually clears the key.
   const setOps: Record<string, any> = {}
   const unsetOps: Record<string, ''> = {}
-  for (const field of EMERGENCY_CONTACT_FIELDS) {
+  const contentFields = CHILD_DOC_FIELDS[cud.objectClass] ?? []
+  for (const field of contentFields) {
     const val = (prevDoc as any)[field]
     if (val === undefined) unsetOps[field] = ''
     else setOps[field] = val
