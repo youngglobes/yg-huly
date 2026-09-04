@@ -220,6 +220,9 @@
   white-space: nowrap;
   position: sticky;
   top: 0;
+  // z-index keeps the sticky header ABOVE the scrolling body cells - without it the rows (and their
+  // avatars) paint over the header when scrolled.
+  z-index: 2;
   // Distinct header band (a real tint) instead of the page background, which blended in.
   background: var(--theme-comp-header-color);
   border-bottom: 1px solid var(--theme-divider-color);

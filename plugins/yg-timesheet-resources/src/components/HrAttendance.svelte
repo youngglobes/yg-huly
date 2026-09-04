@@ -20,7 +20,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
-  import { EmployeeBox } from '@hcengineering/contact-resources'
+  import { Avatar, EmployeeBox, employeeByIdStore } from '@hcengineering/contact-resources'
   import core, { type Ref } from '@hcengineering/core'
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
@@ -118,6 +118,12 @@
     }
   )
 
+  // Non-linking avatar lookup for the employee name cells, same idiom as HrOverview - reads the
+  // employeeByIdStore that EmployeePresenter/Avatar use internally.
+  function employeeFor (ref: Ref<Person>): Employee | undefined {
+    return $employeeByIdStore.get(ref as Ref<Employee>)
+  }
+
   $: todayRows = todayBoard(sessions, employees, todayMid, nowMs)
   $: summaryRows = attendanceSummary(sessions, employees, fromMid, toExcl, nowMs)
   $: individual = selectedEmp !== undefined
@@ -211,7 +217,12 @@
           <tbody>
             {#each todayRows as r (r.employee)}
               <tr class="yg-row">
-                <td class="left">{r.name}</td>
+                <td class="left">
+                  <div class="flex-row-center flex-gap-2">
+                    <Avatar size={'x-small'} person={employeeFor(r.employee)} name={r.name} />
+                    <span class="overflow-label">{r.name}</span>
+                  </div>
+                </td>
                 <td>
                   {#if r.status === 'in'}
                     <span class="att-live"><span class="att-dot" /><Label label={ygTimesheet.string.InNow} /></span>
@@ -247,7 +258,12 @@
           <tbody>
             {#each summaryRows as r (r.employee)}
               <tr class="yg-row">
-                <td class="left">{r.name}</td>
+                <td class="left">
+                  <div class="flex-row-center flex-gap-2">
+                    <Avatar size={'x-small'} person={employeeFor(r.employee)} name={r.name} />
+                    <span class="overflow-label">{r.name}</span>
+                  </div>
+                </td>
                 <td>{r.daysPresent}</td>
                 <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
                 <td>{formatHours(r.officeMs / 3600000)}</td>

@@ -268,6 +268,7 @@
     white-space: nowrap;
     position: sticky;
     top: 0;
+    z-index: 2;
     background: var(--theme-comp-header-color);
   }
   .yg-table th:first-child { text-align: left; padding-left: 1.125rem; }
