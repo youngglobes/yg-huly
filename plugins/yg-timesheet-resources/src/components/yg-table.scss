@@ -208,12 +208,15 @@
   font-size: 0.8125rem;
 }
 :global(.yg-table th) {
-  font-size: 0.625rem;
-  color: var(--theme-dark-color);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  color: var(--theme-trans-color);
   text-transform: uppercase;
   text-align: center;
   font-weight: 600;
-  padding: 0.5rem;
+  // Generous padding matching the employees directory table (12px 15px) so the grid breathes
+  // instead of reading as a dense raw table.
+  padding: 0.75rem 0.9375rem;
   white-space: nowrap;
   position: sticky;
   top: 0;
@@ -225,22 +228,33 @@
 :global(.yg-table td.left) {
   text-align: left;
 }
+// A touch more breathing room on the first and last columns, matching the directory table's edges.
+:global(.yg-table th:first-child),
+:global(.yg-table td:first-child) {
+  padding-left: 1.125rem;
+}
+:global(.yg-table th:last-child),
+:global(.yg-table td:last-child) {
+  padding-right: 1.125rem;
+}
 :global(.yg-table td) {
-  padding: 0.5rem;
+  padding: 0.75rem 0.9375rem;
   text-align: center;
   vertical-align: middle;
   border-bottom: 1px solid var(--theme-divider-color);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+:global(.yg-table tbody tr:last-child td) {
+  border-bottom: none;
+}
 :global(.yg-table td.bold) {
   font-weight: 600;
 }
-// NB: no `cursor: pointer` here, only HrOverview's rows are actually clickable (`on:click`).
-// Reports/Approvals/Timesheet rows are not, so the shared hover only highlights; clickable
-// consumers add their own local `cursor: pointer` (see HrOverview.svelte).
+// Row hover matches the employees directory table's feedback (the header/hover tint), a clearer
+// highlight than the old faint list-row colour.
 :global(.yg-row:hover) {
-  background: var(--theme-list-row-color);
+  background: var(--theme-comp-header-color);
 }
 :global(.yg-amber) {
   color: var(--theme-warning-color);

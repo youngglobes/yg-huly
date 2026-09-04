@@ -263,22 +263,25 @@
     color: var(--theme-dark-color);
     font-size: inherit;
     text-transform: none;
-    padding: 0.375rem 0.5rem;
+    padding: 0.75rem 0.9375rem;
     border-bottom: 1px solid var(--theme-divider-color);
     white-space: nowrap;
     position: sticky;
     top: 0;
     background: var(--theme-comp-header-color);
   }
-  .yg-table th:first-child { text-align: left; }
+  .yg-table th:first-child { text-align: left; padding-left: 1.125rem; }
+  .yg-table th:last-child { padding-right: 1.125rem; }
   .yg-table td {
-    padding: 0.375rem 0.5rem;
+    padding: 0.75rem 0.9375rem;
     border-bottom: 1px solid var(--theme-divider-color);
     vertical-align: top;
     text-align: left;
     font-variant-numeric: normal;
     white-space: normal;
   }
+  .yg-table td:first-child { padding-left: 1.125rem; }
+  .yg-table td:last-child { padding-right: 1.125rem; }
   .yg-table th.yg-num,
   .yg-table td.yg-num {
     text-align: right;
