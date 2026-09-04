@@ -17,13 +17,14 @@
   attached to an Employee under a given `collection` name (e.g. 'personalFiles', 'jobFiles') so
   the Personal and Job tabs each get their own independent file list on the same Employee. Uses
   Huly's own attachment plugin (blob storage + the Attachment AttachedDoc) rather than a bespoke
-  upload path.
+  upload path. Each file shows a type-coloured icon tile (extension) and an icon remove button.
 -->
 <script lang="ts">
   import contact, { type Employee } from '@hcengineering/contact'
   import attachment, { type Attachment } from '@hcengineering/attachment'
   import { createQuery, deleteFile, getClient, getFileUrl, uploadFile } from '@hcengineering/presentation'
-  import { Label, Spinner } from '@hcengineering/ui'
+  import { translate } from '@hcengineering/platform'
+  import { IconDelete, Label, Spinner } from '@hcengineering/ui'
   import ygHr from '@hcengineering/yg-hr'
   import SectionCard from './SectionCard.svelte'
 
@@ -69,15 +70,36 @@
     if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`
     return `${(n / (1024 * 1024)).toFixed(1)} MB`
   }
+
+  // Uppercased file extension for the icon tile label (empty when the name has none).
+  function fileExt (name: string): string {
+    const m = /\.([a-z0-9]{1,6})$/i.exec(name)
+    return m !== null ? m[1].toUpperCase() : ''
+  }
+
+  // Coarse type bucket that drives the icon tile colour (see the yg-file__ic--* rules).
+  function fileCat (name: string, type: string): string {
+    const e = fileExt(name).toLowerCase()
+    if (type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'heic'].includes(e)) return 'image'
+    if (e === 'pdf' || type === 'application/pdf') return 'pdf'
+    if (['doc', 'docx', 'rtf', 'odt', 'txt', 'md'].includes(e)) return 'doc'
+    if (['xls', 'xlsx', 'csv', 'ods'].includes(e)) return 'sheet'
+    if (['ppt', 'pptx', 'odp'].includes(e)) return 'slide'
+    if (['zip', 'rar', '7z', 'tar', 'gz'].includes(e)) return 'archive'
+    return 'file'
+  }
+
+  let removeTitle = ''
+  void translate(ygHr.string.RemoveItem, {}).then((r) => { removeTitle = r })
 </script>
 
 <SectionCard label={attachment.string.Attachments} full>
   <svelte:fragment slot="actions">
     {#if uploading}
-      <Spinner size={'small'} />
+      <span class="yg-files__spin"><Spinner size={'small'} /></span>
     {/if}
     {#if canEdit}
-      <button class="yg-iconbtn" type="button" on:click={() => input.click()}>
+      <button class="yg-abtn" type="button" on:click={() => input.click()}>
         <Label label={ygHr.string.AddItem} />
       </button>
       <input
@@ -91,16 +113,21 @@
   </svelte:fragment>
 
   {#if files.length === 0}
-    <div class="yg-files__empty"><Label label={ygHr.string.NotSet} /></div>
+    <div class="yg-files__empty"><Label label={attachment.string.NoFiles} /></div>
   {:else}
     <div class="yg-files">
       {#each files as att (att._id)}
-        <div class="yg-files__row">
-          <a class="yg-files__name" href={getFileUrl(att.file, att.name)} download={att.name}>{att.name}</a>
-          <span class="yg-files__size">{fmtSize(att.size)}</span>
+        <div class="yg-file">
+          <a class="yg-file__link" href={getFileUrl(att.file, att.name)} download={att.name}>
+            <span class="yg-file__ic yg-file__ic--{fileCat(att.name, att.type)}">{fileExt(att.name) || 'FILE'}</span>
+            <span class="yg-file__meta">
+              <span class="yg-file__name">{att.name}</span>
+              <span class="yg-file__size">{fmtSize(att.size)}</span>
+            </span>
+          </a>
           {#if canEdit}
-            <button class="yg-linkbtn" type="button" on:click={() => remove(att)}>
-              <Label label={ygHr.string.RemoveItem} />
+            <button class="yg-file__rm" type="button" title={removeTitle} aria-label={removeTitle} on:click={() => remove(att)}>
+              <IconDelete size={'small'} />
             </button>
           {/if}
         </div>
@@ -117,34 +144,128 @@
     flex-direction: column;
     gap: 8px;
   }
-  .yg-files__row {
+  .yg-file {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
+    padding: 8px 10px;
+    border-radius: 11px;
+    border: 1px solid var(--theme-divider-color);
+    background: var(--theme-panel-color);
+    transition: border-color 0.12s ease;
   }
-  .yg-files__name {
+  .yg-file:hover {
+    border-color: var(--theme-trans-color);
+  }
+  .yg-file__link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+  }
+  .yg-file__ic {
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 9px;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    background: #6b7280;
+  }
+  .yg-file__ic--image {
+    background: #16a34a;
+  }
+  .yg-file__ic--pdf {
+    background: #dc2626;
+  }
+  .yg-file__ic--doc {
+    background: #2563eb;
+  }
+  .yg-file__ic--sheet {
+    background: #0f766e;
+  }
+  .yg-file__ic--slide {
+    background: #ea580c;
+  }
+  .yg-file__ic--archive {
+    background: #7c3aed;
+  }
+  .yg-file__ic--file {
+    background: #6b7280;
+  }
+  .yg-file__meta {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .yg-file__name {
     font-size: 14px;
     font-weight: 500;
-    color: var(--theme-content-color);
-    text-decoration: none;
+    color: var(--theme-caption-color);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .yg-files__name:hover {
+  .yg-file__link:hover .yg-file__name {
     text-decoration: underline;
   }
-  .yg-files__size {
-    flex: none;
-    font-size: 12px;
+  .yg-file__size {
+    font-size: 11.5px;
     color: var(--theme-trans-color);
   }
-  .yg-files__row .yg-linkbtn {
+  .yg-file__rm {
     flex: none;
-    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    color: var(--theme-halfcontent-color);
+  }
+  .yg-file__rm:hover {
+    background: var(--theme-comp-header-color);
+    color: var(--theme-error-color, #dc2626);
+  }
+  .yg-files__spin {
+    display: inline-flex;
+    align-items: center;
   }
   .yg-files__empty {
     font-size: 14px;
     color: var(--theme-trans-color);
+  }
+
+  // Black/white primary action (Add), matching the theme's .yg-btn-dark at a compact size.
+  .yg-abtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 12.5px;
+    padding: 6px 13px;
+    border-radius: 9px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    background: #14181b;
+    color: #ffffff;
+  }
+  .yg-abtn:hover {
+    background: #23292d;
+  }
+  :global(.theme-dark) .yg-abtn {
+    border-color: rgba(255, 255, 255, 0.16);
   }
 </style>
