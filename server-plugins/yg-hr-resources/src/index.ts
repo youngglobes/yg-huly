@@ -202,9 +202,10 @@ const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
 
 const EMERGENCY_CONTACT_FIELDS = ['name', 'relationship', 'homePhone', 'mobile', 'workPhone'] as const
 
-// Own fields of each guarded HrConfig list class (Department/EmploymentStatus/Location carry only
-// `name`; Designation also carries `isHr`, the field this whole trigger's authorization decision
-// is keyed off of - see resolveDesignation below for why writes to THIS class need special care).
+// Own fields of each guarded HrConfig list class (Department/EmploymentStatus/Location/
+// TerminationReason carry only `name`; Designation also carries `isHr`, the field this whole
+// trigger's authorization decision is keyed off of - see resolveDesignation below for why writes
+// to THIS class need special care).
 const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
   [ygHr.class.Department]: ['name'],
   [ygHr.class.Designation]: ['name', 'isHr'],
@@ -461,7 +462,7 @@ async function isSystemDesignationMutation (cud: TxCUD<Doc>, control: TriggerCon
 
 async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Promise<void> {
   const fields = HR_CONFIG_FIELDS[cud.objectClass]
-  if (fields === undefined) return // not one of the four guarded HrConfig list classes
+  if (fields === undefined) return // not one of the five guarded HrConfig list classes
 
   // System designations are locked for EVERYONE (their name drives role detection), so a rename/
   // remove of one is reverted even when the actor IS HR/admin. All other writes pass for HR/admin.
