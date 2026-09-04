@@ -296,7 +296,8 @@ export default plugin(ygTimesheetId, {
     HrHolidays: '' as AnyComponent,
     HrLatePermissions: '' as AnyComponent,
     AiUsage: '' as AnyComponent,
-    AiUsageConfig: '' as AnyComponent
+    AiUsageConfig: '' as AnyComponent,
+    AiUsageGuard: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -506,7 +507,13 @@ export default plugin(ygTimesheetId, {
     // project OR leadership designation (WorkProfile). Consumed by core tracker-resources and
     // workbench-resources to hide the "Create project" affordance - imported as this PLUGIN only
     // (never yg-timesheet-resources) so those core packages stay free of a circular dependency.
-    CanCreateProject: '' as Resource<() => Promise<boolean>>
+    CanCreateProject: '' as Resource<() => Promise<boolean>>,
+    // App route gate (workbench.class.Application.accessCheck) for the HR module: Owner/
+    // Maintainer/Admin OR a member of ygTimesheet.space.HrData. See utils/access.ts.
+    CheckHrAppAccess: '' as Resource<() => Promise<boolean>>,
+    // App route gate for the AI Usage app: Owner/Maintainer/Admin OR the usage-sidecar's viewer
+    // allowlist. Also used by AiUsageGuard.svelte to toggle the icon's per-user hide.
+    CheckAiUsageAccess: '' as Resource<() => Promise<boolean>>
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,

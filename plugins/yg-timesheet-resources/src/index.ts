@@ -9,6 +9,7 @@ import ygTimesheet, {
 } from '@hcengineering/yg-timesheet'
 import { canApproveView } from './utils/task-approval'
 import { asRefArray } from './utils/workflow'
+import { checkHrAppAccess, checkAiUsageAccess } from './utils/access'
 import Timesheet from './components/Timesheet.svelte'
 import ProjectApproversList from './components/ProjectApproversList.svelte'
 import Approvals from './components/Approvals.svelte'
@@ -33,6 +34,7 @@ import HrHolidays from './components/HrHolidays.svelte'
 import HrLatePermissions from './components/HrLatePermissions.svelte'
 import AiUsage from './components/AiUsage.svelte'
 import AiUsageConfig from './components/AiUsageConfig.svelte'
+import AiUsageGuard from './components/AiUsageGuard.svelte'
 
 async function CanApprove (_spaces: Space[]): Promise<boolean> {
   const isAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -150,8 +152,15 @@ export default async (): Promise<Resources> => ({
     HrHolidays,
     HrLatePermissions,
     AiUsage,
-    AiUsageConfig
+    AiUsageConfig,
+    AiUsageGuard
   },
-  function: { CanApprove, TimesheetDayTitle: timesheetDayTitle, CanCreateProject },
+  function: {
+    CanApprove,
+    TimesheetDayTitle: timesheetDayTitle,
+    CanCreateProject,
+    CheckHrAppAccess: checkHrAppAccess,
+    CheckAiUsageAccess: checkAiUsageAccess
+  },
   resolver: { Location: resolveLocation, AttendanceLocation: resolveAttendanceLocation }
 })

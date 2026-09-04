@@ -30914,6 +30914,9 @@ importers:
       '@hcengineering/view-resources':
         specifier: workspace:^0.7.426
         version: link:../view-resources
+      '@hcengineering/workbench':
+        specifier: workspace:^0.7.426
+        version: link:../workbench
       '@hcengineering/yg-timesheet':
         specifier: workspace:^0.7.426
         version: link:../yg-timesheet

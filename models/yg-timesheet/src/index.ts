@@ -323,6 +323,11 @@ export function createModel (builder: Builder): void {
       alias: 'yg-hr',
       hidden: false,
       position: 'top',
+      // Route gate (2026-09-04): the icon-hide above is best-effort only. This is the actual
+      // security boundary - a non-HR user hitting /workbench/.../yg-hr by URL now gets the 403
+      // Access Denied view instead of the module. Same rule as the icon-hide (Owner/Maintainer
+      // OR ygTimesheet.space.HrData member); see plugins/yg-timesheet-resources/src/utils/access.ts.
+      accessCheck: ygTimesheet.function.CheckHrAppAccess,
       navigatorModel: {
         spaces: [],
         specials: [
@@ -476,6 +481,11 @@ export function createModel (builder: Builder): void {
       hidden: false,
       position: 'top',
       accessLevel: AccountRole.User,
+      // Route gate (2026-09-04): the icon itself stays visible to every User (see the note above -
+      // accessLevel cannot express the viewer allowlist), but the route now refuses a non-allowlisted
+      // caller with the 403 Access Denied view. AiUsageGuard.svelte (registered below as a global
+      // WorkbenchExtensions component) runs the SAME predicate to also hide the icon for that user.
+      accessCheck: ygTimesheet.function.CheckAiUsageAccess,
       navigatorModel: {
         spaces: [],
         specials: [
@@ -529,5 +539,13 @@ export function createModel (builder: Builder): void {
   builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
     extension: workbench.extensions.WorkbenchExtensions,
     component: ygTimesheet.component.LocationPermissionBanner
+  })
+
+  // AI Usage icon-hide (2026-09-04): mirrors checkAiUsageAccess onto the current user's own
+  // workbench.class.HiddenApplication for ygTimesheet.app.AiUsage, so the icon agrees with the
+  // route's accessCheck above. Same global slot, renders nothing. See AiUsageGuard.svelte.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WorkbenchExtensions,
+    component: ygTimesheet.component.AiUsageGuard
   })
 }
