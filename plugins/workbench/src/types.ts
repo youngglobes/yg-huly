@@ -55,6 +55,10 @@ export interface Application extends Doc {
   // Component to display in the actions area of the navigator header
   navHeaderActions?: AnyComponent
   accessLevel?: AccountRole
+  // Optional async access predicate, checked at route-resolution time IN ADDITION to accessLevel.
+  // For gates a role threshold cannot express (e.g. HR-team membership, an allowlist). When it
+  // returns false the app does not mount and the workbench shows its "Access denied" (403) view.
+  accessCheck?: Resource<() => Promise<boolean>>
   navFooterComponent?: AnyComponent
 }
 

@@ -326,7 +326,7 @@
       windowWorkspaceName = wsUrl
     }
     const docTitle = await getWindowTitle(loc)
-    // YG Portal: title is "<page> - <brand>" (or just the brand) — do NOT prepend the raw
+    // YG Portal: title is "<page> - <brand>" (or just the brand) - do NOT prepend the raw
     // workspace slug (avoids the awkward "yg - YG Portal").
     const brand = getMetadata(workbench.metadata.PlatformTitle) ?? 'YG Portal'
     if (docTitle !== undefined && docTitle !== '') {
@@ -493,9 +493,23 @@
         alias: app
       })
       if (newApplication?.accessLevel === undefined || hasAccountRole(account, newApplication.accessLevel)) {
-        currentApplication = newApplication
-        currentAppAlias = currentApplication?.alias
-        navigatorModel = await buildNavModel(client, currentApplication)
+        // yg: an app may carry an `accessCheck` predicate (e.g. HR-team membership, the AI-usage
+        // allowlist) that a plain accessLevel role threshold cannot express. When present and it
+        // denies, do NOT mount the app - leave it cleared (from clear(1) above) and raise the
+        // existing "Access denied" (403) view. Apps without accessCheck are unaffected.
+        let accessAllowed = true
+        if (newApplication?.accessCheck !== undefined) {
+          const check = await getResource(newApplication.accessCheck)
+          accessAllowed = await check()
+        }
+        if (accessAllowed) {
+          accessDeniedStore.set(false)
+          currentApplication = newApplication
+          currentAppAlias = currentApplication?.alias
+          navigatorModel = await buildNavModel(client, currentApplication)
+        } else {
+          accessDeniedStore.set(true)
+        }
       }
     }
 
