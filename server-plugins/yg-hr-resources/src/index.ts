@@ -22,6 +22,7 @@ import ygHr, {
   employeeActiveFromStatus,
   EMPLOYEE_SEQ_ID,
   formatEmployeeId,
+  isSystemDesignation,
   ygHrId,
   type EmergencyContact,
   type EmployeeSeq
@@ -436,14 +437,37 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
 // write to the actor's OWN Designation doc is judged against its PRE-tx isHr value, not the
 // tainted post-apply one this very tx just set - see resolveDesignation's comment for why that
 // matters and is not optional.
+// A rename or delete of a SYSTEM designation (SYSTEM_DESIGNATIONS - Team Leader/Project Manager/HR
+// Executive/CEO/CTO/COO) whose exact name drives the timesheet role flows. Protected from EVERYONE
+// (even HR/admin) because a rename silently breaks string-based detection (=== 'Team Leader',
+// isHrDesignation('HR Executive')). Judged against the PRE-tx name (same buildDoc2Doc replay idiom).
+async function isSystemDesignationMutation (cud: TxCUD<Doc>, control: TriggerControl): Promise<boolean> {
+  if (cud.objectClass !== ygHr.class.Designation) return false
+  if (cud._class === core.class.TxCreateDoc) return false
+  const logTxes = Array.from(
+    await control.findAll(control.ctx, core.class.TxCUD, { objectId: cud.objectId })
+  ).filter((it) => it._id !== cud._id)
+  const prevName = (TxProcessor.buildDoc2Doc<Doc>(logTxes) as any)?.name
+  if (!isSystemDesignation(prevName)) return false
+  if (cud._class === core.class.TxRemoveDoc) return true
+  if (cud._class === core.class.TxUpdateDoc) {
+    const newName = ((cud as TxUpdateDoc<Doc>).operations as any)?.name
+    return newName !== undefined && newName !== prevName
+  }
+  return false
+}
+
 async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Promise<void> {
   const fields = HR_CONFIG_FIELDS[cud.objectClass]
   if (fields === undefined) return // not one of the four guarded HrConfig list classes
 
-  if (await isHrAuthorized(control)) return
+  // System designations are locked for EVERYONE (their name drives role detection), so a rename/
+  // remove of one is reverted even when the actor IS HR/admin. All other writes pass for HR/admin.
+  const protectedSystem = await isSystemDesignationMutation(cud, control)
+  if (!protectedSystem && (await isHrAuthorized(control))) return
 
-  control.ctx.warn('yg-hr: unauthorized HrConfig list write reverted', {
-    doc: cud.objectId, class: cud.objectClass, actor: cud.modifiedBy, txClass: cud._class
+  control.ctx.warn(protectedSystem ? 'yg-hr: protected system-designation write reverted' : 'yg-hr: unauthorized HrConfig list write reverted', {
+    doc: cud.objectId, class: cud.objectClass, actor: cud.modifiedBy, txClass: cud._class, protectedSystem
   })
 
   if (cud._class === core.class.TxCreateDoc) {
@@ -647,10 +671,69 @@ async function revokeWorkspaceAccess (control: TriggerControl, person: Person): 
   }
 }
 
+//
+// Sync trigger: mirror the yg-hr EmployeeJob (now the single edit source for designation/department/
+// shiftStart) BACK into ygTimesheet.mixin.WorkProfile, so the timesheet flows that still read
+// WorkProfile (attendance shiftStart, dashboard role routing, HR/late-permission detection,
+// leadership project-creation, Performance) keep reading the same shape WITHOUT being modified.
+// WorkProfile is now server-maintained plumbing - nothing writes it via the UI (the Team Profiles
+// editor was removed). designation/department Refs are resolved to their Designation/Department NAME
+// (WorkProfile stores strings; the role-driving names are locked so they stay valid). shiftStart
+// copies directly.
+//
+// Loop-safety: the WorkProfile write is System-authored AND on a DIFFERENT mixin (WorkProfile) than
+// this trigger matches (EmployeeJob), so it cannot re-enter; the top-of-loop System guard backstops.
+// Only writes when a value actually differs from the current WorkProfile mirror (no churn).
+//
+export async function OnEmployeeJobSync (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
+  for (const tx of txes) {
+    if (tx.modifiedBy === core.account.System) continue
+    if (tx._class !== core.class.TxMixin) continue
+    const mtx = tx as TxMixin<Person, Employee>
+    if (mtx.mixin !== ygHr.mixin.EmployeeJob) continue
+
+    const person = (
+      await control.findAll(control.ctx, contact.class.Person, { _id: mtx.objectId }, { limit: 1 })
+    )[0]
+    if (person === undefined || !control.hierarchy.hasMixin(person, contact.mixin.Employee)) continue
+
+    const job = control.hierarchy.as(person, ygHr.mixin.EmployeeJob)
+    const desigName = job.designation !== undefined
+      ? (await control.findAll(control.ctx, ygHr.class.Designation, { _id: job.designation }, { limit: 1 }))[0]?.name
+      : undefined
+    const deptName = job.department !== undefined
+      ? (await control.findAll(control.ctx, ygHr.class.Department, { _id: job.department }, { limit: 1 }))[0]?.name
+      : undefined
+
+    const wp = control.hierarchy.hasMixin(person, ygTimesheet.mixin.WorkProfile)
+      ? control.hierarchy.as(person, ygTimesheet.mixin.WorkProfile)
+      : undefined
+    const wpUpdate: Record<string, any> = {}
+    if (wp?.designation !== desigName) wpUpdate.designation = desigName
+    if (wp?.department !== deptName) wpUpdate.department = deptName
+    if (wp?.shiftStart !== job.shiftStart) wpUpdate.shiftStart = job.shiftStart
+    if (Object.keys(wpUpdate).length === 0) continue
+
+    await control.apply(control.ctx, [
+      control.txFactory.createTxMixin(
+        person._id,
+        contact.mixin.Employee,
+        person.space,
+        ygTimesheet.mixin.WorkProfile,
+        wpUpdate as any,
+        Date.now(),
+        core.account.System
+      )
+    ])
+  }
+  return []
+}
+
 export default async () => ({
   trigger: {
     OnEmployeeCreate,
     OnEmployeeHrGuard,
-    OnEmployeeStatusChange
+    OnEmployeeStatusChange,
+    OnEmployeeJobSync
   }
 })

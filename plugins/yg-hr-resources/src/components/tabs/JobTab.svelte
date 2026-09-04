@@ -53,17 +53,35 @@
   $: departmentName = departments.find((d) => d._id === job?.department)?.name
   $: employmentStatusName = employmentStatuses.find((d) => d._id === job?.employmentStatus)?.name
   $: locationName = locations.find((d) => d._id === job?.location)?.name
+  $: shiftStartDisplay = minutesToTime(job?.shiftStart)
+
+  // shiftStart is stored as minutes since local midnight (540 = 09:00), unified from WorkProfile. The
+  // <input type="time"> uses a "HH:MM" string, so convert both ways.
+  function minutesToTime (m: number | undefined): string | undefined {
+    if (m === undefined || m === null) return undefined
+    const hh = String(Math.floor(m / 60)).padStart(2, '0')
+    const mm = String(m % 60).padStart(2, '0')
+    return `${hh}:${mm}`
+  }
+  function timeToMinutes (s: string): number | undefined {
+    if (s === '') return undefined
+    const [hh, mm] = s.split(':').map((p) => Number.parseInt(p, 10))
+    if (Number.isNaN(hh) || Number.isNaN(mm)) return undefined
+    return hh * 60 + mm
+  }
 
   let fDesignation = ''
   let fDepartment = ''
   let fEmploymentStatus = ''
   let fLocation = ''
+  let fShiftStart = ''
 
   $: if (editing) {
     fDesignation = job?.designation ?? ''
     fDepartment = job?.department ?? ''
     fEmploymentStatus = job?.employmentStatus ?? ''
     fLocation = job?.location ?? ''
+    fShiftStart = minutesToTime(job?.shiftStart) ?? ''
   }
 
   async function saveRole (): Promise<void> {
@@ -71,7 +89,8 @@
       designation: fDesignation === '' ? undefined : (fDesignation as Ref<Designation>),
       department: fDepartment === '' ? undefined : (fDepartment as Ref<Department>),
       employmentStatus: fEmploymentStatus === '' ? undefined : (fEmploymentStatus as Ref<EmploymentStatus>),
-      location: fLocation === '' ? undefined : (fLocation as Ref<Location>)
+      location: fLocation === '' ? undefined : (fLocation as Ref<Location>),
+      shiftStart: timeToMinutes(fShiftStart)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeJob, upd)
   }
@@ -128,6 +147,10 @@
             {#each locations as d (d._id)}<option value={d._id}>{d.name}</option>{/each}
           </select>
         </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.ShiftStart} /></span>
+          <input class="yg-input" type="time" bind:value={fShiftStart} on:change={saveRole} />
+        </label>
       </FieldGroup>
     {:else}
       <FieldGroup>
@@ -139,6 +162,7 @@
         </FieldRow>
         <FieldRow label={ygHr.string.EmploymentStatus} value={employmentStatusName} />
         <FieldRow label={ygHr.string.Location} value={locationName} />
+        <FieldRow label={ygHr.string.ShiftStart} value={shiftStartDisplay} mono />
       </FieldGroup>
     {/if}
   </SectionCard>

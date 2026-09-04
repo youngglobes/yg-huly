@@ -79,12 +79,12 @@ async function flagHrExecutiveDesignation (ops: TxOperations): Promise<void> {
   await ops.updateDoc(ygHr.class.Designation, doc.space, doc._id, { isHr: true })
 }
 
-// For each Person carrying ygTimesheet.mixin.WorkProfile, copy its designation/department/employeeId
-// into the new EmployeeJob/EmployeePersonal mixins, resolving designation/department to the matching
-// seeded list doc by name. Read-only on WorkProfile - never touches it (shiftStart and the rest of
-// WorkProfile must survive intact; attendance and late-permission code still read WorkProfile
-// directly). Idempotent: skips a field that already has a value on the target mixin, so re-running
-// never clobbers a manual edit made after a previous migration run.
+// For each Person carrying ygTimesheet.mixin.WorkProfile, copy its designation/department/employeeId/
+// shiftStart into the new EmployeeJob/EmployeePersonal mixins, resolving designation/department to
+// the matching seeded list doc by name. Read-only on WorkProfile - never writes it here (a runtime
+// sync trigger, OnEmployeeJobSync, keeps WorkProfile mirrored FROM EmployeeJob going forward so the
+// attendance/role flows read it unchanged). Idempotent: skips a field that already has a value on the
+// target mixin, so re-running never clobbers a manual edit made after a previous migration run.
 async function migrateWorkProfiles (ops: TxOperations): Promise<void> {
   const h = ops.getHierarchy()
   const profiles = await ops.findAll(ygTimesheet.mixin.WorkProfile, {})
@@ -99,7 +99,7 @@ async function migrateWorkProfiles (ops: TxOperations): Promise<void> {
 
   for (const profile of profiles) {
     const job = h.hasMixin(profile, ygHr.mixin.EmployeeJob) ? h.as(profile, ygHr.mixin.EmployeeJob) : undefined
-    const jobUpdate: { designation?: Ref<Designation>, department?: Ref<Department> } = {}
+    const jobUpdate: { designation?: Ref<Designation>, department?: Ref<Department>, shiftStart?: number } = {}
     if (job?.designation === undefined && profile.designation !== undefined) {
       const ref = designationByName.get(profile.designation)
       if (ref !== undefined) jobUpdate.designation = ref
@@ -107,6 +107,9 @@ async function migrateWorkProfiles (ops: TxOperations): Promise<void> {
     if (job?.department === undefined && profile.department !== undefined) {
       const ref = departmentByName.get(profile.department)
       if (ref !== undefined) jobUpdate.department = ref
+    }
+    if (job?.shiftStart === undefined && profile.shiftStart !== undefined) {
+      jobUpdate.shiftStart = profile.shiftStart
     }
     if (Object.keys(jobUpdate).length > 0) {
       await ops.updateMixin(profile._id, contact.mixin.Employee, profile.space, ygHr.mixin.EmployeeJob, jobUpdate)
@@ -375,9 +378,57 @@ async function migrateHideContactsApp (client: MigrationUpgradeClient): Promise<
   await hideContactsApp(ops)
 }
 
+// Remove the "Team Profiles" special (WorkProfileEditor) from the Human Resource app nav - its job
+// (designation/department/employeeId/shiftStart) is now the yg-hr employee profile's, and WorkProfile
+// is kept in sync server-side (OnEmployeeJobSync). Same idiom as removeContactsEmployeeSpecial:
+// only a TxOperations client can rewrite an already-committed navigatorModel.specials. Best-effort +
+// idempotent (no-op once the special is gone).
+async function removeTeamProfilesSpecial (ops: TxOperations): Promise<void> {
+  try {
+    const appId = ygTimesheet.app.HumanResource as Ref<Application>
+    const app = await ops.findOne(workbench.class.Application, { _id: appId })
+    if (app === undefined) return
+    const specials = app.navigatorModel?.specials ?? []
+    if (!specials.some((s) => s.id === 'team-profiles')) return // idempotent
+    await ops.updateDoc<Application>(workbench.class.Application, core.space.Model, appId, {
+      navigatorModel: {
+        spaces: app.navigatorModel?.spaces ?? [],
+        groups: app.navigatorModel?.groups,
+        hideStarred: app.navigatorModel?.hideStarred,
+        specials: specials.filter((s) => s.id !== 'team-profiles')
+      }
+    })
+  } catch (err) {
+    console.error('yg-hr: could not remove Team Profiles nav special (non-fatal)', err)
+  }
+}
+
+async function migrateRemoveTeamProfilesNav (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  await removeTeamProfilesSpecial(ops)
+}
+
 async function migrateBackfillEmployeeStatus (client: MigrationUpgradeClient): Promise<void> {
   const ops = new TxOperations(client, core.account.System)
   await backfillEmployeeStatus(ops)
+}
+
+// Repair: copy WorkProfile.shiftStart into EmployeeJob.shiftStart on workspaces that ran the seed
+// state before shiftStart was unified into EmployeeJob. Its own tryUpgrade state so it runs on the
+// existing yg workspace (the seed state is skipped once recorded done). Idempotent: skips an
+// employee whose EmployeeJob already has a shiftStart.
+async function migrateShiftStart (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const h = ops.getHierarchy()
+  const profiles = await ops.findAll(ygTimesheet.mixin.WorkProfile, {})
+  for (const profile of profiles) {
+    if (profile.shiftStart === undefined) continue
+    const job = h.hasMixin(profile, ygHr.mixin.EmployeeJob) ? h.as(profile, ygHr.mixin.EmployeeJob) : undefined
+    if (job?.shiftStart !== undefined) continue
+    await ops.updateMixin(profile._id, contact.mixin.Employee, profile.space, ygHr.mixin.EmployeeJob, {
+      shiftStart: profile.shiftStart
+    })
+  }
 }
 
 export const ygHrOperation: MigrateOperation = {
@@ -422,6 +473,16 @@ export const ygHrOperation: MigrateOperation = {
         // Backfill EmployeePersonal.status on existing employees (active flag -> active/deactivated).
         state: 'backfill-employee-status-0001',
         func: migrateBackfillEmployeeStatus
+      },
+      {
+        // Unify shiftStart: copy WorkProfile.shiftStart -> EmployeeJob.shiftStart on existing employees.
+        state: 'migrate-shiftstart-0001',
+        func: migrateShiftStart
+      },
+      {
+        // Remove the Team Profiles special from the HR app nav (unified into the employee profile).
+        state: 'remove-team-profiles-nav-0001',
+        func: migrateRemoveTeamProfilesNav
       }
     ])
   }

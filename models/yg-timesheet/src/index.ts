@@ -384,18 +384,10 @@ export function createModel (builder: Builder): void {
             component: ygTimesheet.component.HrRoster,
             accessLevel: AccountRole.Owner,
             position: 'bottom'
-          },
-          {
-            id: 'team-profiles',
-            label: ygTimesheet.string.TeamProfiles,
-            icon: contact.icon.Person,
-            component: ygTimesheet.component.WorkProfileEditor,
-            // DocGuest like the other HR specials: HR-app visibility is already gated to HrData members
-            // + owners (the HiddenApplication trigger), so this shows team-profiles to HR staff too, not
-            // just owners. (Was Owner-only; HR users need to manage designations/departments/IDs.)
-            accessLevel: AccountRole.DocGuest,
-            position: 'bottom'
           }
+          // 'team-profiles' (WorkProfileEditor) removed: designation/department/employeeId/shiftStart
+          // are now managed in the yg-hr employee profile (the single source), which syncs back into
+          // WorkProfile server-side (OnEmployeeJobSync). See models/yg-hr migration remove-team-profiles.
         ]
       }
     },

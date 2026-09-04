@@ -91,4 +91,17 @@ export function createModel (builder: Builder): void {
       mixin: ygHr.mixin.EmployeePersonal
     }
   })
+
+  // Sync EmployeeJob (the single edit source) back into ygTimesheet.mixin.WorkProfile so the
+  // timesheet flows that read WorkProfile (attendance shift, dashboard role, HR/late-permission
+  // detection, leadership project-creation) keep working unchanged. See OnEmployeeJobSync
+  // (server-plugins/yg-hr-resources). Matched on the EmployeeJob mixin write.
+  builder.createDoc(serverCore.class.Trigger, core.space.Model, {
+    trigger: serverYgHr.trigger.OnEmployeeJobSync,
+    isAsync: true,
+    txMatch: {
+      _class: core.class.TxMixin,
+      mixin: ygHr.mixin.EmployeeJob
+    }
+  })
 }

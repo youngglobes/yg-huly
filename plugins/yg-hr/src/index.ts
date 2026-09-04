@@ -90,9 +90,26 @@ export interface EmployeeJob extends Employee {
   location?: Ref<Location>
   contractStart?: Timestamp
   contractEnd?: Timestamp
+  // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
+  // Unified here from ygTimesheet.mixin.WorkProfile.shiftStart; a server sync mirrors it back to
+  // WorkProfile so the attendance flows read it unchanged (OnEmployeeJobSync, server-plugins/yg-hr-resources).
+  shiftStart?: number
 }
 
 export const HR_DESIGNATION_FALLBACK = 'HR Executive'
+
+// Designations whose EXACT name drives role logic in the timesheet module (dashboard role routing,
+// HR/late-permission detection, leadership project-creation). Those flows compare the designation
+// name as a string (=== 'Team Leader', isHrDesignation('HR Executive'), a leadership set), so these
+// names must never change. HR Settings makes them read-only and undeletable, and the server guard
+// (guardHrConfigWrite) reverts any rename/remove of them. Non-role designations stay freely editable.
+export const SYSTEM_DESIGNATIONS: readonly string[] = [
+  'Team Leader', 'Project Manager', 'HR Executive', 'CEO', 'CTO', 'COO'
+]
+
+export function isSystemDesignation (name: string | undefined): boolean {
+  return name !== undefined && SYSTEM_DESIGNATIONS.includes(name)
+}
 
 export function formatEmployeeId (seq: number, prefix = 'YGS', width = 4): string {
   return `${prefix}${String(seq).padStart(width, '0')}`
@@ -169,6 +186,7 @@ export default plugin(ygHrId, {
     EmploymentStatus: '' as IntlString,
     JoinedDate: '' as IntlString,
     Location: '' as IntlString,
+    ShiftStart: '' as IntlString,
     ContractStart: '' as IntlString,
     ContractEnd: '' as IntlString,
     EmployeeSeqLast: '' as IntlString,
@@ -190,6 +208,7 @@ export default plugin(ygHrId, {
     AddItem: '' as IntlString,
     NoItemsYet: '' as IntlString,
     RemoveItem: '' as IntlString,
+    SystemDesignationHint: '' as IntlString,
     HrSettingsRestricted: '' as IntlString,
     NotSet: '' as IntlString,
     OpenEnded: '' as IntlString,

@@ -33,6 +33,7 @@
   import { IconAdd, IconDelete, Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
   import ygHr, {
+    isSystemDesignation,
     type Department,
     type Designation,
     type EmploymentStatus,
@@ -105,6 +106,8 @@
   // bind a <Label> component directly.
   let addLabel = ''
   let removeLabel = ''
+  let systemDesignationHint = ''
+  void translate(ygHr.string.SystemDesignationHint, {}).then((r) => { systemDesignationHint = r })
   let departmentPlaceholder = ''
   let designationPlaceholder = ''
   let employmentStatusPlaceholder = ''
@@ -183,16 +186,24 @@
           <div class="hs-card__title"><Label label={ygHr.string.Designations} /></div>
           <div class="hs-list">
             {#each sortedDesignations as item (item._id)}
+              {@const locked = isSystemDesignation(item.name)}
               <div class="hs-row">
                 <input
                   class="hs-input"
                   type="text"
                   value={item.name}
-                  on:change={(e) => { void renameItem(item, e.currentTarget.value) }}
+                  readonly={locked}
+                  on:change={(e) => { if (!locked) void renameItem(item, e.currentTarget.value) }}
                 />
-                <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
-                  <IconDelete size={'small'} />
-                </button>
+                {#if locked}
+                  <span class="hs-lock" title={systemDesignationHint}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+                  </span>
+                {:else}
+                  <button class="hs-icon-btn hs-icon-btn--danger" aria-label={removeLabel} on:click={() => { void removeItem(item) }}>
+                    <IconDelete size={'small'} />
+                  </button>
+                {/if}
               </div>
             {:else}
               <div class="hs-empty"><Label label={ygHr.string.NoItemsYet} /></div>
@@ -360,6 +371,20 @@
   }
   .hs-input::placeholder { color: var(--theme-text-placeholder-color); }
 
+  .hs-lock {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    color: var(--theme-trans-color);
+    cursor: help;
+  }
+  .hs-lock svg {
+    width: 15px;
+    height: 15px;
+  }
   .hs-icon-btn {
     display: inline-flex;
     align-items: center;

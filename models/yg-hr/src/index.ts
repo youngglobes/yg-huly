@@ -121,6 +121,7 @@ export class TEmployeeJob extends TEmployee implements EmployeeJob {
   @Prop(TypeRef(ygHr.class.EmploymentStatus), ygHr.string.EmploymentStatus) employmentStatus?: Ref<EmploymentStatus>
   @Prop(TypeDate(), ygHr.string.JoinedDate) joinedDate?: Timestamp
   @Prop(TypeRef(ygHr.class.Location), ygHr.string.Location) location?: Ref<Location>
+  @Prop(TypeNumber(), ygHr.string.ShiftStart) shiftStart?: number
   @Prop(TypeDate(), ygHr.string.ContractStart) contractStart?: Timestamp
   @Prop(TypeDate(), ygHr.string.ContractEnd) contractEnd?: Timestamp
 }

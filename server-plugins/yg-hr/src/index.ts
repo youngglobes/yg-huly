@@ -17,6 +17,7 @@ export default plugin(serverYgHrId, {
   trigger: {
     OnEmployeeCreate: '' as Resource<TriggerFunc>,
     OnEmployeeHrGuard: '' as Resource<TriggerFunc>,
-    OnEmployeeStatusChange: '' as Resource<TriggerFunc>
+    OnEmployeeStatusChange: '' as Resource<TriggerFunc>,
+    OnEmployeeJobSync: '' as Resource<TriggerFunc>
   }
 })
