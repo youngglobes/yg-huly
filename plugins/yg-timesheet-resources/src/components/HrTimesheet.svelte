@@ -98,13 +98,13 @@
   )
   $: grid = buildWeekGrid(hrEntries, week)
 
-  // Per-day approval status, ALL employees for the visible week — this IS a cross-employee view,
+  // Per-day approval status, ALL employees for the visible week - this IS a cross-employee view,
   // so a week date-range query is correct here (unlike Timesheet.svelte's own employee-scoped
   // dayIds query). Query TimesheetTask directly (never the deprecated TimesheetDay.status) and
   // resolve each task's employee via the nested attachedTo lookup: task → TimesheetDay →
   // Timesheet → .employee, exactly as Approvals.svelte:51-61. Group by
   // `${employee}|${localDayKey(task.date)}` (submitDay stamps task.date = the day's date) and
-  // derive each entry's label via deriveDayStatus — never stored, never read off TimesheetDay.
+  // derive each entry's label via deriveDayStatus - never stored, never read off TimesheetDay.
   function employeeOfTask (task: TimesheetTask): Ref<Employee> | undefined {
     const day = task.$lookup?.attachedTo as TimesheetDay | undefined
     const parent = day?.$lookup?.attachedTo as Timesheet | undefined
@@ -253,7 +253,7 @@
   // differs from HrOverview's (centered/uppercase/middle-aligned) even though both now share
   // `.yg-table`/`.yg-num` class names via yg-table.scss. These local rules are plain
   // (non-`:global`) Svelte-scoped rules, so the compiler auto-suffixes them with this
-  // component's own scope class — that reliably out-specificities the shared partial's
+  // component's own scope class - that reliably out-specificities the shared partial's
   // `:global(...)` (hash-less) base rules regardless of source order, letting this component
   // keep its pre-existing look on top of the shared class names rather than adopting
   // HrOverview's flavor. See yg-table.scss's header comment for the full rationale.

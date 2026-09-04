@@ -86,13 +86,13 @@
   const dowFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' })
   const rangeFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
   $: dayHeaders = week.days.map((d) => dowFmt.format(d.date))
-  $: weekLabel = `${rangeFmt.format(week.days[0].date)} – ${rangeFmt.format(week.days[6].date)}`
+  $: weekLabel = `${rangeFmt.format(week.days[0].date)} - ${rangeFmt.format(week.days[6].date)}`
 
   // Hands the clicked employee off to the Timesheets sub-module via the shared store, then
-  // navigates there. The HR app's specials (timesheets/overview/roster) live at path[3] —
+  // navigates there. The HR app's specials (timesheets/overview/roster) live at path[3] -
   // the same segment `getTabDataByLocation` reads via `application.navigatorModel.specials`
   // (see plugins/workbench-resources/src/workbench.ts) and the same segment `doNavigate`'s
-  // 'special' mode sets (plugins/workbench-resources/src/utils.ts) — so this follows that
+  // 'special' mode sets (plugins/workbench-resources/src/utils.ts) - so this follows that
   // convention rather than SpecialElement/NavLink's space-nested path[4], which doesn't apply
   // here since the HR app's specials aren't nested under a space.
   function selectEmployee (ref: Ref<Person>): void {
@@ -103,7 +103,7 @@
     navigate(loc)
   }
 
-  // Non-linking avatar lookup for the Overview name cell (see below) — reads the same
+  // Non-linking avatar lookup for the Overview name cell (see below) - reads the same
   // employeeByIdStore that EmployeePresenter/Avatar use internally.
   function employeeFor (ref: Ref<Person>): Employee | undefined {
     return $employeeByIdStore.get(ref as Ref<Employee>)
@@ -118,7 +118,7 @@
   async function runExport (period: Period): Promise<void> {
     exporting = true
     try {
-      // One-shot fetch over the chosen period. Deliberately NOT the live weekly subscription —
+      // One-shot fetch over the chosen period. Deliberately NOT the live weekly subscription -
       // the grid on screen must keep showing the week the user is looking at.
       const rows = await client.findAll(ygTimesheet.class.HrTimeEntry, {
         space: ygTimesheet.space.HrData,
@@ -128,7 +128,7 @@
       // .xlsx with real time-typed cells (see utils/hr-xlsx); write-excel-file triggers the download.
       await exportOverviewXlsx(grid, period)
     } catch (err: any) {
-      // Surface the failure rather than letting the promise reject unhandled — and download
+      // Surface the failure rather than letting the promise reject unhandled - and download
       // nothing, so the user never receives a half-built file they might forward on.
       await setPlatformStatus(unknownError(err))
     } finally {
@@ -213,7 +213,7 @@
 <style lang="scss">
   @use './yg-table' as *;
 
-  // This grid's rows ARE clickable (selectEmployee, on:click above) — the shared
+  // This grid's rows ARE clickable (selectEmployee, on:click above) - the shared
   // `:global(.yg-row:hover)` rule only highlights; add the pointer cursor back locally here.
   .yg-row:hover {
     cursor: pointer;
