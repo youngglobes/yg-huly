@@ -156,55 +156,57 @@
     </div>
   </div>
   <div class="yg-scroll">
-    <table class="yg-table">
-      <thead>
-        <tr>
-          <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-          {#each dayHeaders as d, i (i)}
-            <th>{d}</th>
-          {/each}
-          <th><Label label={ygTimesheet.string.Week} /></th>
-          <th><Label label={ygTimesheet.string.Status} /></th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as r (r.employee)}
-          <tr class="yg-row" on:click={() => selectEmployee(r.employee)}>
-            <td class="left">
-              <div class="flex-row-center flex-gap-2">
-                <Avatar size={'x-small'} person={employeeFor(r.employee)} name={r.name} />
-                <span class="overflow-label">{r.name}</span>
-              </div>
-            </td>
-            {#each r.days as h, i (i)}
-              <td class:yg-amber={i < 5 && h < DAY_TARGET} class:yg-green={i < 5 && h >= DAY_TARGET}>
-                {h > 0 ? formatHours(h) : '·'}
-              </td>
+    <div class="yg-table-wrap">
+      <table class="yg-table">
+        <thead>
+          <tr>
+            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+            {#each dayHeaders as d, i (i)}
+              <th>{d}</th>
             {/each}
-            <td class="bold">{formatHours(r.total)}</td>
-            <td class="left">
-              {#if r.complete}
-                <span class="yg-tag yg-tag--approved"><span class="tick" />Complete</span>
-              {:else}
-                <span class="yg-tag yg-tag--submitted"><span class="tick" />Under {formatHours(r.shortfall)}</span>
-              {/if}
-            </td>
+            <th><Label label={ygTimesheet.string.Week} /></th>
+            <th><Label label={ygTimesheet.string.Status} /></th>
           </tr>
-        {:else}
-          <tr><td colspan={10} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-        {/each}
-      </tbody>
-      <tfoot>
-        <tr class="yg-totals">
-          <td class="left"><Label label={ygTimesheet.string.Total} /></td>
-          {#each dailyTotals as t, i (i)}
-            <td class:yg-amber={i < 5 && t < DAY_TARGET} class:yg-green={i < 5 && t >= DAY_TARGET}>{formatHours(t)}</td>
+        </thead>
+        <tbody>
+          {#each rows as r (r.employee)}
+            <tr class="yg-row" on:click={() => selectEmployee(r.employee)}>
+              <td class="left">
+                <div class="flex-row-center flex-gap-2">
+                  <Avatar size={'x-small'} person={employeeFor(r.employee)} name={r.name} />
+                  <span class="overflow-label">{r.name}</span>
+                </div>
+              </td>
+              {#each r.days as h, i (i)}
+                <td class:yg-amber={i < 5 && h < DAY_TARGET} class:yg-green={i < 5 && h >= DAY_TARGET}>
+                  {h > 0 ? formatHours(h) : '·'}
+                </td>
+              {/each}
+              <td class="bold">{formatHours(r.total)}</td>
+              <td class="left">
+                {#if r.complete}
+                  <span class="yg-tag yg-tag--approved"><span class="tick" />Complete</span>
+                {:else}
+                  <span class="yg-tag yg-tag--submitted"><span class="tick" />Under {formatHours(r.shortfall)}</span>
+                {/if}
+              </td>
+            </tr>
+          {:else}
+            <tr><td colspan={10} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
           {/each}
-          <td class="bold">{formatHours(grandTotal)}</td>
-          <td />
-        </tr>
-      </tfoot>
-    </table>
+        </tbody>
+        <tfoot>
+          <tr class="yg-totals">
+            <td class="left"><Label label={ygTimesheet.string.Total} /></td>
+            {#each dailyTotals as t, i (i)}
+              <td class:yg-amber={i < 5 && t < DAY_TARGET} class:yg-green={i < 5 && t >= DAY_TARGET}>{formatHours(t)}</td>
+            {/each}
+            <td class="bold">{formatHours(grandTotal)}</td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   </div>
 </div>
 

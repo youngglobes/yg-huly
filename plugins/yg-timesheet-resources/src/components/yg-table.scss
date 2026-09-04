@@ -191,6 +191,17 @@
   background: var(--yg-grey);
 }
 
+// Opaque, bordered, rounded panel the grid sits in - matches the employees directory table.
+// Without it the transparent .yg-table rows sit straight on the page background and read as raw.
+// `overflow: clip` rounds the corners WITHOUT creating a scroll container, so the sticky header
+// below still sticks to the .yg-scroll ancestor (plain `overflow: hidden` would break that).
+:global(.yg-table-wrap) {
+  background: var(--theme-panel-color);
+  border: 1px solid var(--theme-divider-color);
+  border-radius: 14px;
+  overflow: clip;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
 :global(.yg-table) {
   width: 100%;
   border-collapse: collapse;
@@ -206,7 +217,8 @@
   white-space: nowrap;
   position: sticky;
   top: 0;
-  background: var(--theme-bg-color);
+  // Distinct header band (a real tint) instead of the page background, which blended in.
+  background: var(--theme-comp-header-color);
   border-bottom: 1px solid var(--theme-divider-color);
 }
 :global(.yg-table th.left),

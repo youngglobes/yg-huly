@@ -195,75 +195,79 @@
 
   <div class="yg-scroll">
     {#if mode === 'today'}
-      <table class="yg-table">
-        <thead>
-          <tr>
-            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-            <th><Label label={ygTimesheet.string.Status} /></th>
-            <th><Label label={ygTimesheet.string.FirstIn} /></th>
-            <th><Label label={ygTimesheet.string.LastOut} /></th>
-            <th><Label label={ygTimesheet.string.Sessions} /></th>
-            <th><Label label={ygTimesheet.string.TotalHours} /></th>
-            <th><Label label={ygTimesheet.string.Type} /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each todayRows as r (r.employee)}
-            <tr class="yg-row">
-              <td class="left">{r.name}</td>
-              <td>
-                {#if r.status === 'in'}
-                  <span class="att-live"><span class="att-dot" /><Label label={ygTimesheet.string.InNow} /></span>
-                {:else}
-                  <Label label={ygTimesheet.string.Out} />
-                {/if}
-              </td>
-              <td>{fmt(r.firstIn)}</td>
-              <td>{fmt(r.lastOut)}</td>
-              <td>{r.sessions}</td>
-              <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
-              <td><Label label={r.mode === 'partial' ? ygTimesheet.string.Partial : r.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
+      <div class="yg-table-wrap">
+        <table class="yg-table">
+          <thead>
+            <tr>
+              <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+              <th><Label label={ygTimesheet.string.Status} /></th>
+              <th><Label label={ygTimesheet.string.FirstIn} /></th>
+              <th><Label label={ygTimesheet.string.LastOut} /></th>
+              <th><Label label={ygTimesheet.string.Sessions} /></th>
+              <th><Label label={ygTimesheet.string.TotalHours} /></th>
+              <th><Label label={ygTimesheet.string.Type} /></th>
             </tr>
-          {:else}
-            <tr><td colspan={7} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-          {/each}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {#each todayRows as r (r.employee)}
+              <tr class="yg-row">
+                <td class="left">{r.name}</td>
+                <td>
+                  {#if r.status === 'in'}
+                    <span class="att-live"><span class="att-dot" /><Label label={ygTimesheet.string.InNow} /></span>
+                  {:else}
+                    <Label label={ygTimesheet.string.Out} />
+                  {/if}
+                </td>
+                <td>{fmt(r.firstIn)}</td>
+                <td>{fmt(r.lastOut)}</td>
+                <td>{r.sessions}</td>
+                <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
+                <td><Label label={r.mode === 'partial' ? ygTimesheet.string.Partial : r.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
+              </tr>
+            {:else}
+              <tr><td colspan={7} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
 
     {:else if mode === 'all'}
-      <table class="yg-table">
-        <thead>
-          <tr>
-            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-            <th><Label label={ygTimesheet.string.DaysPresent} /></th>
-            <th><Label label={ygTimesheet.string.TotalHours} /></th>
-            <th><Label label={ygTimesheet.string.OfficeHours} /></th>
-            <th><Label label={ygTimesheet.string.WfhHours} /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each summaryRows as r (r.employee)}
-            <tr class="yg-row">
-              <td class="left">{r.name}</td>
-              <td>{r.daysPresent}</td>
-              <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
-              <td>{formatHours(r.officeMs / 3600000)}</td>
-              <td>{formatHours(r.wfhMs / 3600000)}</td>
+      <div class="yg-table-wrap">
+        <table class="yg-table">
+          <thead>
+            <tr>
+              <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+              <th><Label label={ygTimesheet.string.DaysPresent} /></th>
+              <th><Label label={ygTimesheet.string.TotalHours} /></th>
+              <th><Label label={ygTimesheet.string.OfficeHours} /></th>
+              <th><Label label={ygTimesheet.string.WfhHours} /></th>
             </tr>
-          {:else}
-            <tr><td colspan={5} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-          {/each}
-        </tbody>
-        <tfoot>
-          <tr class="yg-totals">
-            <td class="left"><Label label={ygTimesheet.string.Total} /></td>
-            <td />
-            <td class="bold">{formatHours(summaryTotals.totalMs / 3600000)}</td>
-            <td>{formatHours(summaryTotals.officeMs / 3600000)}</td>
-            <td>{formatHours(summaryTotals.wfhMs / 3600000)}</td>
-          </tr>
-        </tfoot>
-      </table>
+          </thead>
+          <tbody>
+            {#each summaryRows as r (r.employee)}
+              <tr class="yg-row">
+                <td class="left">{r.name}</td>
+                <td>{r.daysPresent}</td>
+                <td class="bold">{formatHours(r.totalMs / 3600000)}</td>
+                <td>{formatHours(r.officeMs / 3600000)}</td>
+                <td>{formatHours(r.wfhMs / 3600000)}</td>
+              </tr>
+            {:else}
+              <tr><td colspan={5} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            {/each}
+          </tbody>
+          <tfoot>
+            <tr class="yg-totals">
+              <td class="left"><Label label={ygTimesheet.string.Total} /></td>
+              <td />
+              <td class="bold">{formatHours(summaryTotals.totalMs / 3600000)}</td>
+              <td>{formatHours(summaryTotals.officeMs / 3600000)}</td>
+              <td>{formatHours(summaryTotals.wfhMs / 3600000)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
 
     {:else}
       <div class="att-summary">
@@ -272,40 +276,42 @@
         <span class="att-summary__k"><Label label={ygTimesheet.string.OfficeHours} />: <b>{formatHours(individual.summary.officeMs / 3600000)}</b></span>
         <span class="att-summary__k"><Label label={ygTimesheet.string.WfhHours} />: <b>{formatHours(individual.summary.wfhMs / 3600000)}</b></span>
       </div>
-      <table class="yg-table">
-        <thead>
-          <tr>
-            <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-            <th><Label label={ygTimesheet.string.In} /></th>
-            <th><Label label={ygTimesheet.string.Out} /></th>
-            <th><Label label={ygTimesheet.string.Type} /></th>
-            <th><Label label={ygTimesheet.string.Duration} /></th>
-            <th><Label label={ygTimesheet.string.Details} /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each individual.days as day (day.date)}
-            {#each day.sessions as s, i (s.punchIn)}
-              <tr class="yg-row">
-                <td class="left">{i === 0 ? dateFmt.format(day.date) : ''}</td>
-                <td>{timeFmt.format(s.punchIn)}{#if s.punchInNote}<span class="att-note"> · {s.punchInNote}</span>{/if}</td>
-                <td>{#if s.punchOut !== undefined}{timeFmt.format(s.punchOut)}{#if s.punchOutNote}<span class="att-note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}</td>
-                <td><Label label={s.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
-                <td>{s.punchOut !== undefined ? formatHours((s.punchOut - s.punchIn) / 3600000) : '-'}</td>
-                <td class="att-audit">
-                  <div class="att-audit__line">{s.device ?? '-'}{#if s.browser} / {s.browser}{/if}</div>
-                  <div class="att-audit__line att-audit__muted">{s.ip ?? '-'}{#if s.ipCity} - {s.ipCity}{/if}</div>
-                  {#if s.geoLat !== undefined && s.geoLng !== undefined}
-                    <a class="att-audit__map" href={`https://maps.google.com/?q=${s.geoLat},${s.geoLng}`} target="_blank" rel="noopener noreferrer">Map</a>
-                  {/if}
-                </td>
-              </tr>
+      <div class="yg-table-wrap">
+        <table class="yg-table">
+          <thead>
+            <tr>
+              <th class="left"><Label label={ygTimesheet.string.Date} /></th>
+              <th><Label label={ygTimesheet.string.In} /></th>
+              <th><Label label={ygTimesheet.string.Out} /></th>
+              <th><Label label={ygTimesheet.string.Type} /></th>
+              <th><Label label={ygTimesheet.string.Duration} /></th>
+              <th><Label label={ygTimesheet.string.Details} /></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each individual.days as day (day.date)}
+              {#each day.sessions as s, i (s.punchIn)}
+                <tr class="yg-row">
+                  <td class="left">{i === 0 ? dateFmt.format(day.date) : ''}</td>
+                  <td>{timeFmt.format(s.punchIn)}{#if s.punchInNote}<span class="att-note"> · {s.punchInNote}</span>{/if}</td>
+                  <td>{#if s.punchOut !== undefined}{timeFmt.format(s.punchOut)}{#if s.punchOutNote}<span class="att-note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}</td>
+                  <td><Label label={s.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
+                  <td>{s.punchOut !== undefined ? formatHours((s.punchOut - s.punchIn) / 3600000) : '-'}</td>
+                  <td class="att-audit">
+                    <div class="att-audit__line">{s.device ?? '-'}{#if s.browser} / {s.browser}{/if}</div>
+                    <div class="att-audit__line att-audit__muted">{s.ip ?? '-'}{#if s.ipCity} - {s.ipCity}{/if}</div>
+                    {#if s.geoLat !== undefined && s.geoLng !== undefined}
+                      <a class="att-audit__map" href={`https://maps.google.com/?q=${s.geoLat},${s.geoLng}`} target="_blank" rel="noopener noreferrer">Map</a>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            {:else}
+              <tr><td colspan={6} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
             {/each}
-          {:else}
-            <tr><td colspan={6} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-          {/each}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
     {/if}
   </div>
 </div>

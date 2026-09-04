@@ -139,38 +139,40 @@
   </div>
 
   <div class="yg-scroll">
-    <table class="yg-table">
-      <thead>
-        <tr>
-          <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-          <th class="left"><Label label={ygTimesheet.string.Designation} /></th>
-          <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)</th>
-          <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)</th>
-          <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
-          <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Days} />)</th>
-          <th class="yg-num"><Label label={ygTimesheet.string.LateNightCol} /></th>
-          <th class="yg-num"><Label label={ygTimesheet.string.LateArrivals} /></th>
-          <th class="yg-num"><Label label={ygTimesheet.string.TotalExtraHours} /></th>
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as r (r.employee)}
-          <tr class="yg-row perf-clickable" class:is-sel={r.employee === selectedId} on:click={() => (selectedId = r.employee)}>
-            <td class="left bold">{r.name}</td>
-            <td class="left">{r.designation ?? '-'}</td>
-            <td class="yg-num">{r.offDayDays}</td>
-            <td class="yg-num">{formatHours(r.offDayHours)}</td>
-            <td class="yg-num">{formatHours(r.overtimeHours)}</td>
-            <td class="yg-num">{r.overtimeDays}</td>
-            <td class="yg-num">{r.lateNightDays}</td>
-            <td class="yg-num">{r.lateArrivals}</td>
-            <td class="yg-num bold">{formatHours(r.totalExtraHours)}</td>
+    <div class="yg-table-wrap">
+      <table class="yg-table">
+        <thead>
+          <tr>
+            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Designation} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)</th>
+            <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)</th>
+            <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
+            <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Days} />)</th>
+            <th class="yg-num"><Label label={ygTimesheet.string.LateNightCol} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.LateArrivals} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.TotalExtraHours} /></th>
           </tr>
-        {:else}
-          <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each rows as r (r.employee)}
+            <tr class="yg-row perf-clickable" class:is-sel={r.employee === selectedId} on:click={() => (selectedId = r.employee)}>
+              <td class="left bold">{r.name}</td>
+              <td class="left">{r.designation ?? '-'}</td>
+              <td class="yg-num">{r.offDayDays}</td>
+              <td class="yg-num">{formatHours(r.offDayHours)}</td>
+              <td class="yg-num">{formatHours(r.overtimeHours)}</td>
+              <td class="yg-num">{r.overtimeDays}</td>
+              <td class="yg-num">{r.lateNightDays}</td>
+              <td class="yg-num">{r.lateArrivals}</td>
+              <td class="yg-num bold">{formatHours(r.totalExtraHours)}</td>
+            </tr>
+          {:else}
+            <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   {#if selected}

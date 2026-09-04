@@ -88,51 +88,53 @@
   </div>
 
   <div class="yg-scroll">
-    <table class="yg-table">
-      <thead>
-        <tr>
-          <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-          <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-          <th class="yg-num"><Label label={ygTimesheet.string.MinutesLate} /></th>
-          <th class="left"><Label label={ygTimesheet.string.Reason} /></th>
-          <th class="left"><Label label={ygTimesheet.string.Status} /></th>
-          <th class="left"><Label label={ygTimesheet.string.HrReason} /></th>
-          {#if isHr}<th class="left" />{/if}
-        </tr>
-      </thead>
-      <tbody>
-        {#each rows as r (r._id)}
-          <tr class="yg-row">
-            <td class="left bold">{nameById.get(r.employee) ?? r.employee}</td>
-            <td class="left">{dateFmt.format(r.date)}</td>
-            <td class="yg-num">{r.minutesLate} <Label label={ygTimesheet.string.MinutesLate} /></td>
-            <td class="left">{r.reason}</td>
-            <td class="left">
-              <span class="yg-tag {tagClass(r.status)}"><span class="tick" />{r.status}</span>
-            </td>
-            <td class="left">{hrReasonOf(r) !== '' ? hrReasonOf(r) : '-'}</td>
-            {#if isHr}
-              <td class="left">
-                <span class="lp-actions">
-                  {#if r.status !== 'Approved'}
-                    <button class="yg-btn yg-btn--primary" on:click={() => { onApprove(r) }}>
-                      <Label label={ygTimesheet.string.ApproveLate} />
-                    </button>
-                  {/if}
-                  {#if r.status !== 'Rejected'}
-                    <button class="yg-btn yg-btn--danger" on:click={() => { onReject(r) }}>
-                      <Label label={ygTimesheet.string.RejectLate} />
-                    </button>
-                  {/if}
-                </span>
-              </td>
-            {/if}
+    <div class="yg-table-wrap">
+      <table class="yg-table">
+        <thead>
+          <tr>
+            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Date} /></th>
+            <th class="yg-num"><Label label={ygTimesheet.string.MinutesLate} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Reason} /></th>
+            <th class="left"><Label label={ygTimesheet.string.Status} /></th>
+            <th class="left"><Label label={ygTimesheet.string.HrReason} /></th>
+            {#if isHr}<th class="left" />{/if}
           </tr>
-        {:else}
-          <tr><td colspan={isHr ? 7 : 6} class="yg-empty"><Label label={ygTimesheet.string.NoLatePermissions} /></td></tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each rows as r (r._id)}
+            <tr class="yg-row">
+              <td class="left bold">{nameById.get(r.employee) ?? r.employee}</td>
+              <td class="left">{dateFmt.format(r.date)}</td>
+              <td class="yg-num">{r.minutesLate} <Label label={ygTimesheet.string.MinutesLate} /></td>
+              <td class="left">{r.reason}</td>
+              <td class="left">
+                <span class="yg-tag {tagClass(r.status)}"><span class="tick" />{r.status}</span>
+              </td>
+              <td class="left">{hrReasonOf(r) !== '' ? hrReasonOf(r) : '-'}</td>
+              {#if isHr}
+                <td class="left">
+                  <span class="lp-actions">
+                    {#if r.status !== 'Approved'}
+                      <button class="yg-btn yg-btn--primary" on:click={() => { onApprove(r) }}>
+                        <Label label={ygTimesheet.string.ApproveLate} />
+                      </button>
+                    {/if}
+                    {#if r.status !== 'Rejected'}
+                      <button class="yg-btn yg-btn--danger" on:click={() => { onReject(r) }}>
+                        <Label label={ygTimesheet.string.RejectLate} />
+                      </button>
+                    {/if}
+                  </span>
+                </td>
+              {/if}
+            </tr>
+          {:else}
+            <tr><td colspan={isHr ? 7 : 6} class="yg-empty"><Label label={ygTimesheet.string.NoLatePermissions} /></td></tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 

@@ -166,77 +166,79 @@
     <div class="hrt-empty"><Label label={ygTimesheet.string.NoEmployeeSelected} /></div>
   {:else}
     <div class="yg-scroll">
-      <table class="yg-table">
-        <thead>
-          <tr>
-            <th><Label label={ygTimesheet.string.Project} /></th>
-            {#each week.days as d, i (d.key)}
-              <th class="yg-num" class:hrt-weekend={isWeekend(i)}>{dowFmt.format(d.date)}</th>
-            {/each}
-            <th class="yg-num"><Label label={ygTimesheet.string.TotalHours} /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#if grid.rows.length === 0}
-            <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-          {:else}
-            {#each grid.rows as r (r.issue)}
-              <tr>
-                <td>
-                  <div class="hrt-task">
-                    <span class="hrt-task__project">{r.projectName}</span>
-                    <span class="hrt-task__id">{r.identifier}</span>
-                    <span class="hrt-task__title">{r.title}</span>
-                  </div>
-                </td>
-                {#each r.cells as c, i (i)}
-                  <td class="yg-num" title={r.notesByDay[i]}>
-                    {c === 0 ? '·' : formatHours(c)}
-                    {#if r.notesByDay[i] !== undefined}
-                      <span class="hrt-note-dot" title={r.notesByDay[i]}>●</span>
-                    {/if}
+      <div class="yg-table-wrap">
+        <table class="yg-table">
+          <thead>
+            <tr>
+              <th><Label label={ygTimesheet.string.Project} /></th>
+              {#each week.days as d, i (d.key)}
+                <th class="yg-num" class:hrt-weekend={isWeekend(i)}>{dowFmt.format(d.date)}</th>
+              {/each}
+              <th class="yg-num"><Label label={ygTimesheet.string.TotalHours} /></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#if grid.rows.length === 0}
+              <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            {:else}
+              {#each grid.rows as r (r.issue)}
+                <tr>
+                  <td>
+                    <div class="hrt-task">
+                      <span class="hrt-task__project">{r.projectName}</span>
+                      <span class="hrt-task__id">{r.identifier}</span>
+                      <span class="hrt-task__title">{r.title}</span>
+                    </div>
                   </td>
-                {/each}
-                <td class="yg-num"><b>{formatHours(r.rowTotal)}</b></td>
-              </tr>
-            {/each}
-          {/if}
-        </tbody>
-        <tfoot>
-          <tr class="yg-totals">
-            <td><Label label={ygTimesheet.string.TotalHours} /></td>
-            {#each grid.dayTotals as t, i (i)}
-              <td
-                class="yg-num"
-                class:yg-amber={!isWeekend(i) && t < DAY_TARGET}
-                class:yg-green={!isWeekend(i) && t >= DAY_TARGET}
-              >
-                {formatHours(t)}
-              </td>
-            {/each}
-            <td class="yg-num"><b>{formatHours(grid.grandTotal)}</b></td>
-          </tr>
-          <tr class="hrt-status-row">
-            <td><Label label={ygTimesheet.string.Status} /></td>
-            {#each statusRow as s, i (i)}
-              <td class="yg-num">
-                {#if s !== undefined}
-                  <span class="yg-pill yg-pill--{s.toLowerCase()}">
-                    {#if s === 'PartiallyApproved'}
-                      <Label label={ygTimesheet.string.PartiallyApproved} />
-                    {:else}
-                      {s}
-                    {/if}
-                  </span>
-                {:else}
-                  <span class="hrt-muted">·</span>
-                {/if}
-              </td>
-            {/each}
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+                  {#each r.cells as c, i (i)}
+                    <td class="yg-num" title={r.notesByDay[i]}>
+                      {c === 0 ? '·' : formatHours(c)}
+                      {#if r.notesByDay[i] !== undefined}
+                        <span class="hrt-note-dot" title={r.notesByDay[i]}>●</span>
+                      {/if}
+                    </td>
+                  {/each}
+                  <td class="yg-num"><b>{formatHours(r.rowTotal)}</b></td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+          <tfoot>
+            <tr class="yg-totals">
+              <td><Label label={ygTimesheet.string.TotalHours} /></td>
+              {#each grid.dayTotals as t, i (i)}
+                <td
+                  class="yg-num"
+                  class:yg-amber={!isWeekend(i) && t < DAY_TARGET}
+                  class:yg-green={!isWeekend(i) && t >= DAY_TARGET}
+                >
+                  {formatHours(t)}
+                </td>
+              {/each}
+              <td class="yg-num"><b>{formatHours(grid.grandTotal)}</b></td>
+            </tr>
+            <tr class="hrt-status-row">
+              <td><Label label={ygTimesheet.string.Status} /></td>
+              {#each statusRow as s, i (i)}
+                <td class="yg-num">
+                  {#if s !== undefined}
+                    <span class="yg-pill yg-pill--{s.toLowerCase()}">
+                      {#if s === 'PartiallyApproved'}
+                        <Label label={ygTimesheet.string.PartiallyApproved} />
+                      {:else}
+                        {s}
+                      {/if}
+                    </span>
+                  {:else}
+                    <span class="hrt-muted">·</span>
+                  {/if}
+                </td>
+              {/each}
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   {/if}
 </div>
@@ -266,7 +268,7 @@
     white-space: nowrap;
     position: sticky;
     top: 0;
-    background: var(--theme-bg-color);
+    background: var(--theme-comp-header-color);
   }
   .yg-table th:first-child { text-align: left; }
   .yg-table td {
