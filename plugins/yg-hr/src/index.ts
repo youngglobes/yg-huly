@@ -32,6 +32,7 @@ export interface HrListItem extends Doc {
 export type Department = HrListItem
 export type EmploymentStatus = HrListItem
 export type Location = HrListItem
+export type TerminationReason = HrListItem
 
 export interface Designation extends HrListItem {
   isHr?: boolean
@@ -65,6 +66,10 @@ export interface EmployeePersonal extends Employee {
   nationality?: string
   bloodGroup?: string
   employeeId?: string
+  nickname?: string
+  otherId?: string
+  driverLicenseNo?: string
+  driverLicenseExpiry?: Timestamp
   status?: EmployeeStatus
   emergencyContacts?: number
 }
@@ -90,6 +95,8 @@ export interface EmployeeJob extends Employee {
   location?: Ref<Location>
   contractStart?: Timestamp
   contractEnd?: Timestamp
+  terminationDate?: Timestamp
+  terminationReason?: Ref<TerminationReason>
   // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
   // Unified here from ygTimesheet.mixin.WorkProfile.shiftStart; a server sync mirrors it back to
   // WorkProfile so the attendance flows read it unchanged (OnEmployeeJobSync, server-plugins/yg-hr-resources).
@@ -141,6 +148,7 @@ export default plugin(ygHrId, {
     Designation: '' as Ref<Class<Designation>>,
     EmploymentStatus: '' as Ref<Class<EmploymentStatus>>,
     Location: '' as Ref<Class<Location>>,
+    TerminationReason: '' as Ref<Class<TerminationReason>>,
     EmergencyContact: '' as Ref<Class<EmergencyContact>>,
     EmployeeSeq: '' as Ref<Class<EmployeeSeq>>
   },
@@ -170,6 +178,10 @@ export default plugin(ygHrId, {
     Nationality: '' as IntlString,
     BloodGroup: '' as IntlString,
     EmployeeId: '' as IntlString,
+    Nickname: '' as IntlString,
+    OtherId: '' as IntlString,
+    DriverLicenseNo: '' as IntlString,
+    DriverLicenseExpiry: '' as IntlString,
     Street1: '' as IntlString,
     Street2: '' as IntlString,
     City: '' as IntlString,
@@ -189,6 +201,10 @@ export default plugin(ygHrId, {
     ShiftStart: '' as IntlString,
     ContractStart: '' as IntlString,
     ContractEnd: '' as IntlString,
+    Termination: '' as IntlString,
+    TerminationDate: '' as IntlString,
+    TerminationReason: '' as IntlString,
+    TerminationReasons: '' as IntlString,
     EmployeeSeqLast: '' as IntlString,
     Relationship: '' as IntlString,
     Departments: '' as IntlString,
