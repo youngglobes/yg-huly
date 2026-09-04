@@ -7,7 +7,10 @@ import core, {
   systemAccountUuid,
   TxProcessor,
   type AccountUuid,
+  type AttachedDoc,
+  type Class,
   type Doc,
+  type Ref,
   type Tx,
   type TxCUD,
   type TxMixin,
@@ -24,7 +27,6 @@ import ygHr, {
   formatEmployeeId,
   isSystemDesignation,
   ygHrId,
-  type EmergencyContact,
   type EmployeeSeq
 } from '@hcengineering/yg-hr'
 
@@ -188,7 +190,7 @@ const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
   [ygHr.mixin.EmployeePersonal]: [
     'middleName', 'gender', 'dateOfBirth', 'maritalStatus', 'nationality', 'bloodGroup',
     'employeeId', 'nickname', 'otherId', 'driverLicenseNo', 'driverLicenseExpiry', 'status',
-    'emergencyContacts'
+    'emergencyContacts', 'workExperience', 'educations', 'skills', 'languages', 'licenses'
   ],
   [ygHr.mixin.EmployeeContact]: [
     'street1', 'street2', 'addressCity', 'state', 'zip', 'country', 'homePhone', 'mobile',
@@ -211,8 +213,23 @@ const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
   [ygHr.class.Designation]: ['name', 'isHr'],
   [ygHr.class.EmploymentStatus]: ['name'],
   [ygHr.class.Location]: ['name'],
-  [ygHr.class.TerminationReason]: ['name']
+  [ygHr.class.TerminationReason]: ['name'],
+  [ygHr.class.EducationLevel]: ['name'],
+  [ygHr.class.SkillType]: ['name'],
+  [ygHr.class.LanguageType]: ['name'],
+  [ygHr.class.LicenseType]: ['name']
 }
+
+// Every Employee child-collection class whose writes are HR-only (reverted for non-HR). All six route
+// to the same generic child guard below.
+const GUARDED_CHILD_CLASSES = new Set<Ref<Class<Doc>>>([
+  ygHr.class.EmergencyContact,
+  ygHr.class.WorkExperience,
+  ygHr.class.Education,
+  ygHr.class.EmployeeSkill,
+  ygHr.class.EmployeeLanguage,
+  ygHr.class.EmployeeLicense
+])
 
 // "HR" = membership in the Roster-managed HR team (ygTimesheet.space.HrData) - the single source of
 // truth for who is HR, shared with the timesheet/attendance features (PO decision 2026-09-03,
@@ -269,7 +286,7 @@ async function isSelfPendingActivation (mtx: TxMixin<Person, Employee>, control:
 // it in memory, and rewrites the WHOLE `data` column from that merged object - never a partial
 // jsonb merge. That is what makes reverting a field to `undefined` here actually clear it (the
 // merged mixin object's key is simply absent when serialized), unlike a plain TxUpdateDoc (see
-// guardEmergencyContactWrite below, which needs a different trick for exactly that reason).
+// guardChildDocWrite below, which needs a different trick for exactly that reason).
 async function guardMixinWrite (mtx: TxMixin<Person, Employee>, control: TriggerControl): Promise<void> {
   const fields = GUARDED_MIXIN_FIELDS[mtx.mixin]
   if (fields === undefined) return // not one of the three guarded HR mixins
@@ -299,21 +316,23 @@ async function guardMixinWrite (mtx: TxMixin<Person, Employee>, control: Trigger
   await control.apply(control.ctx, [revert])
 }
 
-// Reverts an unauthorized create/update/remove of an EmergencyContact. Same authorization rule as
-// guardMixinWrite above (no self-exclusion - HR/admin may write anyone's, including their own).
-async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control: TriggerControl): Promise<void> {
+// Reverts an unauthorized create/update/remove of a guarded Employee child-collection doc
+// (EmergencyContact/WorkExperience/Education/EmployeeSkill/EmployeeLanguage/EmployeeLicense - see
+// GUARDED_CHILD_CLASSES). Same authorization rule as guardMixinWrite above (no self-exclusion -
+// HR/admin may write anyone's, including their own).
+async function guardChildDocWrite (cud: TxCUD<AttachedDoc>, control: TriggerControl): Promise<void> {
   if (await isHrAuthorized(control)) return
 
-  control.ctx.warn('yg-hr: unauthorized EmergencyContact write reverted', {
-    emergencyContact: cud.objectId, actor: cud.modifiedBy, txClass: cud._class
+  control.ctx.warn('yg-hr: unauthorized child doc write reverted', {
+    child: cud.objectId, actor: cud.modifiedBy, txClass: cud._class
   })
 
   // Wrap a create/remove the same way TxOperations.addCollection/removeCollection do (attachedTo/
   // attachedToClass/collection carried on the SAME flat tx - this schema version has no separate
   // TxCollectionCUD class, see the TimeSpendReport note above) so the platform's generic
-  // collection-count middleware increments/decrements EmployeePersonal.emergencyContacts exactly
+  // collection-count middleware increments/decrements the matching EmployeePersonal counter exactly
   // as it would for a legitimate create/delete.
-  const wrap = (base: TxCUD<EmergencyContact>): Tx =>
+  const wrap = (base: TxCUD<AttachedDoc>): Tx =>
     cud.attachedTo !== undefined && cud.attachedToClass !== undefined && cud.collection !== undefined
       ? control.txFactory.createTxCollectionCUD(
         cud.attachedToClass, cud.attachedTo, cud.objectSpace, cud.collection, base, Date.now(), core.account.System
@@ -334,14 +353,14 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
   const logTxes = Array.from(
     await control.findAll(control.ctx, core.class.TxCUD, { objectId: cud.objectId })
   ).filter((it) => it._id !== cud._id)
-  const prevDoc = TxProcessor.buildDoc2Doc<EmergencyContact>(logTxes)
+  const prevDoc = TxProcessor.buildDoc2Doc<AttachedDoc>(logTxes)
 
   if (prevDoc === undefined || prevDoc === null) {
     // An update/remove implies a prior create exists earlier in this object's own tx log - this
     // should never happen. Fail loud rather than guess at a revert.
     control.ctx.error(
-      'yg-hr: cannot reconstruct EmergencyContact prior state - unauthorized write NOT reverted',
-      { emergencyContact: cud.objectId, actor: cud.modifiedBy, txClass: cud._class }
+      'yg-hr: cannot reconstruct child doc prior state - unauthorized write NOT reverted',
+      { child: cud.objectId, actor: cud.modifiedBy, txClass: cud._class }
     )
     return
   }
@@ -373,14 +392,14 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
     else setOps[field] = val
   }
 
-  // Re-parent bypass: EmergencyContact is an AttachedDoc, and the platform lets a plain update
-  // change attachedTo/attachedToClass/collection to move the record onto a different employee
-  // (TxOperations.updateCollection). Reverting only the five content fields above would leave an
-  // unauthorized move standing - the record would keep pointing at the wrong parent even though
+  // Re-parent bypass: every guarded child doc is an AttachedDoc, and the platform lets a plain
+  // update change attachedTo/attachedToClass/collection to move the record onto a different
+  // employee (TxOperations.updateCollection). Reverting only the content fields above would leave
+  // an unauthorized move standing - the record would keep pointing at the wrong parent even though
   // its content looks restored. `operations` on THIS tx says exactly what moved (falling back to
   // the pre-tx value for anything it did not touch, the same way triggers.ts's own
   // updateCollection handler computes `newAttachedToClass = operations.attachedToClass ?? _class`).
-  const utx = cud as TxUpdateDoc<EmergencyContact>
+  const utx = cud as TxUpdateDoc<AttachedDoc>
   const priorAttachedTo = (prevDoc as any).attachedTo
   const priorAttachedToClass = (prevDoc as any).attachedToClass
   const priorCollection = (prevDoc as any).collection
@@ -406,7 +425,7 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
     // Wrapped via createTxCollectionCUD (mirroring TxOperations.updateCollection) ONLY when the
     // record actually moved, with the CURRENT (malicious) parent as the tx's own attachedTo/
     // attachedToClass/collection - exactly the shape the generic collection-count middleware
-    // expects to move EmployeePersonal.emergencyContacts off the wrong parent and back onto the
+    // expects to move the matching EmployeePersonal counter off the wrong parent and back onto the
     // right one (see guardMixinWrite's header comment / the create-revert wrap() above for the
     // same mechanism applied to create/remove).
     reverts.push(
@@ -429,13 +448,13 @@ async function guardEmergencyContactWrite (cud: TxCUD<EmergencyContact>, control
 
 // Reverts an unauthorized create/update/remove of one of the four HrConfig list docs (Department/
 // Designation/EmploymentStatus/Location). These are plain Docs - not mixins, not AttachedDoc - so
-// (unlike guardEmergencyContactWrite) there is no attachedTo/collection bookkeeping to preserve;
+// (unlike guardChildDocWrite) there is no attachedTo/collection bookkeeping to preserve;
 // create/update/remove reverts are the simple createDoc/updateDoc/removeDoc shape.
 //
 // Closes the actual privilege-escalation hole this guard exists for: without it, any workspace
 // member could `updateDoc(ygHr.class.Designation, ..., theirOwnDesignationId, { isHr: true })`
 // directly via the API (the UI gate does not stop an API call) and have guardMixinWrite/
-// guardEmergencyContactWrite's isHrAuthorized treat them as HR from then on. Authorization is the
+// guardChildDocWrite's isHrAuthorized treat them as HR from then on. Authorization is the
 // SAME isHrAuthorized check used everywhere else in this file, with `cud` threaded through so a
 // write to the actor's OWN Designation doc is judged against its PRE-tx isHr value, not the
 // tainted post-apply one this very tx just set - see resolveDesignation's comment for why that
@@ -510,7 +529,7 @@ async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Pr
   }
 
   // Update: restore this class's own fields to their pre-tx values. Split into a plain field-set
-  // and a $unset-only tx the same way guardEmergencyContactWrite does - see its comment for why a
+  // and a $unset-only tx the same way guardChildDocWrite does - see its comment for why a
   // plain merge cannot clear a field back to "unset" (isHr in particular: a field left unset
   // before this tx must end up unset again, not merely left at whatever value this tx wrote).
   const setOps: Record<string, any> = {}
@@ -552,8 +571,8 @@ export async function OnEmployeeHrGuard (txes: Tx[], control: TriggerControl): P
       tx._class === core.class.TxRemoveDoc
     ) {
       const cud = tx as TxCUD<Doc>
-      if (cud.objectClass === ygHr.class.EmergencyContact) {
-        await guardEmergencyContactWrite(cud as TxCUD<EmergencyContact>, control)
+      if (GUARDED_CHILD_CLASSES.has(cud.objectClass)) {
+        await guardChildDocWrite(cud as TxCUD<AttachedDoc>, control)
         continue
       }
       if (HR_CONFIG_FIELDS[cud.objectClass] !== undefined) {
