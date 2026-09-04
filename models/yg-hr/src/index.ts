@@ -34,17 +34,28 @@ import workbench from '@hcengineering/workbench'
 import type {
   Department,
   Designation,
+  Education,
+  EducationLevel,
   EmergencyContact,
   EmployeeContact,
   EmployeeJob,
+  EmployeeLanguage,
+  EmployeeLicense,
   EmployeePersonal,
   EmployeeSeq,
+  EmployeeSkill,
   EmployeeStatus,
   EmploymentStatus,
   Gender,
   Location,
+  LanguageCompetency,
+  LanguageFluency,
+  LanguageType,
+  LicenseType,
   MaritalStatus,
-  TerminationReason
+  SkillType,
+  TerminationReason,
+  WorkExperience
 } from '@hcengineering/yg-hr'
 import ygHr from './plugin'
 
@@ -109,6 +120,12 @@ export class TEmployeePersonal extends TEmployee implements EmployeePersonal {
 
   @Prop(Collection(ygHr.class.EmergencyContact), ygHr.string.EmergencyContacts)
     emergencyContacts?: number
+
+  @Prop(Collection(ygHr.class.WorkExperience), ygHr.string.WorkExperience) workExperience?: number
+  @Prop(Collection(ygHr.class.Education), ygHr.string.Educations) educations?: number
+  @Prop(Collection(ygHr.class.EmployeeSkill), ygHr.string.Skills) skills?: number
+  @Prop(Collection(ygHr.class.EmployeeLanguage), ygHr.string.Languages) languages?: number
+  @Prop(Collection(ygHr.class.EmployeeLicense), ygHr.string.Licenses) licenses?: number
 }
 
 @Mixin(ygHr.mixin.EmployeeContact, contact.mixin.Employee)
@@ -149,6 +166,66 @@ export class TEmergencyContact extends TAttachedDoc implements EmergencyContact 
   @Prop(TypeString(), ygHr.string.WorkPhone) workPhone?: string
 }
 
+@Model(ygHr.class.EducationLevel, core.class.Doc, DOMAIN_YG_HR)
+@UX(ygHr.string.Level)
+export class TEducationLevel extends TDoc { @Prop(TypeString(), ygHr.string.Level) name!: string }
+
+@Model(ygHr.class.SkillType, core.class.Doc, DOMAIN_YG_HR)
+@UX(ygHr.string.Skill)
+export class TSkillType extends TDoc { @Prop(TypeString(), ygHr.string.Skill) name!: string }
+
+@Model(ygHr.class.LanguageType, core.class.Doc, DOMAIN_YG_HR)
+@UX(ygHr.string.Language)
+export class TLanguageType extends TDoc { @Prop(TypeString(), ygHr.string.Language) name!: string }
+
+@Model(ygHr.class.LicenseType, core.class.Doc, DOMAIN_YG_HR)
+@UX(ygHr.string.LicenseType)
+export class TLicenseType extends TDoc { @Prop(TypeString(), ygHr.string.LicenseType) name!: string }
+
+@Model(ygHr.class.WorkExperience, core.class.AttachedDoc, DOMAIN_YG_HR)
+@UX(ygHr.string.WorkExperience)
+export class TWorkExperience extends TAttachedDoc implements WorkExperience {
+  @Prop(TypeString(), ygHr.string.Employer) employer?: string
+  @Prop(TypeString(), ygHr.string.JobTitle) jobTitle?: string
+  @Prop(TypeDate(), ygHr.string.FromDate) fromDate?: Timestamp
+  @Prop(TypeDate(), ygHr.string.ToDate) toDate?: Timestamp
+  @Prop(TypeString(), ygHr.string.Comments) comments?: string
+}
+@Model(ygHr.class.Education, core.class.AttachedDoc, DOMAIN_YG_HR)
+@UX(ygHr.string.Educations)
+export class TEducation extends TAttachedDoc implements Education {
+  @Prop(TypeRef(ygHr.class.EducationLevel), ygHr.string.Level) level?: Ref<EducationLevel>
+  @Prop(TypeString(), ygHr.string.Institute) institute?: string
+  @Prop(TypeString(), ygHr.string.Major) major?: string
+  @Prop(TypeNumber(), ygHr.string.Year) year?: number
+  @Prop(TypeString(), ygHr.string.Score) score?: string
+  @Prop(TypeDate(), ygHr.string.StartDate) startDate?: Timestamp
+  @Prop(TypeDate(), ygHr.string.EndDate) endDate?: Timestamp
+}
+@Model(ygHr.class.EmployeeSkill, core.class.AttachedDoc, DOMAIN_YG_HR)
+@UX(ygHr.string.Skill)
+export class TEmployeeSkill extends TAttachedDoc implements EmployeeSkill {
+  @Prop(TypeRef(ygHr.class.SkillType), ygHr.string.Skill) skill?: Ref<SkillType>
+  @Prop(TypeNumber(), ygHr.string.YearsOfExperience) yearsOfExperience?: number
+  @Prop(TypeString(), ygHr.string.Comments) comments?: string
+}
+@Model(ygHr.class.EmployeeLanguage, core.class.AttachedDoc, DOMAIN_YG_HR)
+@UX(ygHr.string.Language)
+export class TEmployeeLanguage extends TAttachedDoc implements EmployeeLanguage {
+  @Prop(TypeRef(ygHr.class.LanguageType), ygHr.string.Language) language?: Ref<LanguageType>
+  @Prop(TypeString(), ygHr.string.Fluency) fluency?: LanguageFluency
+  @Prop(TypeString(), ygHr.string.Competency) competency?: LanguageCompetency
+  @Prop(TypeString(), ygHr.string.Comments) comments?: string
+}
+@Model(ygHr.class.EmployeeLicense, core.class.AttachedDoc, DOMAIN_YG_HR)
+@UX(ygHr.string.LicenseType)
+export class TEmployeeLicense extends TAttachedDoc implements EmployeeLicense {
+  @Prop(TypeRef(ygHr.class.LicenseType), ygHr.string.LicenseType) licenseType?: Ref<LicenseType>
+  @Prop(TypeString(), ygHr.string.LicenseNo) licenseNo?: string
+  @Prop(TypeDate(), ygHr.string.IssuedDate) issuedDate?: Timestamp
+  @Prop(TypeDate(), ygHr.string.ExpiryDate) expiryDate?: Timestamp
+}
+
 export function createModel (builder: Builder): void {
   builder.createModel(
     TDepartment,
@@ -160,7 +237,16 @@ export function createModel (builder: Builder): void {
     TEmployeeContact,
     TEmployeeJob,
     TEmergencyContact,
-    TEmployeeSeq
+    TEmployeeSeq,
+    TWorkExperience,
+    TEducation,
+    TEmployeeSkill,
+    TEmployeeLanguage,
+    TEmployeeLicense,
+    TEducationLevel,
+    TSkillType,
+    TLanguageType,
+    TLicenseType
   )
 
   // First-login auto-activate: mount SelfActivate on every workbench page (the same global slot
