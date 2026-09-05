@@ -71,6 +71,7 @@ import {
 import { generateToken } from '@hcengineering/server-token'
 import { createStorageDataAdapter } from './blobStorage'
 import { CommunicationMiddleware, type CommunicationApiFactory } from './communication'
+import { HrReadSecurityMiddleware } from './hrReadSecurity'
 
 import { RatingMiddleware } from '@hcengineering/server-rating'
 
@@ -150,6 +151,9 @@ export function createServerPipeline (
       PrivateMiddleware.create,
       (ctx: MeasureContext, context: PipelineContext, next?: Middleware) =>
         SpaceSecurityMiddleware.create(opt.adapterSecurity ?? false, ctx, context, next),
+      // YG: strips HR profile mixins + child docs from reads by non-HR/non-self accounts. Runs right after
+      // space security (post-processes space-secured results) and upstream of LiveQuery (feeds live queries).
+      HrReadSecurityMiddleware.create,
       SpacePermissionsMiddleware.create,
       GuestPermissionsMiddleware.create,
       ConfigurationMiddleware.create,
