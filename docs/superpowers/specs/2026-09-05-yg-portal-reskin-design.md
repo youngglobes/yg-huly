@@ -86,14 +86,15 @@ The look is ~99% theme tokens + global stylesheets, so most of the reskin is edi
   telegram bot) - repoint or remove.
 - Remove residual "Huly" strings in visible UI copy.
 
-## 6. Open decisions (confirm at review)
+## 6. Decisions (resolved 2026-09-05)
 
-- **Nav structure.** (a) *Reskin the existing two-tier nav* (app-icon rail + per-app navigator), keeping
-  multi-app switching - RECOMMENDED, lower risk; or (b) *merge into one dark rail* like the artifact
-  (brand + sections + user footer) - closest to the mockup but restructures navigation and complicates
-  switching between apps. Recommendation: (a) now; treat (b) as a later, optional structural change.
-- **De-Huly scope timing.** Do §5 in this effort (recommended, since "must not look like Huly") vs defer the
-  login/splash/external-links to a later pass.
+- **Nav structure: reskin the existing TWO-TIER nav** (app-icon rail + per-app navigator). YG uses all the
+  Huly apps (Tracker, Attendance, HR, Timesheet, ...), so the app switcher must stay for cross-app
+  navigation. The single merged rail (artifact layout) is NOT adopted - keep the rail; restyle it to the
+  dark YG look.
+- **Sequence: in-app look FIRST, de-Huly branding LATER.** W1 + W2 (tokens, typography, nav/shell,
+  de-hardcode) are this effort. W3 (§5 branding: favicon, logo, login, loading, external links, copy) is a
+  deferred follow-up pass, not part of the first plan.
 
 ## 7. Phased rollout (each phase: build on beta + screenshots before the next)
 
@@ -101,7 +102,8 @@ The look is ~99% theme tokens + global stylesheets, so most of the reskin is edi
   Pure retheme; biggest visual impact, lowest structural risk. Verify light+dark across HR, Tracker, Chat.
 - **W2 - Nav / shell + de-hardcode.** Rail + navigator to the dark YG look; de-hardcode `Navigator.svelte`
   + `Logo.svelte`; sweep remaining hardcoded colors.
-- **W3 - De-Huly branding.** branding.json, favicon/logo, login/loading, external links, copy.
+- **W3 - De-Huly branding (DEFERRED, later pass).** branding.json, favicon/logo, login/loading, external
+  links, copy. Not part of this plan; scheduled after the in-app reskin (W1+W2) ships and is accepted.
 
 ## 8. Risks
 
