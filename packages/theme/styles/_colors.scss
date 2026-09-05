@@ -18,11 +18,11 @@
   --primary-button-color: #fff;
   --primary-button-content-color: rgba(255, 255, 255, .8);
   --primary-button-border: rgba(255, 255, 255, .09);
-  --primary-button-outline: #5190EC;
+  --primary-button-outline: #D8AC00;
   --primary-button-transparent: rgba(43, 81, 144, 0.2);
 
-  --primary-button-default: #1A1A1A;
-  --primary-button-hovered: #333333;
+  --primary-button-default: #16161A;
+  --primary-button-hovered: #2A2A2A;
   --primary-button-pressed: #000000;
   --primary-button-focused: #1A1A1A;
   --secondary-button-color: rgba(0, 0, 0, .8);
@@ -67,7 +67,7 @@
   --primary-color-skyblue: #93CAF3;
   --primary-color-pink: #FA8DA1;
 
-  --highlight-blue-01: #0084FF;
+  --highlight-blue-01: #8A6D00;
   --highlight-red: #CB4B42;
   --highlight-red-hover: #ff967e;
   --highlight-red-press: #f96f50bd;
@@ -196,7 +196,7 @@
   --theme-link-color: #377AE6;
 
   --theme-list-border-color: rgba(255, 255, 255, .05);
-  --theme-list-header-color: #C88C65;
+  --theme-list-header-color: #B8B6AD;
   --theme-list-subheader-color: #22242A;
   --theme-list-row-color: #1D1F23;
   --theme-list-divider-color: rgba(255, 255, 255, .09);
@@ -228,7 +228,7 @@
   --theme-kanban-group-BackgroundColor: rgba(255, 255, 255, .045);
 
   --theme-editbox-focus-color: rgba(255, 255, 255, .04);
-  --theme-editbox-focus-border: #5190EC;
+  --theme-editbox-focus-border: #D8AC00;
   --theme-tablist-color: rgba(0, 0, 0, .02);
   --theme-tablist-plain-color: #2A64C4; // Light
   --theme-tablist-plain-divider: rgba(255, 255, 255, .07); // Light invert
@@ -507,7 +507,7 @@
   --theme-refinput-border: rgba(0, 0, 0, .1);
 
   // Be aware to update defineAlpha() function in colors.ts
-  --theme-bg-color: #F1F1F4;
+  --theme-bg-color: #F4F2EC;
   --theme-bg-accent-color: rgba(255, 255, 255, .08);
   --theme-bg-dark-color: rgba(255, 255, 255, .8);
   --theme-back-color: #D9D9DD;
@@ -548,7 +548,7 @@
   --theme-link-color: #377AE6;
 
   --theme-list-border-color: rgba(0, 0, 0, .09);
-  --theme-list-header-color: red; //#ECD4CA;
+  --theme-list-header-color: #8A6D00; //#ECD4CA;
   --theme-list-subheader-color: #EEEEF0; // list group container backdrop
   --theme-list-row-color: #FFFFFF;
   --theme-list-divider-color: rgba(0, 0, 0, .07);
@@ -580,7 +580,7 @@
   --theme-kanban-group-BackgroundColor: #f1f1f2;
 
   --theme-editbox-focus-color: rgba(0, 0, 0, .08);
-  --theme-editbox-focus-border: #5190EC;
+  --theme-editbox-focus-border: #D8AC00;
   --theme-tablist-color: rgba(0, 0, 0, .02);
   --theme-tablist-plain-color: #2A64C4;
   --theme-tablist-plain-divider: rgba(0, 0, 0, .07);
