@@ -70,6 +70,8 @@
   // (like pageSizeItems) — internal, English-primary.
   let preset: string = 'thisWeek'
   const presetItems: DropdownTextItem[] = [
+    { id: 'today', label: 'Today' },
+    { id: 'yesterday', label: 'Yesterday' },
     { id: 'thisWeek', label: 'This week' },
     { id: 'lastWeek', label: 'Last week' },
     { id: 'thisMonth', label: 'This month' },
@@ -87,14 +89,17 @@
     return new Date(y, m - 1, d + 1).getTime()
   }
 
-  // Resolve the 4 non-custom presets to a [from, to) window (to is exclusive). This/last week reuse
-  // weekRange (Mon-Sun); this month = the 1st through today inclusive; last month = the whole
-  // previous calendar month.
+  // Resolve the non-custom presets to a [from, to) window (to is exclusive). Today/yesterday are single
+  // local days; this/last week reuse weekRange (Mon-Sun); this month = the 1st through today inclusive;
+  // last month = the whole previous calendar month. All bounds use new Date(y, mo, d) local-midnight
+  // constructors, so they are DST-safe.
   function rangeForPreset (p: string): { from: number, to: number } {
     const now = new Date()
     const y = now.getFullYear()
     const mo = now.getMonth()
     const d = now.getDate()
+    if (p === 'today') return { from: new Date(y, mo, d).getTime(), to: new Date(y, mo, d + 1).getTime() }
+    if (p === 'yesterday') return { from: new Date(y, mo, d - 1).getTime(), to: new Date(y, mo, d).getTime() }
     if (p === 'lastWeek') {
       const lw = new Date()
       lw.setDate(lw.getDate() - 7)
