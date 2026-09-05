@@ -409,7 +409,7 @@
     // claim on the sidecar side.
     const accountUuid = emp.personUuid
     if (accountUuid == null || accountUuid === '') {
-      addViewerError = `${formatName(emp.name)} has no linked Huly account yet (they have not signed in), so they cannot be added as a viewer.`
+      addViewerError = `${formatName(emp.name)} has no linked YG Portal account yet (they have not signed in), so they cannot be added as a viewer.`
       return
     }
     setBusy('viewer-add', true)
