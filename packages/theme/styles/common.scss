@@ -128,7 +128,7 @@
   // YG reskin: the app-icon rail is a fixed dark ground in both themes (brand constant,
   // not a token). !important is required because Workbench.svelte's "railed" mode sets
   // this same background to transparent from a more specific scoped selector.
-  background-color: #16161A !important;
+  background-color: var(--yg-rail-bg) !important;
 
   &.vertical {
     flex-direction: column;
@@ -169,9 +169,9 @@
   // YG reskin: fixed dark ground in both themes (brand constant, not a token). !important
   // fights both the var(--theme-navpanel-color) fallback and Workbench.svelte's "railed"
   // mode, which sets this same background to transparent from a more specific selector.
-  &:not(.second) { background-color: #16161A !important; }
+  &:not(.second) { background-color: var(--yg-rail-bg) !important; }
   &.second.float {
-    background-color: #16161A !important;
+    background-color: var(--yg-rail-bg) !important;
     filter: drop-shadow(2px 0 5px rgba(0, 0, 0, .2));
     z-index: 460;
 
@@ -197,7 +197,7 @@
     position: fixed;
     top: calc(var(--status-bar-height) + 1px);
     height: calc(100% - var(--status-bar-height) - 2px);
-    background-color: #16161A !important;
+    background-color: var(--yg-rail-bg) !important;
     z-index: 450;
     filter: drop-shadow(2px 0 5px rgba(0, 0, 0, .2));
 

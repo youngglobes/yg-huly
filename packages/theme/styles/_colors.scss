@@ -15,6 +15,15 @@
 
 /* Common Colors */
 * {
+  /* YG sidebar / nav rail palette - single source of truth (the rail is dark in both themes,
+     so these live in the common block, not per-theme). Update a sidebar color here, once. */
+  --yg-rail-bg: #16161A;
+  --yg-rail-fg: #A3A2A9;
+  --yg-rail-fg-strong: #F3F2EE;
+  --yg-rail-hover: rgba(246, 197, 0, 0.1);
+  --yg-rail-selected: rgba(246, 197, 0, 0.15);
+  --yg-accent: #F6C500;
+
   --primary-button-color: #fff;
   --primary-button-content-color: rgba(255, 255, 255, .8);
   --primary-button-border: rgba(255, 255, 255, .09);
@@ -270,7 +279,7 @@
   --theme-diffview-delete-color: rgb(248, 81, 73);
 
   --theme-tooltip-color: rgba(255, 255, 255, .8);
-  --theme-tooltip-bg: #2C3139;
+  --theme-tooltip-bg: var(--yg-rail-bg);
   --theme-tooltip-key-bg: rgba(255, 255, 255, .08);
 
   --theme-inbox-notify: #F47758;
@@ -369,7 +378,7 @@
   --card-overlay-color: rgba(28, 29, 31, .5);
   --avatar-bg-color: #4f5358;
   --avatar-border-color: rgba(255, 255, 255, .1);
-  --tooltip-bg-color: #1f2023f0;
+  --tooltip-bg-color: #16161af0;
 
   --button-bg-color: #303236;
   --button-bg-hover: #37383b;
@@ -622,7 +631,7 @@
   --theme-diffview-delete-color: rgb(209, 36, 47);
 
   --theme-tooltip-color: #FFF;
-  --theme-tooltip-bg: #444248;
+  --theme-tooltip-bg: var(--yg-rail-bg);
   --theme-tooltip-key-bg: rgba(255, 255, 255, .08);
 
   --theme-inbox-notify: #F47758;
@@ -721,7 +730,7 @@
   --card-overlay-color: rgba(144, 149, 157, .4);
   --avatar-bg-color: #e0e0e0;  // HZ
   --avatar-border-color: transparent;
-  --tooltip-bg-color: #fffffff0;
+  --tooltip-bg-color: #16161af0;
 
   --button-bg-color: #fff;
   --button-bg-hover: #f4f5f8;

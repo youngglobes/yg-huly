@@ -79,7 +79,7 @@
       border-radius: 0.25rem;
     }
     &.small.selected {
-      background-color: var(--theme-button-pressed);
+      background-color: var(--yg-rail-selected);
     }
 
     .icon-container {
@@ -88,20 +88,23 @@
       color: var(--theme-navpanel-icons-color);
     }
 
-    &:hover .icon-container {
-      color: var(--theme-caption-color);
+    &:hover {
+      background-color: var(--yg-rail-hover);
+      .icon-container {
+        color: var(--yg-rail-fg-strong);
+      }
     }
     &:focus {
       box-shadow: 0 0 0 2px var(--primary-button-outline);
       .icon-container {
-        color: var(--theme-caption-color);
+        color: var(--yg-rail-fg-strong);
       }
     }
 
     &.selected {
-      background-color: var(--theme-button-pressed);
+      background-color: var(--yg-rail-selected);
       .icon-container {
-        color: var(--theme-caption-color);
+        color: var(--yg-rail-fg-strong);
       }
     }
     &.navigator {
