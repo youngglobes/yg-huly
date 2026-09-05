@@ -21,3 +21,8 @@ import type { Ref } from '@hcengineering/core'
 import type { Person } from '@hcengineering/contact'
 
 export const hrSelectedEmployee = writable<Ref<Person> | undefined>(undefined)
+
+// Alongside the employee, the week the user was viewing on Overview (a weekMs anchor), so the
+// Timesheets sub-module opens on that same week instead of resetting to the current one. Both are
+// consumed and cleared on arrival, so a later direct visit to Timesheets is unaffected.
+export const hrSelectedWeek = writable<number | undefined>(undefined)

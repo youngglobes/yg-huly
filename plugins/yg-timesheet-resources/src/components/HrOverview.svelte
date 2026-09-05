@@ -38,7 +38,7 @@
   import { buildOverviewGrid } from '../utils/hr-report'
   import { exportOverviewXlsx } from '../utils/hr-xlsx'
   import { ensureHrMembership } from '../utils/hrMembership'
-  import { hrSelectedEmployee } from '../utils/hrStore'
+  import { hrSelectedEmployee, hrSelectedWeek } from '../utils/hrStore'
   import { weekPeriod, type Period } from '../utils/period'
   import { formatHours, weekRange } from '../utils/week'
 
@@ -97,6 +97,7 @@
   // here since the HR app's specials aren't nested under a space.
   function selectEmployee (ref: Ref<Person>): void {
     hrSelectedEmployee.set(ref)
+    hrSelectedWeek.set(weekMs) // carry the week being viewed so the individual grid opens on it
     const loc = getCurrentLocation()
     loc.path[3] = 'timesheets'
     loc.path.length = 4

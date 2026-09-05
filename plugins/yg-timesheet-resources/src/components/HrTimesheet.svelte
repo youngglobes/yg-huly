@@ -36,7 +36,7 @@
   import { get } from 'svelte/store'
   import { buildWeekGrid, type HrEntry } from '../utils/hr-report'
   import { ensureHrMembership } from '../utils/hrMembership'
-  import { hrSelectedEmployee } from '../utils/hrStore'
+  import { hrSelectedEmployee, hrSelectedWeek } from '../utils/hrStore'
   import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
@@ -53,7 +53,14 @@
     hrSelectedEmployee.set(undefined)
   }
 
-  let weekMs = Date.now()
+  // Seed the week from the same click-through so we land on the week the user was viewing on
+  // Overview, not the current one; cleared on consume so a later direct visit still opens on today.
+  const preWeek = get(hrSelectedWeek)
+  if (preWeek !== undefined) {
+    hrSelectedWeek.set(undefined)
+  }
+
+  let weekMs = preWeek ?? Date.now()
   $: week = weekRange(weekMs)
   function shiftWeek (deltaDays: number): void {
     const d = new Date(weekMs)
