@@ -29,13 +29,31 @@
 .heading-ui-H2,
 .heading-medium-20,
 .heading-bold-20 {
-  font-family: var(--font-family);
   font-style: normal;
 
   &:not(.secondary, .tertiary) { color: var(--global-primary-TextColor); }
   &.secondary { color: var(--global-secondary-TextColor); }
   &.tertiary { color: var(--global-tertiary-TextColor); }
   &:not(.line-height-auto) { line-height: 1rem; }
+}
+.font-regular-11,
+.font-medium-11,
+.font-regular-12,
+.font-medium-12,
+.font-caps-medium-12,
+.font-bold-12,
+.font-regular-14,
+.font-medium-14,
+.font-bold-14,
+.paragraph-regular-14 {
+  font-family: var(--font-family);
+}
+.heading-medium-16,
+.heading-bold-16,
+.heading-ui-H2,
+.heading-medium-20,
+.heading-bold-20 {
+  font-family: var(--font-family-display);
 }
 .font-regular-11,
 .font-medium-11 {
