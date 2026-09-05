@@ -67,6 +67,8 @@ export const getCurrentLanguage = (): string => {
  */
 export const getCurrentEmoji = (): string => localStorage.getItem('emoji') ?? getDefaultProps('emoji', 'emoji-system')
 
+export { forceThemeRepaint } from './apply'
+
 export class ThemeOptions {
   readonly variant: ThemeVariantType
   constructor (
