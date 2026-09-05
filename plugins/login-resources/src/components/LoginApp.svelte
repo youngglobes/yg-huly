@@ -203,6 +203,7 @@
 
 <style lang="scss">
   .back-image {
+    display: none;
     position: fixed;
     top: 32px;
     left: 0;
@@ -213,7 +214,10 @@
   }
   .backd {
     position: relative;
-    background-color: var(--theme-bg-color);
+    background:
+      radial-gradient(48% 44% at 12% 16%, rgba(246, 197, 0, 0.18), transparent 60%),
+      radial-gradient(44% 40% at 88% 90%, rgba(246, 197, 0, 0.12), transparent 62%),
+      #0d0d0b;
 
     .bg-image {
       display: flex;
@@ -222,7 +226,7 @@
       height: 100%;
     }
     &.paneld {
-      background: rgba(45, 50, 160, 0.5);
+      background: transparent;
 
       .panel-base {
         padding-top: 5rem;
@@ -241,9 +245,9 @@
     height: 100%;
     min-width: 35rem;
     max-width: 41rem;
-    background: rgba(45, 50, 160, 0.5);
+    background: rgba(28, 28, 30, 0.55);
     mix-blend-mode: normal;
-    box-shadow: -30px 1.52px 173.87px #121437;
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.55);
     backdrop-filter: blur(157.855px);
     border-radius: 1rem;
 
@@ -252,7 +256,7 @@
       position: absolute;
       content: '';
       inset: 0;
-      background: radial-gradient(161.92% 96.11% at 11.33% 3.89%, #313d9a 0%, #202669 100%);
+      background: radial-gradient(161.92% 96.11% at 11.33% 3.89%, rgba(40, 40, 44, 0.85) 0%, rgba(18, 18, 20, 0.92) 100%);
       border-radius: 1rem;
       z-index: -1;
     }
@@ -261,15 +265,7 @@
       content: '';
       inset: 0;
       padding: 1px;
-      background: conic-gradient(
-          rgba(255, 255, 255, 0.18) 10%,
-          rgba(126, 120, 165, 0.5),
-          rgba(191, 216, 253, 0.5),
-          rgba(246, 247, 249, 0.32),
-          rgba(219, 229, 242, 0.34) 60%,
-          rgba(163, 203, 255, 0.24) 90%
-        )
-        border-box;
+      background: linear-gradient(180deg, rgba(246, 197, 0, 0.35), rgba(255, 255, 255, 0.10)) border-box;
       -webkit-mask:
         linear-gradient(#000 0 0) content-box,
         linear-gradient(#000 0 0);
@@ -287,7 +283,7 @@
     position: absolute;
     content: '';
     inset: 0;
-    background: radial-gradient(161.92% 96.11% at 11.33% 3.89%, #313d9a 0%, #202669 100%);
+    background: radial-gradient(161.92% 96.11% at 11.33% 3.89%, rgba(40, 40, 44, 0.85) 0%, rgba(18, 18, 20, 0.92) 100%);
     z-index: -1;
   }
   .panel::after {
