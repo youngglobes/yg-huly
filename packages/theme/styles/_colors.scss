@@ -193,7 +193,7 @@
   --theme-dark-color: rgba(255, 255, 255, .6);
   --theme-content-color: rgba(255, 255, 255, .8);
   --theme-caption-color: #FFF;
-  --theme-link-color: #377AE6;
+  --theme-link-color: #E8CF6A;
 
   --theme-list-border-color: rgba(255, 255, 255, .05);
   --theme-list-header-color: #B8B6AD;
@@ -230,7 +230,7 @@
   --theme-editbox-focus-color: rgba(255, 255, 255, .04);
   --theme-editbox-focus-border: #D8AC00;
   --theme-tablist-color: rgba(0, 0, 0, .02);
-  --theme-tablist-plain-color: #2A64C4; // Light
+  --theme-tablist-plain-color: #E8CF6A; // Light
   --theme-tablist-plain-divider: rgba(255, 255, 255, .07); // Light invert
   --theme-checkbox-color: #000;
   --theme-checkbox-bg-color: #FFF;
@@ -492,7 +492,7 @@
   --theme-button-attention-active-shadow: 0 4px 12px rgba(236, 72, 153, 0.5);
   --theme-button-attention-focus-shadow: 0 0 0 3px rgba(236, 72, 153, 0.2);
 
-  // Warning button — subdued, tinted-orange variant for persistent slots
+  // Warning button - subdued, tinted-orange variant for persistent slots
   // (e.g. sidebar footer). Designed to read as "heads up" without competing
   // for attention with primary actions. No gradients, no lift, no pulse.
   --theme-button-warning-color: #C2410C;
@@ -545,7 +545,7 @@
   --theme-dark-color: rgba(0, 0, 0, .6);
   --theme-content-color: rgba(0, 0, 0, .8);
   --theme-caption-color: #000;
-  --theme-link-color: #377AE6;
+  --theme-link-color: #8A6D00;
 
   --theme-list-border-color: rgba(0, 0, 0, .09);
   --theme-list-header-color: #8A6D00; //#ECD4CA;
@@ -582,7 +582,7 @@
   --theme-editbox-focus-color: rgba(0, 0, 0, .08);
   --theme-editbox-focus-border: #D8AC00;
   --theme-tablist-color: rgba(0, 0, 0, .02);
-  --theme-tablist-plain-color: #2A64C4;
+  --theme-tablist-plain-color: #8A6D00;
   --theme-tablist-plain-divider: rgba(0, 0, 0, .07);
   --theme-checkbox-color: #000;
   --theme-checkbox-bg-color: #FFF;

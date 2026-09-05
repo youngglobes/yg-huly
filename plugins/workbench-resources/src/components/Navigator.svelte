@@ -225,7 +225,7 @@
     top: 0;
     z-index: 1;
     padding: 0.25rem 0.75rem 0.5rem;
-    background-color: var(--theme-navpanel-color);
+    background-color: transparent;
 
     :global(.searchInput-wrapper) {
       background-color: var(--theme-navcard-BackgroundColor);
