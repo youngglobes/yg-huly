@@ -115,7 +115,7 @@
   // other.
   function friendlyError (e: unknown, fallback: string): string {
     const status = e instanceof Error ? (e as Error & { status?: number }).status : undefined
-    if (status === 503) return 'The Huly account service is unreachable right now. This is not a permissions problem, try again shortly.'
+    if (status === 503) return 'The account service is unreachable right now. This is not a permissions problem, try again shortly.'
     if (status === 409) return 'That label is already in use.'
     if (status === 404) return 'Not found. It may already have been removed.'
     if (status === 400) return 'That request was rejected as invalid.'
