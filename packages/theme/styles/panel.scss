@@ -77,6 +77,14 @@
   .hulyNavItem-label {
     color: var(--yg-rail-fg) !important;
   }
+  .hulyNavItem-label {
+    font-weight: 500 !important;
+    font-size: 0.9375rem !important;
+  }
+  .hulyNavItem-icon > svg {
+    width: 1.125rem !important;
+    height: 1.125rem !important;
+  }
 
   &:not(.selected):hover,
   &:not(.selected).showMenu {
@@ -95,6 +103,9 @@
     .hulyNavItem-icon,
     .hulyNavItem-label:not(.description) {
       color: var(--yg-rail-fg-strong) !important;
+    }
+    .hulyNavItem-label:not(.description) {
+      font-weight: 600 !important;
     }
 
     &::before {
