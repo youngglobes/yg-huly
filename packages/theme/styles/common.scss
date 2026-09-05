@@ -160,10 +160,6 @@
   &.border-left { border-left: 1px solid var(--theme-divider-color); }
   &.border-right { border-right: 1px solid var(--theme-divider-color); }
 }
-// YG reskin: the .filledNav modifier above is shared with .antiPanel-component (the main
-// content panel), which must stay theme-colored. Re-assert dark only for the navigator so
-// this specific settings/hall variant does not bleed a themed background back in.
-.antiPanel-navigator.filledNav { background-color: #16161A !important; }
 .antiPanel-navigator {
   position: relative;
   min-width: 12.5rem;
