@@ -1264,7 +1264,8 @@
       border-top: none;
     }
     .antiPanel-application:not(.horizontal) {
-      border-radius: var(--medium-BorderRadius) 0 0 var(--medium-BorderRadius);
+      // YG reskin: the rail sits flush with the nav panel (no rounded left corners).
+      border-radius: 0;
       border-right: none;
     }
   }
