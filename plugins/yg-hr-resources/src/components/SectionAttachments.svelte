@@ -206,8 +206,8 @@
     flex-direction: column;
   }
   .yg-file__name {
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
     color: var(--theme-caption-color);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -217,8 +217,8 @@
     text-decoration: underline;
   }
   .yg-file__size {
-    font-size: 11.5px;
-    color: var(--theme-trans-color);
+    font-size: 12.5px;
+    color: var(--theme-darker-color);
   }
   .yg-file__rm {
     flex: none;

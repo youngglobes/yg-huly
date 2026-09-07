@@ -67,8 +67,9 @@
 .yg-input-f {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--theme-trans-color);
 }
 .yg-input-f--full {

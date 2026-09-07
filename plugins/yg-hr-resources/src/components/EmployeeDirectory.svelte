@@ -316,8 +316,8 @@
 <style lang="scss">
   @use './yg-profile' as *;
 
-  // Local accent (petrol-teal), matching the approved mockup's --accent token - same idiom
-  // EmployeeProfile.svelte/HrLists.svelte use.
+  // Local accent, derived from the selected brand accent (--yg-brand-ink light / -ink-dark dark)
+  // so the screen follows the accent picker - same idiom EmployeeProfile.svelte/HrLists.svelte use.
   .yg-directory {
     --yg-accent: var(--yg-brand-ink);
     flex: 1;
@@ -406,10 +406,10 @@
   }
   .yg-dir-table thead th {
     text-align: left;
-    font-size: 11px;
-    letter-spacing: 0.07em;
+    font-size: 12px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    color: var(--theme-trans-color);
+    color: var(--theme-halfcontent-color);
     font-weight: 600;
     padding: 12px 18px;
     border-bottom: 1px solid var(--theme-divider-color);
@@ -445,8 +445,8 @@
     color: var(--theme-caption-color);
   }
   .yg-dir-person__code {
-    font-size: 12px;
-    color: var(--theme-trans-color);
+    font-size: 13px;
+    color: var(--theme-darker-color);
     font-family: var(--theme-font-mono, ui-monospace, monospace);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;

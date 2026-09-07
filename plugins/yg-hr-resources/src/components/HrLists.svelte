@@ -475,9 +475,9 @@
 </div>
 
 <style lang="scss">
-  // Local accent (petrol-teal), matching the approved mockup's --accent token. Everything else
-  // (ground/surface/text/border) rides Huly's own --theme-* variables so the screen stays
-  // theme-aware without introducing a parallel token system.
+  // Local accent, derived from the selected brand accent (--yg-brand-ink light / -ink-dark dark)
+  // so the screen follows the accent picker. Everything else (ground/surface/text/border) rides
+  // Huly's own --theme-* variables so the screen stays theme-aware without a parallel token system.
   .hs-page {
     --yg-accent: var(--yg-brand-ink);
     flex: 1;
@@ -524,11 +524,10 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
   .hs-card__title {
-    font-size: 11px;
+    font-size: 16px;
     font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--theme-halfcontent-color);
+    letter-spacing: -0.01em;
+    color: var(--theme-caption-color);
     margin-bottom: 14px;
   }
 

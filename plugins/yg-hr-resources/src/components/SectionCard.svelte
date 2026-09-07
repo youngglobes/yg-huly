@@ -55,9 +55,8 @@
     margin: 0;
     font-size: 18px;
     font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: var(--theme-halfcontent-color);
+    letter-spacing: -0.01em;
+    color: var(--theme-caption-color);
   }
   .yg-card__actions {
     display: flex;
