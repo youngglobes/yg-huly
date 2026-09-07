@@ -15,20 +15,34 @@
 
 /* Common Colors */
 * {
+  /* ============================================================================================
+     YG BRAND ACCENT - single source of truth. Change these to re-colour the accent everywhere:
+     primary buttons, active nav item, links, focus rings, tints and the login glows all derive
+     from here. --yg-brand and --yg-brand-rgb are the SAME colour in two forms (hex and rgb triplet
+     for rgba() tints) - keep them in sync. The -hover / -active / -ink tones are the hand-tuned
+     family; update them too for a full re-brand (or leave for a yellow-to-yellow tweak).
+     ============================================================================================ */
+  --yg-brand: #F6C500; /* base accent */
+  --yg-brand-rgb: 246, 197, 0; /* same colour, rgb triplet - used by rgba() tints/glows */
+  --yg-brand-hover: #FFD84D; /* lighter - button hover */
+  --yg-brand-active: #D8AC00; /* deeper - button active / focus / accent borders */
+  --yg-brand-ink: #8A6D00; /* readable gold for text/links on LIGHT surfaces */
+  --yg-brand-ink-dark: #E8CF6A; /* readable gold for text/links on DARK surfaces */
+
   /* YG sidebar / nav rail palette - single source of truth (the rail is dark in both themes,
      so these live in the common block, not per-theme). Update a sidebar color here, once. */
   --yg-rail-bg: #131316; /* app-icon rail: the darker shade */
   --yg-nav-bg: #1E1E22; /* navigator / submenu panel: a lighter shade of the same ground */
   --yg-rail-fg: #C6C4BB;
   --yg-rail-fg-strong: #FBFAF6;
-  --yg-rail-hover: rgba(246, 197, 0, 0.13);
-  --yg-rail-selected: rgba(246, 197, 0, 0.15);
-  --yg-accent: #F6C500;
+  --yg-rail-hover: rgba(var(--yg-brand-rgb), 0.13);
+  --yg-rail-selected: rgba(var(--yg-brand-rgb), 0.15);
+  --yg-accent: var(--yg-brand);
 
   --primary-button-color: #fff;
   --primary-button-content-color: rgba(255, 255, 255, .8);
   --primary-button-border: rgba(255, 255, 255, .09);
-  --primary-button-outline: #D8AC00;
+  --primary-button-outline: var(--yg-brand-active);
   --primary-button-transparent: rgba(43, 81, 144, 0.2);
 
   --primary-button-default: #16161A;
@@ -77,7 +91,7 @@
   --primary-color-skyblue: #93CAF3;
   --primary-color-pink: #FA8DA1;
 
-  --highlight-blue-01: #8A6D00;
+  --highlight-blue-01: var(--yg-brand-ink);
   --highlight-red: #CB4B42;
   --highlight-red-hover: #ff967e;
   --highlight-red-press: #f96f50bd;
@@ -203,7 +217,7 @@
   --theme-dark-color: rgba(255, 255, 255, .6);
   --theme-content-color: rgba(255, 255, 255, .8);
   --theme-caption-color: #FFF;
-  --theme-link-color: #E8CF6A;
+  --theme-link-color: var(--yg-brand-ink-dark);
 
   --theme-list-border-color: rgba(255, 255, 255, .05);
   --theme-list-header-color: #B8B6AD;
@@ -238,9 +252,9 @@
   --theme-kanban-group-BackgroundColor: rgba(255, 255, 255, .045);
 
   --theme-editbox-focus-color: rgba(255, 255, 255, .04);
-  --theme-editbox-focus-border: #D8AC00;
+  --theme-editbox-focus-border: var(--yg-brand-active);
   --theme-tablist-color: rgba(0, 0, 0, .02);
-  --theme-tablist-plain-color: #E8CF6A; // Light
+  --theme-tablist-plain-color: var(--yg-brand-ink-dark); // Light
   --theme-tablist-plain-divider: rgba(255, 255, 255, .07); // Light invert
   --theme-checkbox-color: #000;
   --theme-checkbox-bg-color: #FFF;
@@ -555,10 +569,10 @@
   --theme-dark-color: rgba(0, 0, 0, .6);
   --theme-content-color: rgba(0, 0, 0, .8);
   --theme-caption-color: #000;
-  --theme-link-color: #8A6D00;
+  --theme-link-color: var(--yg-brand-ink);
 
   --theme-list-border-color: rgba(0, 0, 0, .09);
-  --theme-list-header-color: #8A6D00; //#ECD4CA;
+  --theme-list-header-color: var(--yg-brand-ink); //#ECD4CA;
   --theme-list-subheader-color: #EEEEF0; // list group container backdrop
   --theme-list-row-color: #FFFFFF;
   --theme-list-divider-color: rgba(0, 0, 0, .07);
@@ -590,9 +604,9 @@
   --theme-kanban-group-BackgroundColor: #f1f1f2;
 
   --theme-editbox-focus-color: rgba(0, 0, 0, .08);
-  --theme-editbox-focus-border: #D8AC00;
+  --theme-editbox-focus-border: var(--yg-brand-active);
   --theme-tablist-color: rgba(0, 0, 0, .02);
-  --theme-tablist-plain-color: #8A6D00;
+  --theme-tablist-plain-color: var(--yg-brand-ink);
   --theme-tablist-plain-divider: rgba(0, 0, 0, .07);
   --theme-checkbox-color: #000;
   --theme-checkbox-bg-color: #FFF;

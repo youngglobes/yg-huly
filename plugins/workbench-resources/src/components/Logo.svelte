@@ -58,7 +58,7 @@
       height: 1.75rem;
     }
     &.red {
-      background-color: #f6c500;
+      background-color: var(--yg-brand);
       color: #16161a;
     }
   }

@@ -215,8 +215,8 @@
   .backd {
     position: relative;
     background:
-      radial-gradient(48% 44% at 12% 16%, rgba(246, 197, 0, 0.18), transparent 60%),
-      radial-gradient(44% 40% at 88% 90%, rgba(246, 197, 0, 0.12), transparent 62%),
+      radial-gradient(48% 44% at 12% 16%, rgba(var(--yg-brand-rgb), 0.18), transparent 60%),
+      radial-gradient(44% 40% at 88% 90%, rgba(var(--yg-brand-rgb), 0.12), transparent 62%),
       #0d0d0b;
 
     .bg-image {
@@ -265,7 +265,7 @@
       content: '';
       inset: 0;
       padding: 1px;
-      background: linear-gradient(180deg, rgba(246, 197, 0, 0.35), rgba(255, 255, 255, 0.10)) border-box;
+      background: linear-gradient(180deg, rgba(var(--yg-brand-rgb), 0.35), rgba(255, 255, 255, 0.10)) border-box;
       -webkit-mask:
         linear-gradient(#000 0 0) content-box,
         linear-gradient(#000 0 0);

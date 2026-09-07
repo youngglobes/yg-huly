@@ -5,7 +5,7 @@
 
 /* Common Colors */
 * {
-  --global-accent-IconColor: #8A6D00;
+  --global-accent-IconColor: var(--yg-brand-ink);
   --global-on-accent-TextColor: #16161A;
   --global-higlight-Color: #CB4B42;
 
@@ -18,18 +18,18 @@
   --button-disabled-LabelColor: #8b97ad;
   --button-accent-IconColor: #16161A;
   --button-disabled-IconColor: #8b97ad;
-  --button-primary-BackgroundColor: #F6C500;
-  --button-primary-BorderColor: #D8AC001A;
-  --button-primary-hover-BackgroundColor: #FFD84D;
-  --button-primary-active-BackgroundColor: #D8AC00;
-  --button-primary-loading-LabelColor: #8A6D00;
+  --button-primary-BackgroundColor: var(--yg-brand);
+  --button-primary-BorderColor: var(--yg-brand-active)1A;
+  --button-primary-hover-BackgroundColor: var(--yg-brand-hover);
+  --button-primary-active-BackgroundColor: var(--yg-brand-active);
+  --button-primary-loading-LabelColor: var(--yg-brand-ink);
   --button-negative-loading-LabelColor: #ff9187;
   --button-negative-BackgroundColor: #CB4B42;
   --button-negative-BorderColor: #d1d5de26;
   --button-negative-hover-BackgroundColor: #DC5148;
   --button-negative-active-BackgroundColor: #B34139;
 
-  --selector-active-BackgroundColor: #F6C500;
+  --selector-active-BackgroundColor: var(--yg-brand);
   --selector-IconColor: #16161A;
   --selector-disabled-IconColor: #8b97ad;
 
@@ -46,8 +46,8 @@
   --global-ui-BackgroundColor: 1530720D;
   --global-ui-BorderColor: #A5BDFF1A;
   --global-ui-hover-BackgroundColor: #FFFFFF12;
-  --global-ui-active-BackgroundColor: #F6C50022;
-  --global-ui-highlight-BackgroundColor: #F6C50014;
+  --global-ui-active-BackgroundColor: var(--yg-brand)22;
+  --global-ui-highlight-BackgroundColor: var(--yg-brand)14;
   --global-ui-hover-highlight-BackgroundColor: #FFFFFF14;
   --global-surface-01-BackgroundColor: #0E0F10;
   --global-surface-01-BorderColor: #2A2A2F;
@@ -60,22 +60,22 @@
   --global-popover-BackgroundColor: #1F2328;
   --global-popover-hover-BackgroundColor: #2C3139;
   --global-popover-BorderColor: #FFFFFF14;
-  --global-primary-LinkColor: #E8CF6A;
+  --global-primary-LinkColor: var(--yg-brand-ink-dark);
   --global-primary-IconColor: #ffffff;
   --global-primary-TextColor: #FFFFFF;
   --global-secondary-TextColor: #C1C9D6;
   --global-tertiary-TextColor: #8E99AF;
   --global-disabled-TextColor: #5A667E;
-  --global-accent-TextColor: #E8CF6A;
+  --global-accent-TextColor: var(--yg-brand-ink-dark);
   --global-error-TextColor: #FF6359;
-  --global-focus-BorderColor: #D8AC00;
+  --global-focus-BorderColor: var(--yg-brand-active);
   --global-focus-inset-BorderColor: #0D121C;
   --global-popover-ShadowColor: #0E131E59;
   --global-modal-ShadowColor: #0E131E73;
   --global-accent-SkyText: #2A2712;
-  --global-accent-BackgroundColor: #F6C500;
-  --global-on-nuance-TextColor: #E8CF6A;
-  --global-accent-IconColor: #E8CF6A;
+  --global-accent-BackgroundColor: var(--yg-brand);
+  --global-on-nuance-TextColor: var(--yg-brand-ink-dark);
+  --global-accent-IconColor: var(--yg-brand-ink-dark);
   --global-ui-hover-OverlayColor: #FFFFFF14;
   --global-ui-active-OverlayColor: #FFFFFF1F;
 
@@ -146,8 +146,8 @@
   --global-ui-BackgroundColor: #1530720D;
   --global-ui-BorderColor: #16161A1A;
   --global-ui-hover-BackgroundColor: #16161A0D;
-  --global-ui-active-BackgroundColor: #F6C50026;
-  --global-ui-highlight-BackgroundColor: #F6C50022;
+  --global-ui-active-BackgroundColor: var(--yg-brand)26;
+  --global-ui-highlight-BackgroundColor: var(--yg-brand)22;
   --global-ui-hover-highlight-BackgroundColor: #16161A0D;
   --global-surface-01-BackgroundColor: #FAF6EA;
   --global-surface-01-BorderColor: #ECE7DA;
@@ -160,21 +160,21 @@
   --global-popover-BackgroundColor: #131925;
   --global-popover-hover-BackgroundColor: #1F2737;
   --global-popover-BorderColor: #A5BDFF26;
-  --global-primary-LinkColor: #8A6D00;
+  --global-primary-LinkColor: var(--yg-brand-ink);
   --global-primary-IconColor: #16161A;
   --global-primary-TextColor: #16161A;
   --global-secondary-TextColor: #5D5D66;
   --global-tertiary-TextColor: #7B879E;
   --global-disabled-TextColor: #A1ABBF;
-  --global-accent-TextColor: #8A6D00;
+  --global-accent-TextColor: var(--yg-brand-ink);
   --global-error-TextColor: #A40A1B;
-  --global-focus-BorderColor: #D8AC00;
+  --global-focus-BorderColor: var(--yg-brand-active);
   --global-focus-inset-BorderColor: #FFFFFF;
   --global-popover-ShadowColor: #0E131E1F;
   --global-modal-ShadowColor: #0E131E14;
   --global-accent-SkyText: #FBF3D5;
-  --global-accent-BackgroundColor: #F6C500;
-  --global-on-nuance-TextColor: #8A6D00;
+  --global-accent-BackgroundColor: var(--yg-brand);
+  --global-on-nuance-TextColor: var(--yg-brand-ink);
 
   --global-no-priority-PriorityColor: #7B879E;
   --global-low-PriorityColor: #3566E2;
