@@ -27,7 +27,8 @@
     isThemeDark,
     themeStore as themeOptions,
     getCurrentEmoji,
-    forceThemeRepaint
+    forceThemeRepaint,
+    initAccent
   } from './'
 
   const currentTheme = writable<string>(getCurrentTheme())
@@ -135,6 +136,7 @@
 
   onMount(() => {
     setRootColors($currentTheme, false)
+    initAccent()
     setRootFontSize($currentFontSize, false)
     void setLanguage($currentLanguage, false)
     void loadPluginStrings($currentLanguage)

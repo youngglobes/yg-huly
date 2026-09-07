@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type IntlString, getMetadata } from '@hcengineering/platform'
+  import { type IntlString, getMetadata, getEmbeddedLabel } from '@hcengineering/platform'
+  import { accentPresets, getStoredAccent, setAccent } from '@hcengineering/theme'
   import { getContext } from 'svelte'
   import { type Readable } from 'svelte/store'
 
@@ -29,7 +30,8 @@
     showPopup,
     deviceOptionsStore as deviceInfo,
     modalStore,
-    eventToHTMLElement
+    eventToHTMLElement,
+    tooltip
   } from '../..'
   import EmojiStyle from './icons/EmojiStyle.svelte'
 
@@ -109,6 +111,13 @@
     setTheme(theme)
   }
 
+  let currentAccent = getStoredAccent()
+  function selectAccent (id: string): void {
+    if (currentAccent === id) return
+    currentAccent = id
+    setAccent(id)
+  }
+
   function selectLanguage (language: string): void {
     if ($currentLanguage === language) return
     setLanguage(language)
@@ -147,6 +156,24 @@
               <Label label={theme.label} />
             </span>
           </div>
+        {/each}
+      </div>
+
+      <div class="ap-menuItem separator halfMargin" />
+
+      <div class="flex-row-center accent-row m-4">
+        {#each accentPresets as preset}
+          {@const selected = currentAccent === preset.id}
+          <button
+            class="accent-swatch"
+            class:selected
+            style:background-color={preset.swatch}
+            use:tooltip={{ label: getEmbeddedLabel(preset.label) }}
+            aria-label={preset.label}
+            on:click={() => {
+              selectAccent(preset.id)
+            }}
+          ></button>
         {/each}
       </div>
 
@@ -248,3 +275,32 @@
 
   <div class="ap-space" />
 </div>
+
+<style lang="scss">
+  .accent-row {
+    gap: 0.75rem;
+  }
+  .accent-swatch {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    outline: none;
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.1s ease;
+
+    &:hover {
+      transform: scale(1.12);
+    }
+    &.selected {
+      border-color: var(--theme-caption-color);
+      box-shadow: 0 0 0 2px var(--theme-popup-color);
+    }
+    &:focus-visible {
+      box-shadow: 0 0 0 2px var(--primary-button-outline);
+    }
+  }
+</style>
