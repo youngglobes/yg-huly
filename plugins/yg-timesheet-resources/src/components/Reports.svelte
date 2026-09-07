@@ -297,9 +297,6 @@
       sortDir = key === 'date' || key === 'spent' ? -1 : 1
     }
   }
-  function sortArrow (key: SortKey): string {
-    return sortKey === key ? (sortDir === 1 ? '▲' : '▼') : ''
-  }
   function compareRows (a: ReportRow, b: ReportRow): number {
     let r = 0
     if (sortKey === 'date') r = a.date - b.date
@@ -519,22 +516,37 @@
           <thead>
             <tr>
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'date'} on:click={() => toggleSort('date')}>
-                <Label label={ygTimesheet.string.Date} /><span class="rp-arrow">{sortArrow('date')}</span>
+                <span class="rp-hcell">
+                  <Label label={ygTimesheet.string.Date} />
+                  <svg class="rp-arrow" class:up={sortKey === 'date' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
               </th>
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'person'} on:click={() => toggleSort('person')}>
-                Person<span class="rp-arrow">{sortArrow('person')}</span>
+                <span class="rp-hcell">
+                  Person
+                  <svg class="rp-arrow" class:up={sortKey === 'person' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
               </th>
               <th class="left">Task</th>
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'project'} on:click={() => toggleSort('project')}>
-                <Label label={ygTimesheet.string.Project} /><span class="rp-arrow">{sortArrow('project')}</span>
+                <span class="rp-hcell">
+                  <Label label={ygTimesheet.string.Project} />
+                  <svg class="rp-arrow" class:up={sortKey === 'project' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
               </th>
               <th class="yg-num rp-sortable" class:rp-sorted={sortKey === 'spent'} on:click={() => toggleSort('spent')}>
-                <Label label={ygTimesheet.string.Spent} /><span class="rp-arrow">{sortArrow('spent')}</span>
+                <span class="rp-hcell rp-hcell--num">
+                  <Label label={ygTimesheet.string.Spent} />
+                  <svg class="rp-arrow" class:up={sortKey === 'spent' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
               </th>
               <th class="yg-num"><Label label={ygTimesheet.string.Approved} /></th>
               <th class="left">Approved by</th>
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'status'} on:click={() => toggleSort('status')}>
-                <Label label={ygTimesheet.string.Status} /><span class="rp-arrow">{sortArrow('status')}</span>
+                <span class="rp-hcell">
+                  <Label label={ygTimesheet.string.Status} />
+                  <svg class="rp-arrow" class:up={sortKey === 'status' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
               </th>
             </tr>
           </thead>
@@ -659,11 +671,24 @@
     overflow: auto; background: var(--yg-panel); border: 1px solid var(--yg-border);
     border-radius: var(--yg-radius); box-shadow: var(--yg-shadow);
   }
-  // Clickable sort headers: pointer + hover feedback, active column emphasised, small direction arrow.
+  // Clickable sort headers: pointer + hover feedback, active column emphasised. The direction arrow
+  // is an inline SVG chevron (the brand fonts have no triangle glyph, so unicode arrows rendered as
+  // tofu boxes). Space is always reserved for it so toggling sort never shifts the header text.
   .rp-sortable { cursor: pointer; user-select: none; }
   .rp-sortable:hover { color: var(--yg-text); }
   .rp-sorted { color: var(--yg-text); }
-  .rp-arrow { display: inline-block; margin-left: 4px; font-size: 9px; vertical-align: middle; }
+  .rp-hcell { display: inline-flex; align-items: center; gap: 4px; }
+  .rp-hcell--num { flex-direction: row-reverse; }
+  .rp-arrow {
+    width: 11px;
+    height: 11px;
+    flex: none;
+    opacity: 0;
+    transition: opacity 0.1s ease, transform 0.1s ease;
+  }
+  .rp-sortable:hover .rp-arrow { opacity: 0.4; }
+  .rp-sorted .rp-arrow { opacity: 1; }
+  .rp-arrow.up { transform: rotate(180deg); }
 
   .rp-date-cell { color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
   .rp-who { display: inline-flex; align-items: center; gap: 8px; }
