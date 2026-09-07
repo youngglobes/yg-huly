@@ -205,18 +205,19 @@
 :global(.yg-table) {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  // Larger body scale to match the YG artifact's roomier tables (was 13px).
+  font-size: 0.875rem;
 }
 :global(.yg-table th) {
-  font-size: 0.6875rem;
-  letter-spacing: 0.04em;
-  color: var(--theme-trans-color);
+  // Bigger, clearer column headers per the YG artifact reference (was 11px / trans).
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: var(--theme-halfcontent-color);
   text-transform: uppercase;
   text-align: center;
   font-weight: 600;
-  // Generous padding matching the employees directory table (12px 15px) so the grid breathes
-  // instead of reading as a dense raw table.
-  padding: 0.75rem 0.9375rem;
+  // Roomier header band (13px 18px) matching the artifact so the grid breathes.
+  padding: 0.8125rem 1.125rem;
   white-space: nowrap;
   position: sticky;
   top: 0;
@@ -241,7 +242,7 @@
   padding-right: 1.125rem;
 }
 :global(.yg-table td) {
-  padding: 0.75rem 0.9375rem;
+  padding: 0.8125rem 1.125rem;
   text-align: center;
   vertical-align: middle;
   border-bottom: 1px solid var(--theme-divider-color);
@@ -253,6 +254,63 @@
 }
 :global(.yg-table td.bold) {
   font-weight: 600;
+}
+
+// Truncating text cell: the column shrinks to share the row width and ellipsizes its content
+// instead of forcing the table wider, which pushed later columns (e.g. Project) off-screen. Apply
+// to the one flexible text column of a table. The table is width:100% and the other cells are
+// nowrap, so this cell absorbs the remaining space and clips with an ellipsis.
+:global(.yg-table td.yg-truncate),
+:global(.yg-table th.yg-truncate) {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+// A flex row inside a truncating cell: keeps a fixed leading element (a tag/badge) and lets the
+// trailing text shrink and ellipsize. min-width:0 is what allows the flex child to shrink below
+// its content width.
+:global(.yg-cellflex) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+:global(.yg-ellipsis) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+// Person cell: avatar + stacked name / sub-line (designation), reused across the timesheet and
+// attendance list tables so an employee reads the same everywhere. The sub-line ellipsizes so a
+// long designation never widens the column.
+:global(.yg-person) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  min-width: 0;
+}
+:global(.yg-person__text) {
+  min-width: 0;
+}
+:global(.yg-person__name) {
+  font-weight: 600;
+  color: var(--yg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+:global(.yg-person__sub) {
+  font-size: 0.75rem;
+  color: var(--yg-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
 }
 // Row hover matches the employees directory table's feedback (the header/hover tint), a clearer
 // highlight than the old faint list-row colour.

@@ -14,7 +14,7 @@
 -->
 <!--
   PM report: a flat, paginated table with one row per logged time entry (TimeSpendReport)
-  enriched with its issue's fields — matching the team's Google-sheet tracking format.
+  enriched with its issue's fields - matching the team's Google-sheet tracking format.
   The all-employee / attendance views live in the (separate) HR report.
 -->
 <script lang="ts">
@@ -40,7 +40,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  // Role gate — mirrors Approvals.svelte EXACTLY (UI convenience only; render-block for direct-URL
+  // Role gate - mirrors Approvals.svelte EXACTLY (UI convenience only; render-block for direct-URL
   // access, since the sidebar `visibleIf` only hides the menu item). Any PM/TL on ANY project, or
   // an HR admin (Maintainer), can view Reports.
   const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -67,7 +67,7 @@
   let statusSel: string | undefined
 
   // Date range is chosen by a preset; "custom" reveals the From/To pickers. Labels are inline
-  // (like pageSizeItems) — internal, English-primary.
+  // (like pageSizeItems) - internal, English-primary.
   let preset: string = 'thisWeek'
   const presetItems: DropdownTextItem[] = [
     { id: 'today', label: 'Today' },
@@ -112,7 +112,7 @@
     return { from: w.start, to: w.end }
   }
 
-  // For a non-custom preset, mirror its window into fromStr/toStr — that feeds the read-out and
+  // For a non-custom preset, mirror its window into fromStr/toStr - that feeds the read-out and
   // pre-seeds the From/To pickers when the user switches to "custom". Reads only `preset`, so its
   // own fromStr/toStr writes never loop it.
   $: if (preset !== 'custom') {
@@ -167,7 +167,7 @@
     statusNames = m
   })
 
-  // Per-task approval overlay — indexed by employee+issue+day so the row builder looks up approved
+  // Per-task approval overlay - indexed by employee+issue+day so the row builder looks up approved
   // hours/approver per logged time entry WITHOUT crossing employees: two people can log the same
   // issue on the same calendar day, and without the employee in the key one's approval would bleed
   // onto the other's row (payroll misattribution). Reuses `employeeNames` (above) for the approver's
@@ -264,7 +264,7 @@
     }
   })
 
-  // Rows filtered by everything EXCEPT status — used both to build the Status dropdown options
+  // Rows filtered by everything EXCEPT status - used both to build the Status dropdown options
   // (so selecting a status never empties its own choices) and as the base for the final filter.
   $: baseFilter = {
     from,
@@ -277,12 +277,12 @@
     .sort((a, b) => a.localeCompare(b))
     .map((s): DropdownTextItem => ({ id: s, label: s }))
   // If the chosen status is no longer among the available options (e.g. after narrowing the
-  // project), clear it — otherwise the dropdown reads as empty while the filter still hides
+  // project), clear it - otherwise the dropdown reads as empty while the filter still hides
   // everything, and the table shows a misleading "No data".
   $: if (statusSel != null && !statusItems.some((i) => i.id === statusSel)) statusSel = undefined
 
   $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
-  // Newest work first; ties broken by employee then issue id — stable & predictable across pages.
+  // Newest work first; ties broken by employee then issue id - stable & predictable across pages.
   $: rows = ((): ReportRow[] => {
     const sorted = filterRows(allRows, filter).sort(
       (a, b) =>
@@ -349,7 +349,7 @@
   }
 
   // Best-effort status-chip variant from the issue workflow status NAME (statusQuery/statusNames
-  // is preserved as-is and only ever carries names, no category ref) — purely a display bucket,
+  // is preserved as-is and only ever carries names, no category ref) - purely a display bucket,
   // same idiom as HrTimesheet's `deriveDayStatus`-driven pill classing. Unrecognized/custom
   // status names fall back to the neutral "back" (backlog-style) look.
   function statusChipVariant (name: string): 'done' | 'prog' | 'back' {
@@ -507,7 +507,7 @@
                     {r.employeeName}
                   </span>
                 </td>
-                <td class="left">
+                <td class="left yg-truncate">
                   <span class="rp-task">
                     <span class="yg-idbadge rp-idbadge">{r.identifier}</span>
                     {#if r.identifier !== '-'}
@@ -522,7 +522,7 @@
                     {/if}
                   </span>
                 </td>
-                <td class="left rp-proj">{r.projectName}</td>
+                <td class="left rp-proj yg-truncate">{r.projectName}</td>
                 <td class="yg-num">{formatHours(r.hours)}</td>
                 <td class="yg-num">
                   {#if r.approvedHours != null}
@@ -596,7 +596,7 @@
 
   // --- Filter toolbar --------------------------------------------------------
   // Each `.rp-ctrl` is a "pill" wrapper (mockup's `.ctrl`) around the REAL, functional Huly
-  // control (native date input, DropdownLabels, EmployeeBox) — restyle-only, the controls
+  // control (native date input, DropdownLabels, EmployeeBox) - restyle-only, the controls
   // underneath stay interactive and bound to the existing filter state.
   .rp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 1rem; }
   .rp-ctrl {
@@ -620,17 +620,27 @@
   }
   .rp-date-cell { color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
   .rp-who { display: inline-flex; align-items: center; gap: 8px; }
-  .rp-task { display: inline-flex; align-items: center; gap: 8px; }
+  // Flex row so the id badge stays fixed and the title link shrinks + ellipsizes inside the
+  // truncating Task cell (yg-truncate), instead of the long title widening the whole table.
+  .rp-task { display: flex; align-items: center; gap: 8px; min-width: 0; }
   // `.yg-idbadge` (Task 1) is sized for the roomier timesheet/approvals rows; a bit large for
   // this dense table, so a local size tweak only (the shared class itself is untouched).
-  .rp-idbadge { font-size: 11px; padding: 1px 6px; }
-  .rp-link { color: var(--yg-text); text-decoration: none; font-weight: 500; }
+  .rp-idbadge { font-size: 11px; padding: 1px 6px; flex: none; }
+  .rp-link {
+    color: var(--yg-text);
+    text-decoration: none;
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .rp-link:hover { text-decoration: underline; text-underline-offset: 2px; }
   .rp-proj { color: var(--yg-text-dim); }
   .rp-muted { color: var(--yg-text-faint); }
 
   // Issue workflow-status chip (dot + label). Not part of the shared `yg-table.scss` vocabulary
-  // (that file has no `.schip`), so it is defined locally here — mirrors the mockup's
+  // (that file has no `.schip`), so it is defined locally here - mirrors the mockup's
   // `.schip`/`.schip.done`/`.schip.prog`/`.schip.back` family 1:1.
   .schip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yg-text-dim); font-weight: 500; }
   .schip__dot { width: 7px; height: 7px; border-radius: 2px; background: var(--yg-grey); flex: none; }

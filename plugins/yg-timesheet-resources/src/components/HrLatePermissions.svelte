@@ -22,6 +22,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label, showPopup } from '@hcengineering/ui'
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
+  import { Avatar } from '@hcengineering/contact-resources'
   import ygTimesheet, { isHrDesignation, type LatePermission, type WorkDesignation } from '@hcengineering/yg-timesheet'
   import { approveLatePermission, rejectLatePermission } from '../utils/attendance-write'
   import LateDecisionPopup from './LateDecisionPopup.svelte'
@@ -48,9 +49,11 @@
   )
 
   let nameById = new Map<Ref<Employee>, string>()
+  let empById = new Map<Ref<Employee>, Employee>()
   const empQuery = createQuery()
   empQuery.query(contact.mixin.Employee, {}, (emps) => {
     nameById = new Map(emps.map((e) => [e._id, formatName(e.name)]))
+    empById = new Map(emps.map((e) => [e._id, e]))
   })
 
   function onApprove (r: LatePermission): void {
@@ -104,7 +107,14 @@
         <tbody>
           {#each rows as r (r._id)}
             <tr class="yg-row">
-              <td class="left bold">{nameById.get(r.employee) ?? r.employee}</td>
+              <td class="left">
+                <div class="yg-person">
+                  <Avatar person={empById.get(r.employee)} name={nameById.get(r.employee)} size={'small'} />
+                  <div class="yg-person__text">
+                    <div class="yg-person__name">{nameById.get(r.employee) ?? r.employee}</div>
+                  </div>
+                </div>
+              </td>
               <td class="left">{dateFmt.format(r.date)}</td>
               <td class="yg-num">{r.minutesLate} <Label label={ygTimesheet.string.MinutesLate} /></td>
               <td class="left">{r.reason}</td>

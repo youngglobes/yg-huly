@@ -22,6 +22,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import contact, { formatName, type Employee } from '@hcengineering/contact'
+  import { Avatar } from '@hcengineering/contact-resources'
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
@@ -49,6 +50,8 @@
   const empQuery = createQuery()
   let empDocs: Employee[] = []
   empQuery.query(contact.mixin.Employee, { active: true }, (res: Employee[]) => { empDocs = res })
+  // Employee object by id, so the person cell can hand the full doc to <Avatar>.
+  $: empById = new Map(empDocs.map((e) => [e._id, e]))
   $: emps = empDocs.map((e): PerfEmp => ({
     id: e._id,
     name: formatName(e.name),
@@ -144,7 +147,6 @@
         <thead>
           <tr>
             <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-            <th class="left"><Label label={ygTimesheet.string.Designation} /></th>
             <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)</th>
             <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)</th>
             <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
@@ -157,8 +159,15 @@
         <tbody>
           {#each rows as r (r.employee)}
             <tr class="yg-row perf-clickable" class:is-sel={r.employee === selectedId} on:click={() => (selectedId = r.employee)}>
-              <td class="left bold">{r.name}</td>
-              <td class="left">{r.designation ?? '-'}</td>
+              <td class="left">
+                <div class="yg-person">
+                  <Avatar person={empById.get(r.employee)} name={r.name} size={'small'} />
+                  <div class="yg-person__text">
+                    <div class="yg-person__name">{r.name}</div>
+                    {#if r.designation}<div class="yg-person__sub">{r.designation}</div>{/if}
+                  </div>
+                </div>
+              </td>
               <td class="yg-num">{r.offDayDays}</td>
               <td class="yg-num">{formatHours(r.offDayHours)}</td>
               <td class="yg-num">{formatHours(r.overtimeHours)}</td>
@@ -168,7 +177,7 @@
               <td class="yg-num bold">{formatHours(r.totalExtraHours)}</td>
             </tr>
           {:else}
-            <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            <tr><td colspan={8} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
           {/each}
         </tbody>
       </table>
