@@ -166,6 +166,21 @@
   max-width: 22.5rem;
   width: 17.5rem;
 
+  // YG reskin: the navigator is a fixed dark ground in BOTH themes, but apps that render rich
+  // content in this panel (Inbox, Planner) colour their text with the theme's --theme-* tokens,
+  // which are dark in LIGHT mode and vanish on the dark panel. Pin the content tokens to their
+  // light-on-dark values inside the panel so that content stays readable in both themes. These
+  // tokens inherit (they are defined on .theme-light/.theme-dark), so this override wins for every
+  // descendant; our own nav items use the separate --yg-rail-* tokens and are unaffected.
+  --theme-caption-color: #FFFFFF;
+  --theme-content-color: rgba(255, 255, 255, .82);
+  --theme-dark-color: rgba(255, 255, 255, .76);
+  --theme-halfcontent-color: rgba(255, 255, 255, .70);
+  --theme-darker-color: rgba(255, 255, 255, .60);
+  --theme-trans-color: rgba(255, 255, 255, .52);
+  --theme-divider-color: rgba(255, 255, 255, .07);
+  --theme-comp-header-color: rgba(255, 255, 255, .06);
+
   // YG reskin: fixed dark ground in both themes (brand constant, not a token). !important
   // fights both the var(--theme-navpanel-color) fallback and Workbench.svelte's "railed"
   // mode, which sets this same background to transparent from a more specific selector.

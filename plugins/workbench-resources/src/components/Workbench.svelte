@@ -1224,8 +1224,6 @@
       :global(.workbench-container.inner) {
         background-color: var(--theme-navcard-BackgroundColor, var(--theme-panel-color));
         border-top: 1px solid var(--theme-navpanel-border);
-        border-left: 1px solid var(--theme-navpanel-border);
-        border-top-left-radius: 0.75rem;
       }
     }
   }
@@ -1331,7 +1329,6 @@
       flex-direction: column;
       margin-bottom: 1.25rem;
       padding-top: 1rem;
-      border-top: 1px solid var(--theme-navpanel-divider);
 
       &-mobile {
         margin-bottom: 1rem;
@@ -1361,7 +1358,6 @@
     &.vertical {
       flex-direction: column;
       margin-top: auto;
-      border-top: 1px solid var(--theme-navpanel-divider);
       padding: 0.5rem 0;
       gap: 0.25rem;
     }
