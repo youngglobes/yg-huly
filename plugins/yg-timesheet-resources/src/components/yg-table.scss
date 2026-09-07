@@ -45,7 +45,7 @@
 // background, ink-fg text) stays legible in both.
 :global(.theme-light) {
   --yg-ink:#17181f; --yg-ink-fg:#fff; --yg-bg:#f4f5f8; --yg-panel:#fff; --yg-panel-soft:#fafbfd;
-  --yg-border:#e7e8ef; --yg-border-strong:#dcdde6; --yg-text:#191a23; --yg-text-dim:#63657a; --yg-text-faint:#9a9caf;
+  --yg-border:#e7e8ef; --yg-border-strong:#dcdde6; --yg-text:#191a23; --yg-text-dim:#565869; --yg-text-faint:#6f7189;
   --yg-green:#1f9d55; --yg-green-bg:#e8f6ee; --yg-green-line:#bfe6cd;
   --yg-amber:#b7770a; --yg-amber-bg:#fbf1dc; --yg-amber-line:#eed9ab;
   --yg-red:#d1434e; --yg-red-bg:#fbe9eb; --yg-red-line:#f2c4c8;
@@ -55,7 +55,7 @@
 }
 :global(.theme-dark) {
   --yg-ink:#f2f3f8; --yg-ink-fg:#16171c; --yg-bg:#131419; --yg-panel:#1c1d25; --yg-panel-soft:#191a21;
-  --yg-border:#2a2c37; --yg-border-strong:#363845; --yg-text:#e8e9f1; --yg-text-dim:#a2a4b6; --yg-text-faint:#6f7183;
+  --yg-border:#2a2c37; --yg-border-strong:#363845; --yg-text:#e8e9f1; --yg-text-dim:#b3b5c6; --yg-text-faint:#9799ad;
   --yg-green:#4cc981; --yg-green-bg:#16281e; --yg-green-line:#244b34;
   --yg-amber:#e0a441; --yg-amber-bg:#2a2213; --yg-amber-line:#4d3d1c;
   --yg-red:#ec6b74; --yg-red-bg:#2c1619; --yg-red-line:#522a2f;
