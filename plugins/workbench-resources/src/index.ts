@@ -24,6 +24,7 @@ import { doNavigate, logIn, logOut } from './utils'
 import Workbench from './components/Workbench.svelte'
 import ServerManager from './components/ServerManager.svelte'
 import WorkbenchTabs from './components/WorkbenchTabs.svelte'
+import ThemeToggle from './components/ThemeToggle.svelte'
 import { isAdminUser } from '@hcengineering/presentation'
 import { canCloseTab, closeCurrentTab, closeTab, OpenInNewTab, pinTab, unpinTab } from './workbench'
 import { closeWidget, closeWidgetTab, createWidgetTab, getSidebarObject } from './sidebar'
@@ -55,7 +56,8 @@ export default async (): Promise<Resources> => ({
     SpecialView,
     Workbench,
     ServerManager,
-    WorkbenchTabs
+    WorkbenchTabs,
+    ThemeToggle
   },
   function: {
     HasArchiveSpaces: hasArchiveSpaces,

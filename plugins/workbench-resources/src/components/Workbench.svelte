@@ -111,7 +111,6 @@
   import AppSwitcher from './AppSwitcher.svelte'
   import Applications from './Applications.svelte'
   import Logo from './Logo.svelte'
-  import ThemeToggle from './ThemeToggle.svelte'
   import NavFooter from './NavFooter.svelte'
   import NavHeader from './NavHeader.svelte'
   import Navigator from './Navigator.svelte'
@@ -259,6 +258,7 @@
   }
 
   onMount(() => {
+    pushRootBarComponent('right', workbench.component.ThemeToggle, 20)
     pushRootBarComponent('right', view.component.SearchSelector)
     pushRootBarComponent('left', workbench.component.WorkbenchTabs, 30)
     void getResource(login.function.GetWorkspaces).then(async (getWorkspaceFn) => {
@@ -967,7 +967,6 @@
         class:vertical-mobile={$deviceInfo.navigator.direction === 'vertical'}
         class:mini={appsMini}
       >
-        <ThemeToggle />
         <AppItem
           icon={IconSettings}
           label={setting.string.Customize}

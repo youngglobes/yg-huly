@@ -13,10 +13,11 @@
 // limitations under the License.
 -->
 <!--
-  Quick light/dark toggle for the app-icon rail (no Settings modal). Flips between an explicit
-  theme-light and theme-dark via the shared 'theme' context (the same setTheme that Settings uses,
-  so it goes through forceThemeRepaint and applies live). Shows a sun when dark (tap to go light)
-  and a moon when light (tap to go dark).
+  Quick light/dark toggle for the top status bar, sitting beside the clock and settings. Flips
+  between an explicit theme-light and theme-dark via the shared 'theme' context (the same setTheme
+  Settings uses, so it goes through forceThemeRepaint and applies live). Shows a sun when dark
+  (tap to go light) and a moon when light (tap to go dark). Styled with the top-bar ghost-button
+  convention so it matches the clock and back/forward controls in both themes.
 -->
 <script lang="ts">
   import { getContext } from 'svelte'
@@ -42,7 +43,8 @@
 </script>
 
 <button
-  class="yg-theme-toggle"
+  class="antiButton ghost jf-center bs-none no-focus resetIconSize statusButton square yg-theme-toggle"
+  style:color={'var(--theme-dark-color)'}
   on:click={toggle}
   use:tooltip={{ label: getEmbeddedLabel(dark ? 'Light mode' : 'Dark mode') }}
   aria-label="Toggle light and dark mode"
@@ -61,30 +63,12 @@
 
 <style lang="scss">
   .yg-theme-toggle {
-    display: grid;
-    place-items: center;
-    flex-shrink: 0;
-    width: 2rem;
-    height: 2rem;
-    margin: 0 auto;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 0.25rem;
-    background-color: transparent;
-    color: var(--yg-rail-fg);
-    cursor: pointer;
-    outline: none;
-
     svg {
       width: 1.15rem;
       height: 1.15rem;
     }
     &:hover {
-      background-color: var(--yg-rail-hover);
-      color: var(--yg-rail-fg-strong);
-    }
-    &:focus-visible {
-      box-shadow: 0 0 0 2px var(--primary-button-outline);
+      color: var(--theme-caption-color);
     }
   }
 </style>
