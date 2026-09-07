@@ -17,7 +17,8 @@
 * {
   /* YG sidebar / nav rail palette - single source of truth (the rail is dark in both themes,
      so these live in the common block, not per-theme). Update a sidebar color here, once. */
-  --yg-rail-bg: #16161A;
+  --yg-rail-bg: #131316; /* app-icon rail: the darker shade */
+  --yg-nav-bg: #1E1E22; /* navigator / submenu panel: a lighter shade of the same ground */
   --yg-rail-fg: #C6C4BB;
   --yg-rail-fg-strong: #FBFAF6;
   --yg-rail-hover: rgba(246, 197, 0, 0.13);

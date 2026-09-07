@@ -16,50 +16,58 @@
 import { forceThemeRepaint } from '../apply'
 
 describe('forceThemeRepaint (live theme-switch repaint fix)', () => {
-  function fakeDoc (hasRaf: boolean): { doc: Document, body: { style: { filter: string } }, fireRaf: () => void } {
+  function fakeDoc (hasTimer: boolean): {
+    doc: Document
+    el: { style: { opacity: string } }
+    fireTimer: () => void
+    delay: () => number | undefined
+  } {
     let cb: (() => void) | undefined
-    const body = { style: { filter: '' } }
+    let delay: number | undefined
+    const el = { style: { opacity: '' } }
     const doc = {
-      body,
-      defaultView: hasRaf
+      documentElement: el,
+      defaultView: hasTimer
         ? {
-            requestAnimationFrame: (fn: () => void) => {
+            setTimeout: (fn: () => void, d: number) => {
               cb = fn
+              delay = d
             }
           }
         : {}
     } as unknown as Document
-    return { doc, body, fireRaf: () => cb?.() }
+    return { doc, el, fireTimer: () => cb?.(), delay: () => delay }
   }
 
-  it('applies a transient composite nudge on <body>, then restores it next frame', () => {
-    const { doc, body, fireRaf } = fakeDoc(true)
+  it('applies a transient opacity layer on the root, then restores it after a real frame', () => {
+    const { doc, el, fireTimer, delay } = fakeDoc(true)
     forceThemeRepaint(doc)
     // Applied synchronously so the browser re-composites with the already-updated theme variables.
-    expect(body.style.filter).toBe('opacity(0.99999)')
-    // Cleared on the next frame so the nudge never lingers.
-    fireRaf()
-    expect(body.style.filter).toBe('')
+    expect(el.style.opacity).toBe('0.9999')
+    // Cleared via a timer (not same-frame), so the nudge actually survives to a paint.
+    expect(delay()).toBeGreaterThan(0)
+    fireTimer()
+    expect(el.style.opacity).toBe('')
   })
 
-  it('preserves and restores any pre-existing body filter', () => {
-    const { doc, body, fireRaf } = fakeDoc(true)
-    body.style.filter = 'blur(2px)'
+  it('preserves and restores any pre-existing root opacity', () => {
+    const { doc, el, fireTimer } = fakeDoc(true)
+    el.style.opacity = '0.5'
     forceThemeRepaint(doc)
-    expect(body.style.filter).toBe('opacity(0.99999)')
-    fireRaf()
-    expect(body.style.filter).toBe('blur(2px)')
+    expect(el.style.opacity).toBe('0.9999')
+    fireTimer()
+    expect(el.style.opacity).toBe('0.5')
   })
 
-  it('restores immediately when requestAnimationFrame is unavailable', () => {
-    const { doc, body } = fakeDoc(false)
-    body.style.filter = 'none'
+  it('restores immediately when no timer is available', () => {
+    const { doc, el } = fakeDoc(false)
+    el.style.opacity = '1'
     forceThemeRepaint(doc)
-    expect(body.style.filter).toBe('none')
+    expect(el.style.opacity).toBe('1')
   })
 
-  it('is a no-op (no throw) when there is no body', () => {
-    const doc = { body: null } as unknown as Document
+  it('is a no-op (no throw) when there is no documentElement', () => {
+    const doc = { documentElement: null } as unknown as Document
     expect(() => forceThemeRepaint(doc)).not.toThrow()
   })
 })

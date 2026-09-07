@@ -27,16 +27,22 @@
  * @public
  */
 export const forceThemeRepaint = (doc: Document = document): void => {
-  const body = doc?.body
-  if (body == null) return
-  const prev = body.style.filter
-  body.style.filter = 'opacity(0.99999)'
-  const raf = doc.defaultView?.requestAnimationFrame
-  if (typeof raf === 'function') {
-    raf(() => {
-      body.style.filter = prev
-    })
+  const el = doc?.documentElement
+  if (el == null) return
+  const prev = el.style.opacity
+  // opacity < 1 forces the whole document into a temporary compositing layer, so Chromium
+  // re-composites (repaints) the subtree with the already-updated theme variables. It is visually
+  // imperceptible at 0.9999 and does not affect layout, so scroll positions survive. The layer must
+  // survive to a real paint, so it is cleared via a timer (a same-frame rAF removal is coalesced
+  // into a no-op).
+  el.style.opacity = '0.9999'
+  const restore = (): void => {
+    el.style.opacity = prev
+  }
+  const setTimeoutFn = doc.defaultView?.setTimeout
+  if (typeof setTimeoutFn === 'function') {
+    setTimeoutFn(restore, 50)
   } else {
-    body.style.filter = prev
+    restore()
   }
 }
