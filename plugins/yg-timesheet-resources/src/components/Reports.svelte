@@ -518,26 +518,26 @@
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'date'} on:click={() => toggleSort('date')}>
                 <span class="rp-hcell">
                   <Label label={ygTimesheet.string.Date} />
-                  <svg class="rp-arrow" class:up={sortKey === 'date' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                  <svg class="rp-sortarrow" class:up={sortKey === 'date' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
                 </span>
               </th>
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'person'} on:click={() => toggleSort('person')}>
                 <span class="rp-hcell">
                   Person
-                  <svg class="rp-arrow" class:up={sortKey === 'person' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                  <svg class="rp-sortarrow" class:up={sortKey === 'person' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
                 </span>
               </th>
               <th class="left">Task</th>
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'project'} on:click={() => toggleSort('project')}>
                 <span class="rp-hcell">
                   <Label label={ygTimesheet.string.Project} />
-                  <svg class="rp-arrow" class:up={sortKey === 'project' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                  <svg class="rp-sortarrow" class:up={sortKey === 'project' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
                 </span>
               </th>
               <th class="yg-num rp-sortable" class:rp-sorted={sortKey === 'spent'} on:click={() => toggleSort('spent')}>
                 <span class="rp-hcell rp-hcell--num">
                   <Label label={ygTimesheet.string.Spent} />
-                  <svg class="rp-arrow" class:up={sortKey === 'spent' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                  <svg class="rp-sortarrow" class:up={sortKey === 'spent' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
                 </span>
               </th>
               <th class="yg-num"><Label label={ygTimesheet.string.Approved} /></th>
@@ -545,7 +545,7 @@
               <th class="left rp-sortable" class:rp-sorted={sortKey === 'status'} on:click={() => toggleSort('status')}>
                 <span class="rp-hcell">
                   <Label label={ygTimesheet.string.Status} />
-                  <svg class="rp-arrow" class:up={sortKey === 'status' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                  <svg class="rp-sortarrow" class:up={sortKey === 'status' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
                 </span>
               </th>
             </tr>
@@ -679,16 +679,17 @@
   .rp-sorted { color: var(--yg-text); }
   .rp-hcell { display: inline-flex; align-items: center; gap: 4px; }
   .rp-hcell--num { flex-direction: row-reverse; }
-  .rp-arrow {
+  // Note: distinct from the pager's .rp-arrow button class below - do not merge the two.
+  .rp-sortarrow {
     width: 11px;
     height: 11px;
     flex: none;
     opacity: 0;
     transition: opacity 0.1s ease, transform 0.1s ease;
   }
-  .rp-sortable:hover .rp-arrow { opacity: 0.4; }
-  .rp-sorted .rp-arrow { opacity: 1; }
-  .rp-arrow.up { transform: rotate(180deg); }
+  .rp-sortable:hover .rp-sortarrow { opacity: 0.4; }
+  .rp-sorted .rp-sortarrow { opacity: 1; }
+  .rp-sortarrow.up { transform: rotate(180deg); }
 
   .rp-date-cell { color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
   .rp-who { display: inline-flex; align-items: center; gap: 8px; }
