@@ -53,7 +53,7 @@
   }
   .yg-card__title {
     margin: 0;
-    font-size: 11px;
+    font-size: 18px;
     font-weight: 600;
     letter-spacing: 0.07em;
     text-transform: uppercase;

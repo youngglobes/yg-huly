@@ -57,14 +57,15 @@
   .yg-field__label {
     display: flex;
     align-items: center;
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 500;
     color: var(--theme-trans-color);
-    margin-bottom: 2px;
+    margin-bottom: 6px;
   }
   .yg-field__value {
-    font-size: 14.5px;
+    font-size: 16px;
     color: var(--theme-content-color);
-    font-weight: 500;
+    font-weight: 600;
   }
   .yg-field__value.mono {
     font-family: var(--theme-font-mono, ui-monospace, monospace);
