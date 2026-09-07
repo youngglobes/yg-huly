@@ -479,7 +479,7 @@
   // (ground/surface/text/border) rides Huly's own --theme-* variables so the screen stays
   // theme-aware without introducing a parallel token system.
   .hs-page {
-    --yg-accent: #0f766e;
+    --yg-accent: var(--yg-brand-ink);
     flex: 1;
     min-width: 0;
     padding: 28px 32px;
@@ -489,7 +489,7 @@
   // Huly signals theme with a .theme-light/.theme-dark CLASS on an ancestor (packages/theme),
   // not a media query or [data-theme] attribute - same mechanism yg-table.scss documents.
   :global(.theme-dark) .hs-page {
-    --yg-accent: #2dd4bf;
+    --yg-accent: var(--yg-brand-ink-dark);
   }
 
   .hs-head { margin-bottom: 22px; }

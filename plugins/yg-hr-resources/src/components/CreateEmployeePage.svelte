@@ -223,7 +223,7 @@
   @use './yg-profile' as *;
 
   .yg-create {
-    --yg-accent: #0f766e;
+    --yg-accent: var(--yg-brand-ink);
     flex: 1;
     min-width: 0;
     overflow-y: auto;
@@ -231,7 +231,7 @@
     background: var(--theme-bg-color);
   }
   :global(.theme-dark) .yg-create {
-    --yg-accent: #2dd4bf;
+    --yg-accent: var(--yg-brand-ink-dark);
   }
 
   .yg-back {

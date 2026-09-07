@@ -352,11 +352,13 @@
 <style lang="scss">
   @use './yg-profile' as *;
 
-  // Local accent (petrol-teal), matching the approved mockup's --accent token - same idiom
-  // HrLists.svelte uses. Defined once here; every descendant (SectionCard/FieldRow/tab panes)
+  // Local accent, now derived from the selected brand accent (--yg-brand) instead of a fixed teal,
+  // so the employee pages follow the accent picker. The ink tokens are the readable variants that
+  // swap lightness per theme (deep on light, pale on dark), keeping text/rail/border contrast
+  // correct for every accent. Defined once here; every descendant (SectionCard/FieldRow/tab panes)
   // reads it via normal CSS custom-property inheritance.
   .yg-profile {
-    --yg-accent: #0f766e;
+    --yg-accent: var(--yg-brand-ink);
     flex: 1;
     min-width: 0;
     overflow-y: auto;
@@ -364,7 +366,7 @@
     background: var(--theme-bg-color);
   }
   :global(.theme-dark) .yg-profile {
-    --yg-accent: #2dd4bf;
+    --yg-accent: var(--yg-brand-ink-dark);
   }
 
   .yg-back {

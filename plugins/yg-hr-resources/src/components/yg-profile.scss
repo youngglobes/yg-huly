@@ -1,7 +1,8 @@
 // Shared layout/control classes for the modern tabbed employee profile (Task 10). `--yg-accent` is
-// defined once on EmployeeProfile.svelte's root wrapper (petrol-teal light / teal dark, same token
-// as HrLists.svelte) and inherits down through every tab pane via normal CSS custom-property
-// cascade - Svelte's per-component style scoping does not block that, so nothing here redefines it.
+// defined once on EmployeeProfile.svelte's root wrapper (derived from the selected brand accent via
+// --yg-brand-ink light / --yg-brand-ink-dark dark, same token as HrLists.svelte) and inherits down
+// through every tab pane via normal CSS custom-property cascade - Svelte's per-component style
+// scoping does not block that, so nothing here redefines it.
 
 // Two-column card grid, matching the approved mockup's `.cards`.
 .yg-cards {
@@ -50,13 +51,15 @@
 .yg-linkbtn:hover {
   color: var(--theme-caption-color);
 }
+// Filled accent action (the Save button in edit mode). Uses the vivid brand fill (theme-independent)
+// with dark ink text, matching the app's primary buttons, so it follows the accent picker.
 .yg-linkbtn--accent {
-  color: #04211e;
-  background: var(--yg-accent);
+  color: #16161a;
+  background: var(--yg-brand);
 }
 .yg-linkbtn--accent:hover {
   filter: brightness(1.08);
-  color: #04211e;
+  color: #16161a;
 }
 
 // A single label+input pair inside an edit-mode FieldGroup - lines up with FieldRow's read-only
@@ -134,13 +137,15 @@ select.yg-input option {
   color: var(--theme-dark-color);
   white-space: nowrap;
 }
+// Accent badge (designation/department chips): a tint of the selected brand accent with the
+// readable ink text, so it follows the accent picker in both themes.
 .yg-badge--accent {
-  background: rgba(15, 118, 110, 0.12);
-  color: #0b5b54;
+  background: rgba(var(--yg-brand-rgb), 0.12);
+  color: var(--yg-brand-ink);
 }
 :global(.theme-dark) .yg-badge--accent {
-  background: rgba(45, 212, 191, 0.13);
-  color: #5eead4;
+  background: rgba(var(--yg-brand-rgb), 0.16);
+  color: var(--yg-brand-ink-dark);
 }
 .yg-badge--good {
   background: rgba(21, 127, 60, 0.14);
