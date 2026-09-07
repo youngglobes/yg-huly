@@ -16,7 +16,7 @@
   //
   // Approve one task, confirming the hours the approver actually agrees to. Defaults to the
   // submitted hours so the common case (agree as logged) is a single click. Reducing this does
-  // NOT rewrite the employee's logged time — it is the approver's overlay.
+  // NOT rewrite the employee's logged time - it is the approver's overlay.
   //
   import { createEventDispatcher } from 'svelte'
   import ui, { Label } from '@hcengineering/ui'
@@ -25,7 +25,7 @@
   export let identifier: string
   export let title: string
   export let submittedHours: number
-  // Not currently passed by Approvals.svelte's showPopup call (its wiring is unchanged) — kept
+  // Not currently passed by Approvals.svelte's showPopup call (its wiring is unchanged) - kept
   // optional so the sub-line can include the employee whenever a future caller provides it.
   export let employee: string | undefined = undefined
   // Context for setting approved hours (2026-07-29): the issue's estimation (hours) and the
@@ -36,11 +36,18 @@
   export let isReapproval: boolean = false
 
   const dispatch = createEventDispatcher()
-  let hours: number = submittedHours
+  // Enter the approved time as hours + minutes (easier than a decimal). `hours` stays the decimal
+  // the backend stores, derived from the two fields. Seed from the submitted value.
+  let initH = Math.floor(submittedHours)
+  let initM = Math.round((submittedHours - initH) * 60)
+  if (initM >= 60) { initH += 1; initM -= 60 }
+  let h: number = Math.max(0, initH)
+  let m: number = Math.max(0, initM)
+  $: hours = (Number.isFinite(h) ? h : 0) + (Number.isFinite(m) ? m : 0) / 60
 
-  $: valid = Number.isFinite(hours) && hours >= 0
+  $: valid = Number.isFinite(h) && Number.isFinite(m) && h >= 0 && m >= 0 && m <= 59
   $: sub = employee !== undefined ? `${identifier} · ${title} · ${employee}` : `${identifier} · ${title}`
-  // Guard against a mid-edit invalid/empty numeric input — formatHours(NaN) would otherwise
+  // Guard against a mid-edit invalid/empty numeric input - formatHours(NaN) would otherwise
   // print "NaNm" on the (disabled) button for a moment while the field is being cleared.
   $: approveLabel = valid ? `Approve ${formatHours(hours)}` : 'Approve'
 </script>
@@ -70,15 +77,17 @@
       </div>
     {/if}
     <div class="field">
-      <span class="lbl">Approve hours</span>
+      <span class="lbl">Approve time</span>
       <span class="hours-input">
-        <input type="number" min="0" step="0.25" bind:value={hours} aria-label="Approved hours" />
+        <input type="number" min="0" step="1" bind:value={h} aria-label="Approved hours" />
         <span class="unit">h</span>
+        <input type="number" min="0" max="59" step="5" bind:value={m} aria-label="Approved minutes" />
+        <span class="unit">m</span>
       </span>
     </div>
   </div>
   <div class="dialog__note">
-    Set the hours you're approving for this task. This won't change the employee's logged time.
+    Set the time you're approving for this task. This won't change the employee's logged time.
   </div>
   <div class="dialog__foot">
     <button class="yg-btn yg-btn--ghost" on:click={() => dispatch('close', undefined)}>
@@ -128,7 +137,7 @@
     overflow: hidden;
   }
   .hours-input input {
-    width: 56px;
+    width: 44px;
     border: 0;
     background: transparent;
     color: var(--yg-text);

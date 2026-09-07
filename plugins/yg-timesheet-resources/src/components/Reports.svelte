@@ -282,14 +282,45 @@
   $: if (statusSel != null && !statusItems.some((i) => i.id === statusSel)) statusSel = undefined
 
   $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
-  // Newest work first; ties broken by employee then issue id - stable & predictable across pages.
-  $: rows = ((): ReportRow[] => {
-    const sorted = filterRows(allRows, filter).sort(
-      (a, b) =>
-        b.date - a.date ||
-        a.employeeName.localeCompare(b.employeeName) ||
-        a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+
+  // Column sorting. Click a header to sort by it; click again to flip direction. Text columns
+  // default to ascending, Date/Spent to descending (most recent / largest first). A stable
+  // tiebreak (date desc, then employee, then issue id) keeps equal rows grouped and predictable.
+  type SortKey = 'date' | 'person' | 'project' | 'spent' | 'status'
+  let sortKey: SortKey = 'date'
+  let sortDir: 1 | -1 = -1
+  function toggleSort (key: SortKey): void {
+    if (sortKey === key) {
+      sortDir = sortDir === 1 ? -1 : 1
+    } else {
+      sortKey = key
+      sortDir = key === 'date' || key === 'spent' ? -1 : 1
+    }
+  }
+  function sortArrow (key: SortKey): string {
+    return sortKey === key ? (sortDir === 1 ? '▲' : '▼') : ''
+  }
+  function compareRows (a: ReportRow, b: ReportRow): number {
+    let r = 0
+    if (sortKey === 'date') r = a.date - b.date
+    else if (sortKey === 'person') r = a.employeeName.localeCompare(b.employeeName)
+    else if (sortKey === 'project') r = a.projectName.localeCompare(b.projectName)
+    else if (sortKey === 'spent') r = a.hours - b.hours
+    else if (sortKey === 'status') r = a.statusName.localeCompare(b.statusName)
+    if (r !== 0) return r * sortDir
+    // Stable, direction-independent tiebreak so equal rows stay grouped across pages.
+    return (
+      b.date - a.date ||
+      a.employeeName.localeCompare(b.employeeName) ||
+      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
     )
+  }
+
+  $: rows = ((): ReportRow[] => {
+    // Reference sortKey/sortDir so the memo recomputes when the sort changes.
+    sortKey
+    sortDir
+    const sorted = filterRows(allRows, filter).sort(compareRows)
     // A task (employee+issue+day) has ONE approval but can span several TimeSpendReport rows (time
     // logged in more than one sitting). Keep the approved hours/approver on the FIRST row of each task
     // only and blank the rest, so the Approved column and its footer total sum the approval ONCE -
@@ -317,7 +348,7 @@
   $: pageSize = Number(pageSizeSel)
   let page = 1
   // Reset to page 1 whenever the filtered set or page size changes.
-  $: filterSig = `${preset}|${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}`
+  $: filterSig = `${preset}|${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}|${sortKey}|${sortDir}`
   $: {
     filterSig
     page = 1
@@ -487,14 +518,24 @@
         <table class="yg-table">
           <thead>
             <tr>
-              <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-              <th class="left">Person</th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'date'} on:click={() => toggleSort('date')}>
+                <Label label={ygTimesheet.string.Date} /><span class="rp-arrow">{sortArrow('date')}</span>
+              </th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'person'} on:click={() => toggleSort('person')}>
+                Person<span class="rp-arrow">{sortArrow('person')}</span>
+              </th>
               <th class="left">Task</th>
-              <th class="left"><Label label={ygTimesheet.string.Project} /></th>
-              <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'project'} on:click={() => toggleSort('project')}>
+                <Label label={ygTimesheet.string.Project} /><span class="rp-arrow">{sortArrow('project')}</span>
+              </th>
+              <th class="yg-num rp-sortable" class:rp-sorted={sortKey === 'spent'} on:click={() => toggleSort('spent')}>
+                <Label label={ygTimesheet.string.Spent} /><span class="rp-arrow">{sortArrow('spent')}</span>
+              </th>
               <th class="yg-num"><Label label={ygTimesheet.string.Approved} /></th>
               <th class="left">Approved by</th>
-              <th class="left"><Label label={ygTimesheet.string.Status} /></th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'status'} on:click={() => toggleSort('status')}>
+                <Label label={ygTimesheet.string.Status} /><span class="rp-arrow">{sortArrow('status')}</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -618,6 +659,12 @@
     overflow: auto; background: var(--yg-panel); border: 1px solid var(--yg-border);
     border-radius: var(--yg-radius); box-shadow: var(--yg-shadow);
   }
+  // Clickable sort headers: pointer + hover feedback, active column emphasised, small direction arrow.
+  .rp-sortable { cursor: pointer; user-select: none; }
+  .rp-sortable:hover { color: var(--yg-text); }
+  .rp-sorted { color: var(--yg-text); }
+  .rp-arrow { display: inline-block; margin-left: 4px; font-size: 9px; vertical-align: middle; }
+
   .rp-date-cell { color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
   .rp-who { display: inline-flex; align-items: center; gap: 8px; }
   // Flex row so the id badge stays fixed and the title link shrinks + ellipsizes inside the

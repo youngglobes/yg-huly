@@ -181,6 +181,17 @@
   --theme-divider-color: rgba(255, 255, 255, .07);
   --theme-comp-header-color: rgba(255, 255, 255, .06);
 
+  // Newer panels (Inbox, Planner) use Huly's Lumia --global-* token system rather than the legacy
+  // --theme-* one, so their titles/timestamps stayed dark on the dark panel in light mode. Pin the
+  // Lumia text + surface tokens to their dark-theme (light-on-dark) values here too.
+  --global-primary-TextColor: #FFFFFF;
+  --global-secondary-TextColor: #C1C9D6;
+  --global-tertiary-TextColor: #8E99AF;
+  --global-disabled-TextColor: #5A667E;
+  --global-ui-BorderColor: rgba(255, 255, 255, .09);
+  --global-ui-hover-highlight-BackgroundColor: rgba(255, 255, 255, .06);
+  --global-ui-highlight-BackgroundColor: rgba(255, 255, 255, .05);
+
   // YG reskin: fixed dark ground in both themes (brand constant, not a token). !important
   // fights both the var(--theme-navpanel-color) fallback and Workbench.svelte's "railed"
   // mode, which sets this same background to transparent from a more specific selector.
