@@ -117,7 +117,7 @@
               </td>
               <td class="left">{dateFmt.format(r.date)}</td>
               <td class="yg-num">{r.minutesLate} <Label label={ygTimesheet.string.MinutesLate} /></td>
-              <td class="left">{r.reason}</td>
+              <td class="left yg-truncate" title={r.reason}>{r.reason}</td>
               <td class="left">
                 <span class="yg-tag {tagClass(r.status)}"><span class="tick" />{r.status}</span>
               </td>

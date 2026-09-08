@@ -190,11 +190,11 @@
             {:else}
               {#each grid.rows as r (r.issue)}
                 <tr>
-                  <td>
+                  <td class="yg-truncate">
                     <div class="hrt-task">
                       <span class="hrt-task__project">{r.projectName}</span>
                       <span class="hrt-task__id">{r.identifier}</span>
-                      <span class="hrt-task__title">{r.title}</span>
+                      <span class="hrt-task__title" title={r.title}>{r.title}</span>
                     </div>
                   </td>
                   {#each r.cells as c, i (i)}
@@ -298,7 +298,9 @@
   }
 
   .hrt-weekend { color: var(--theme-darker-color); }
-  .hrt-task { display: flex; flex-direction: column; gap: 0.0625rem; }
+  .hrt-task { display: flex; flex-direction: column; gap: 0.0625rem; min-width: 0; }
+  .hrt-task__project,
+  .hrt-task__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hrt-task__project { color: var(--theme-dark-color); font-size: 0.6875rem; }
   .hrt-task__id { color: var(--theme-dark-color); font-weight: 600; }
   .hrt-task__title { color: var(--theme-content-color); }
