@@ -14,11 +14,9 @@
 -->
 <script lang="ts">
   import { Employee, Person, getWorkspaceMemberStatusSubtitle } from '@hcengineering/contact'
-  import { AccountUuid, Class, Doc, Ref } from '@hcengineering/core'
+  import { AccountUuid, Doc, Mixin, Ref, SocialIdType } from '@hcengineering/core'
   import { ComponentExtensions, createQuery, getClient, hasResource } from '@hcengineering/presentation'
-  import { ButtonIcon, Component, navigate } from '@hcengineering/ui'
-  import view from '@hcengineering/view'
-  import { getObjectLinkFragment } from '@hcengineering/view-resources'
+  import { Component } from '@hcengineering/ui'
 
   import rating, { type PersonRating } from '@hcengineering/rating'
   import { EmployeePresenter, getPersonByPersonRefStore } from '../../index'
@@ -59,13 +57,27 @@
     levelQuery.unsubscribe()
   }
 
-  async function viewProfile (): Promise<void> {
-    if (employee === undefined) return
-    const panelComponent = hierarchy.classHierarchyMixin(employee._class as Ref<Class<Doc>>, view.mixin.ObjectPanel)
-    const comp = panelComponent?.component ?? view.component.EditDoc
-    const loc = await getObjectLinkFragment(hierarchy, employee, {}, comp)
-    navigate(loc)
-  }
+  // YG: the standalone contact page is retired, so the card no longer links to it. Show the
+  // designation + work email instead, and keep only the chat action.
+  //
+  // Designation lives on the yg-timesheet WorkProfile mixin. contact-resources cannot depend on
+  // yg-timesheet (that would be circular), so read it generically by the mixin's id string - the
+  // mixin is registered in the model, so the hierarchy resolves it fine.
+  const WORK_PROFILE_MIXIN = 'yg-timesheet:mixin:WorkProfile' as Ref<Mixin<Doc>>
+  $: designation =
+    employee != null && hierarchy.hasMixin(employee, WORK_PROFILE_MIXIN)
+      ? ((hierarchy.as(employee, WORK_PROFILE_MIXIN) as unknown as { designation?: string }).designation ?? undefined)
+      : undefined
+
+  let email: string | undefined = undefined
+  const emailQuery = createQuery()
+  $: emailQuery.query(
+    contact.class.SocialIdentity,
+    { type: SocialIdType.EMAIL, attachedTo: _id, attachedToClass: contact.class.Person },
+    (res) => {
+      email = res[0]?.value
+    }
+  )
 
   $: statusSubtitle =
     employee?.personUuid !== undefined
@@ -84,7 +96,6 @@
                 extension={contact.extension.EmployeePopupActions}
                 props={{ employee, icon: contact.icon.Chat, type: 'type-button-icon' }}
               />
-              <ButtonIcon icon={contact.icon.User} size="small" iconSize="small" on:click={viewProfile} />
             </div>
           </div>
         </DeactivatedHeader>
@@ -102,8 +113,6 @@
           showStatus={isEmployee}
           statusSize="medium"
           style="modern"
-          clickable
-          on:click={viewProfile}
         />
         <div class="flex-col flex-gap-0-5 pl-1">
           {#if statusSubtitle}
@@ -121,6 +130,12 @@
             accent
             showWorkspaceStatusEmoji={false}
           />
+          {#if designation}
+            <span class="pp-designation overflow-label">{designation}</span>
+          {/if}
+          {#if email}
+            <a class="pp-email overflow-label" href={`mailto:${email}`}>{email}</a>
+          {/if}
           {#if hasRating}
             <div class="flex-row-center text-sm">
               <Component
@@ -149,15 +164,7 @@
     {:else}
       <div class="flex-presenter flex-gap-2 p-2">
         <div class="flex-presenter">
-          <Avatar
-            size="large"
-            person={employee}
-            name={employee?.name}
-            {disabled}
-            style="modern"
-            clickable
-            on:click={viewProfile}
-          />
+          <Avatar size="large" person={employee} name={employee?.name} {disabled} style="modern" />
         </div>
         <div class="flex-col">
           <EmployeePresenter value={employee} shouldShowAvatar={false} showPopup={false} compact accent />
@@ -172,9 +179,6 @@
           extension={contact.extension.EmployeePopupActions}
           props={{ employee, icon: contact.icon.Chat, type: 'type-button-icon', class: 'button-container' }}
         />
-        <div class="button-container">
-          <ButtonIcon icon={contact.icon.User} size="small" iconSize="small" on:click={viewProfile} />
-        </div>
       </div>
     {/if}
   </div>
@@ -198,5 +202,20 @@
 
   .status-container__text {
     line-height: 1.25;
+  }
+  .pp-designation {
+    font-size: 0.8125rem;
+    color: var(--theme-dark-color);
+    max-width: 15rem;
+  }
+  .pp-email {
+    font-size: 0.8125rem;
+    color: var(--theme-content-color);
+    text-decoration: none;
+    max-width: 15rem;
+    &:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
   }
 </style>
