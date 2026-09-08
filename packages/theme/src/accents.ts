@@ -29,6 +29,12 @@ export interface AccentVars {
   brandActive: string
   brandInk: string
   brandInkDark: string
+  /**
+   * Text colour on a filled accent (primary buttons). Optional: bright accents (yellow/amber/...)
+   * keep the shipped dark on-accent text, but a dark/neutral accent needs light text, so the
+   * neutral preset sets this to white.
+   */
+  onAccent?: string
 }
 
 export interface AccentPreset {
@@ -47,6 +53,23 @@ export const defaultAccentId = 'yellow'
 // default 'yellow' carries no vars: it removes the override and falls back to the base stylesheet.
 export const accentPresets: AccentPreset[] = [
   { id: 'yellow', label: 'YoungGlobes', swatch: '#F6C500' },
+  {
+    // True neutral: a fully desaturated, monochrome accent (no colour pop). Primary buttons and the
+    // active nav become slate-grey with white text; links/tints go neutral. Matches the artifact's
+    // "True neutral" flavour while fitting the single-brand override system.
+    id: 'neutral',
+    label: 'Neutral',
+    swatch: '#52525B',
+    vars: {
+      brand: '#52525B',
+      brandRgb: '82, 82, 91',
+      brandHover: '#63636D',
+      brandActive: '#3F3F46',
+      brandInk: '#52525B',
+      brandInkDark: '#B4B4BD',
+      onAccent: '#FFFFFF'
+    }
+  },
   {
     id: 'amber',
     label: 'Amber',
@@ -120,6 +143,12 @@ export const getStoredAccent = (): string => {
 export const buildAccentCss = (preset: AccentPreset): string => {
   const v = preset.vars
   if (v == null) return ''
+  // When a preset sets onAccent, also flip the text-on-accent tokens (primary-button text) so a
+  // dark/neutral accent stays readable; bright accents omit it and keep the shipped dark text.
+  const onAccent =
+    v.onAccent != null
+      ? `--global-on-accent-TextColor:${v.onAccent};--primary-button-color:${v.onAccent};`
+      : ''
   return (
     '* {' +
     `--yg-brand:${v.brand};` +
@@ -128,6 +157,7 @@ export const buildAccentCss = (preset: AccentPreset): string => {
     `--yg-brand-active:${v.brandActive};` +
     `--yg-brand-ink:${v.brandInk};` +
     `--yg-brand-ink-dark:${v.brandInkDark};` +
+    onAccent +
     '}'
   )
 }

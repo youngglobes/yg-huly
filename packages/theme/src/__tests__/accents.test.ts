@@ -75,6 +75,14 @@ describe('buildAccentCss', () => {
     expect(css).toContain('--yg-brand-ink:')
     expect(css).toContain('--yg-brand-ink-dark:')
   })
+
+  it('emits the on-accent text override only for a preset that sets onAccent (neutral), not others', () => {
+    const neutral = accentPresets.find((p) => p.id === 'neutral')!
+    const teal = accentPresets.find((p) => p.id === 'teal')!
+    expect(buildAccentCss(neutral)).toContain('--global-on-accent-TextColor:#FFFFFF;')
+    expect(buildAccentCss(neutral)).toContain('--primary-button-color:#FFFFFF;')
+    expect(buildAccentCss(teal)).not.toContain('on-accent')
+  })
 })
 
 describe('applyAccent', () => {
