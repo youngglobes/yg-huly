@@ -43,6 +43,15 @@ export interface AccentVars {
    */
   railBg?: string
   navBg?: string
+  /**
+   * Extra scoped rules injected verbatim after the base `* {}` block, each a selector plus a token
+   * map. The base override is `* {}` (specificity 0,0,0) so it cannot beat the reskin's own
+   * higher-specificity rules (e.g. the forced-dark `.antiPanel-navigator { --theme-*: ... }` pin in
+   * common.scss). A preset that must override those - the "Huly Classic" light-sidebar preset - uses
+   * a nav-scoped selector like `.theme-light .antiPanel-navigator` (specificity 0,2,0) which outranks
+   * the reskin pin AND stays contained to the sidebar so the flip never leaks into the content area.
+   */
+  extraRules?: Array<{ selector: string, tokens: Record<string, string> }>
 }
 
 export interface AccentPreset {
@@ -60,7 +69,7 @@ export const defaultAccentId = 'yellow'
 // / ink readable on LIGHT / ink readable on DARK) so contrast stays correct in both themes. The
 // default 'yellow' carries no vars: it removes the override and falls back to the base stylesheet.
 export const accentPresets: AccentPreset[] = [
-  { id: 'yellow', label: 'YoungGlobes', swatch: '#F6C500' },
+  { id: 'yellow', label: 'Yellow', swatch: '#F6C500' },
   {
     // True neutral: a fully desaturated, monochrome accent (no colour pop). Primary buttons and the
     // active nav become slate-grey with white text; links/tints go neutral. Matches the artifact's
@@ -76,6 +85,78 @@ export const accentPresets: AccentPreset[] = [
       brandInk: '#52525B',
       brandInkDark: '#B4B4BD',
       onAccent: '#FFFFFF'
+    }
+  },
+  {
+    // "Classic": the original pre-reskin look - the classic blue accent AND a white/light sidebar in
+    // LIGHT mode. The whole reskin forces the app rail + navigator dark in both themes; here we
+    // restore the light sidebar for LIGHT mode only and leave DARK mode on the shipped dark sidebar,
+    // so it reads as stock Huly: light sidebar in light theme, dark sidebar in dark theme. The blue
+    // primary button needs white label text, so onAccent flips to white.
+    //
+    // Selectors include the descendant universal (`.antiPanel-navigator *`) on purpose: the sidebar
+    // colour tokens (--yg-rail-fg / --yg-nav-bg / ...) are declared under a bare `* {}` block in
+    // _colors.scss, so they match every descendant DIRECTLY - and a direct match beats an inherited
+    // value. Scoping only to the panel element left the tree items and the search box on the base
+    // (dark) tokens. `.theme-light .antiPanel-navigator *` (specificity 0,2,0) beats that base `* {}`
+    // (0,0,0) on every descendant, while staying contained to the sidebar so nothing leaks out.
+    id: 'classic',
+    label: 'Classic',
+    swatch: '#3364E2',
+    vars: {
+      brand: '#3364E2',
+      brandRgb: '51, 100, 226',
+      brandHover: '#6191FE',
+      brandActive: '#2553CF',
+      brandInk: '#205DC2',
+      brandInkDark: '#6191FE',
+      onAccent: '#FFFFFF',
+      extraRules: [
+        {
+          // App-icon rail -> near-white with near-black glyphs (light mode only).
+          selector: '.theme-light .antiPanel-application, .theme-light .antiPanel-application *',
+          tokens: {
+            '--yg-rail-bg': '#EFEDE6',
+            '--yg-rail-fg': 'rgba(0, 0, 0, 0.72)',
+            '--yg-rail-fg-strong': '#16161A',
+            '--yg-rail-hover': 'rgba(51, 100, 226, 0.10)',
+            '--yg-rail-selected': 'rgba(51, 100, 226, 0.14)'
+          }
+        },
+        {
+          // Navigator/submenu -> white ground with near-black text. Overrides BOTH token systems the
+          // reskin pins here (legacy --theme-* and Lumia --global-*) plus the sidebar --yg-rail-*
+          // tokens and the search-input fill/border, restoring dark-on-light so the tree, Inbox,
+          // Planner and the "Search projects" box all read clearly on the light panel.
+          selector: '.theme-light .antiPanel-navigator, .theme-light .antiPanel-navigator *',
+          tokens: {
+            '--yg-nav-bg': '#FBFBFC',
+            '--yg-rail-fg': '#26262B',
+            '--yg-rail-fg-strong': '#0B0B0D',
+            '--yg-rail-hover': 'rgba(51, 100, 226, 0.10)',
+            '--yg-rail-selected': 'rgba(51, 100, 226, 0.14)',
+            '--yg-nav-input-fill': 'rgba(0, 0, 0, 0.04)',
+            '--yg-nav-input-fill-strong': 'rgba(0, 0, 0, 0.06)',
+            '--yg-nav-input-border': 'rgba(0, 0, 0, 0.12)',
+            '--yg-nav-input-border-strong': 'rgba(0, 0, 0, 0.20)',
+            '--theme-caption-color': '#0B0B0D',
+            '--theme-content-color': 'rgba(0, 0, 0, 0.82)',
+            '--theme-dark-color': 'rgba(0, 0, 0, 0.76)',
+            '--theme-halfcontent-color': 'rgba(0, 0, 0, 0.70)',
+            '--theme-darker-color': 'rgba(0, 0, 0, 0.64)',
+            '--theme-trans-color': 'rgba(0, 0, 0, 0.56)',
+            '--theme-divider-color': 'rgba(0, 0, 0, 0.06)',
+            '--theme-comp-header-color': 'rgba(0, 0, 0, 0.03)',
+            '--global-primary-TextColor': '#16161A',
+            '--global-secondary-TextColor': '#5D5D66',
+            '--global-tertiary-TextColor': '#7B879E',
+            '--global-disabled-TextColor': '#A1ABBF',
+            '--global-ui-BorderColor': 'rgba(22, 22, 26, 0.10)',
+            '--global-ui-hover-highlight-BackgroundColor': 'rgba(22, 22, 26, 0.05)',
+            '--global-ui-highlight-BackgroundColor': 'rgba(51, 100, 226, 0.10)'
+          }
+        }
+      ]
     }
   },
   {
@@ -168,6 +249,16 @@ export const buildAccentCss = (preset: AccentPreset): string => {
   // Optional Slack-style tinted sidebar (darker rail + lighter submenu of the accent hue).
   const sidebar =
     v.railBg != null && v.navBg != null ? `--yg-rail-bg:${v.railBg};--yg-nav-bg:${v.navBg};` : ''
+  // Optional scoped rules that must outrank higher-specificity reskin CSS (see AccentVars.extraRules).
+  const extra =
+    v.extraRules
+      ?.map((rule) => {
+        const body = Object.entries(rule.tokens)
+          .map(([name, value]) => `${name}:${value};`)
+          .join('')
+        return body === '' ? '' : `${rule.selector}{${body}}`
+      })
+      .join('') ?? ''
   return (
     '* {' +
     `--yg-brand:${v.brand};` +
@@ -178,7 +269,8 @@ export const buildAccentCss = (preset: AccentPreset): string => {
     `--yg-brand-ink-dark:${v.brandInkDark};` +
     onAccent +
     sidebar +
-    '}'
+    '}' +
+    extra
   )
 }
 

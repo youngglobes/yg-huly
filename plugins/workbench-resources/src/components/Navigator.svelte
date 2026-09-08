@@ -232,13 +232,13 @@
     background-color: var(--yg-nav-bg);
 
     :global(.searchInput-wrapper) {
-      background-color: rgba(255, 255, 255, 0.06);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+      background-color: var(--yg-nav-input-fill);
+      box-shadow: inset 0 0 0 1px var(--yg-nav-input-border);
     }
     :global(.searchInput-wrapper:hover),
     :global(.searchInput-wrapper:active) {
-      background-color: rgba(255, 255, 255, 0.09);
-      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+      background-color: var(--yg-nav-input-fill-strong);
+      box-shadow: inset 0 0 0 1px var(--yg-nav-input-border-strong);
     }
     :global(.searchInput-wrapper:focus-within) {
       background-color: rgba(255, 255, 255, 0.09);

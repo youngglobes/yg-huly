@@ -83,6 +83,30 @@ describe('buildAccentCss', () => {
     expect(buildAccentCss(neutral)).toContain('--primary-button-color:#FFFFFF;')
     expect(buildAccentCss(teal)).not.toContain('on-accent')
   })
+
+  it('appends nav-scoped light-sidebar rules for the Classic preset after the base * block', () => {
+    const classic = accentPresets.find((p) => p.id === 'classic')!
+    const css = buildAccentCss(classic)
+    // Base brand block still comes first, blue accent, white on-accent text.
+    expect(css.startsWith('* {')).toBe(true)
+    expect(css).toContain('--yg-brand:#3364E2;')
+    expect(css).toContain('--global-on-accent-TextColor:#FFFFFF;')
+    // Extra rules are scoped to the light-theme sidebar AND its descendants (the sidebar tokens are
+    // declared under a bare `* {}`, so a direct descendant match is required to beat them), restoring
+    // dark-on-light there, contained so the flip cannot leak into the content area.
+    expect(css).toContain('.theme-light .antiPanel-application, .theme-light .antiPanel-application *{')
+    expect(css).toContain('.theme-light .antiPanel-navigator, .theme-light .antiPanel-navigator *{')
+    expect(css).toContain('--yg-nav-bg:#FBFBFC;')
+    expect(css).toContain('--yg-rail-fg:#26262B;')
+    expect(css).toContain('--global-primary-TextColor:#16161A;')
+    // The scoped rules come after the closing brace of the base * block.
+    expect(css.indexOf('.theme-light')).toBeGreaterThan(css.indexOf('}'))
+  })
+
+  it('omits extra rules for presets that declare none (teal)', () => {
+    const teal = accentPresets.find((p) => p.id === 'teal')!
+    expect(buildAccentCss(teal)).not.toContain('.theme-light')
+  })
 })
 
 describe('applyAccent', () => {
