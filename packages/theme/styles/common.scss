@@ -192,6 +192,17 @@
   --global-ui-hover-highlight-BackgroundColor: rgba(255, 255, 255, .06);
   --global-ui-highlight-BackgroundColor: rgba(255, 255, 255, .05);
 
+  // Two more token families the --theme-*/--global-* pins above miss, which therefore stayed dark in
+  // LIGHT theme and vanished on the dark nav: the search-input text/icon (the tracker "Search
+  // projects" box) and the bare legacy --caption/content/dark-color triplet used by the Planner
+  // mini-calendar (<Month>) day numbers. Pin them light-on-dark here too.
+  --input-TextColor: #FFFFFF;
+  --input-PlaceholderColor: rgba(255, 255, 255, .5);
+  --input-search-IconColor: rgba(255, 255, 255, .7);
+  --caption-color: #FFFFFF;
+  --content-color: rgba(255, 255, 255, .82);
+  --dark-color: rgba(255, 255, 255, .6);
+
   // YG reskin: fixed dark ground in both themes (brand constant, not a token). !important
   // fights both the var(--theme-navpanel-color) fallback and Workbench.svelte's "railed"
   // mode, which sets this same background to transparent from a more specific selector.

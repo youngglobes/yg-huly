@@ -139,6 +139,15 @@ export const accentPresets: AccentPreset[] = [
             '--yg-nav-input-fill-strong': 'rgba(0, 0, 0, 0.06)',
             '--yg-nav-input-border': 'rgba(0, 0, 0, 0.12)',
             '--yg-nav-input-border-strong': 'rgba(0, 0, 0, 0.20)',
+            // Classic makes the nav light, so flip the search-input text/icon and the legacy
+            // calendar triplet back to dark-on-light (common.scss pins them light-on-dark for the
+            // dark-nav presets; here they must be dark again on the white panel).
+            '--input-TextColor': '#16161A',
+            '--input-PlaceholderColor': 'rgba(0, 0, 0, 0.5)',
+            '--input-search-IconColor': 'rgba(0, 0, 0, 0.7)',
+            '--caption-color': '#16161A',
+            '--content-color': 'rgba(0, 0, 0, 0.82)',
+            '--dark-color': 'rgba(0, 0, 0, 0.6)',
             '--theme-caption-color': '#0B0B0D',
             '--theme-content-color': 'rgba(0, 0, 0, 0.82)',
             '--theme-dark-color': 'rgba(0, 0, 0, 0.76)',

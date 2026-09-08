@@ -42,10 +42,10 @@
   /* Nav "Search projects" input, tokenised so the light-sidebar ("Classic") accent can flip it.
      Defaults are light-on-dark (the rail is dark in every stock preset); Classic overrides these
      to a dark-on-light treatment via its scoped accent rules. */
-  --yg-nav-input-fill: rgba(255, 255, 255, 0.06);
-  --yg-nav-input-fill-strong: rgba(255, 255, 255, 0.09);
-  --yg-nav-input-border: rgba(255, 255, 255, 0.12);
-  --yg-nav-input-border-strong: rgba(255, 255, 255, 0.18);
+  --yg-nav-input-fill: rgba(255, 255, 255, 0.08);
+  --yg-nav-input-fill-strong: rgba(255, 255, 255, 0.12);
+  --yg-nav-input-border: rgba(255, 255, 255, 0.18);
+  --yg-nav-input-border-strong: rgba(255, 255, 255, 0.26);
 
   --primary-button-color: #fff;
   --primary-button-content-color: rgba(255, 255, 255, .8);
