@@ -46,12 +46,6 @@
   import { Pages, getAccount, pages } from '..'
   import login from '../plugin'
 
-  import loginBack from '../../img/login_back.png'
-  import loginBack2x from '../../img/login_back_2x.png'
-  import loginBackAvif from '../../img/login_back.avif'
-  import loginBack2xAvif from '../../img/login_back_2x.avif'
-  import loginBackWebp from '../../img/login_back.webp'
-  import loginBack2xWebp from '../../img/login_back_2x.webp'
   import AdminWorkspaces from './AdminWorkspaces.svelte'
   import ChangePassword from './ChangePassword.svelte'
 
@@ -136,19 +130,6 @@
     class:white={!$themeStore.dark}
   >
     <div class="bg-image clear-mins" class:back={$deviceInfo.docWidth > 768} class:p-4={$deviceInfo.docWidth > 768}>
-      <picture>
-        <source srcset={`${loginBackAvif}, ${loginBack2xAvif} 2x`} type="image/avif" />
-        <source srcset={`${loginBackWebp}, ${loginBack2xWebp} 2x`} type="image/webp" />
-
-        <img
-          class="back-image"
-          src={loginBack}
-          style:display={$deviceInfo.docWidth <= 768 ? 'none' : 'block'}
-          srcset={`${loginBack} 1x, ${loginBack2x} 2x`}
-          alt=""
-        />
-      </picture>
-
       <div
         style:position="fixed"
         style:left={$deviceInfo.docWidth <= 480 ? '.75rem' : '1.75rem'}
@@ -202,26 +183,19 @@
 {/if}
 
 <style lang="scss">
-  .back-image {
-    display: none;
-    position: fixed;
-    top: 32px;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: left top;
-  }
   .backd {
     position: relative;
+    // Dark ground with soft YG-yellow glows: a stronger one top-left and a softer one bottom-right,
+    // matching the brand background. No image - pure gradient.
     background:
-      radial-gradient(48% 44% at 12% 16%, rgba(var(--yg-brand-rgb), 0.18), transparent 60%),
-      radial-gradient(44% 40% at 88% 90%, rgba(var(--yg-brand-rgb), 0.12), transparent 62%),
+      radial-gradient(46% 42% at 14% 14%, rgba(var(--yg-brand-rgb), 0.22), transparent 60%),
+      radial-gradient(42% 40% at 88% 92%, rgba(var(--yg-brand-rgb), 0.14), transparent 62%),
       #0d0d0b;
 
     .bg-image {
       display: flex;
-      flex-direction: row-reverse;
+      align-items: center;
+      justify-content: center;
       width: 100%;
       height: 100%;
     }
