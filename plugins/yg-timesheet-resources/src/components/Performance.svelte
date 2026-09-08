@@ -29,7 +29,8 @@
   import ygTimesheet, {
     type AttendanceSession, type HrTimeEntry, type LatePermission, type WorkProfile
   } from '@hcengineering/yg-timesheet'
-  import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours, type PerfLate } from '../utils/performance'
+  import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours, type PerfLate, type PerfRow } from '../utils/performance'
+  import SortableTh from './SortableTh.svelte'
   import { exportPerformanceXlsx } from '../utils/performance-xlsx'
   import { ensureHrMembership } from '../utils/hrMembership'
   import { formatHours, localDayKey } from '../utils/week'
@@ -100,6 +101,34 @@
   $: now = Date.now()
   $: rows = performanceRows(emps, hours, atts, now, holidays, lates)
 
+  // Column sorting: click a header to sort by it, click again to flip. Employee sorts by name
+  // (ascending default); numeric columns default to descending (largest first). A name tiebreak
+  // keeps ties stable.
+  type SortKey =
+    | 'name' | 'offDayDays' | 'offDayHours' | 'overtimeHours' | 'overtimeDays'
+    | 'lateNightDays' | 'lateArrivals' | 'totalExtraHours'
+  let sortKey: SortKey = 'name'
+  let sortDir: 1 | -1 = 1
+  function toggleSort (k: SortKey): void {
+    if (sortKey === k) sortDir = sortDir === 1 ? -1 : 1
+    else { sortKey = k; sortDir = k === 'name' ? 1 : -1 }
+  }
+  function compareRows (a: PerfRow, b: PerfRow): number {
+    let r = 0
+    switch (sortKey) {
+      case 'name': r = a.name.localeCompare(b.name); break
+      case 'offDayDays': r = a.offDayDays - b.offDayDays; break
+      case 'offDayHours': r = a.offDayHours - b.offDayHours; break
+      case 'overtimeHours': r = a.overtimeHours - b.overtimeHours; break
+      case 'overtimeDays': r = a.overtimeDays - b.overtimeDays; break
+      case 'lateNightDays': r = a.lateNightDays - b.lateNightDays; break
+      case 'lateArrivals': r = a.lateArrivals - b.lateArrivals; break
+      case 'totalExtraHours': r = a.totalExtraHours - b.totalExtraHours; break
+    }
+    return r !== 0 ? r * sortDir : a.name.localeCompare(b.name)
+  }
+  $: sortedRows = [...rows].sort(compareRows)
+
   // Drill-down: the row whose flagged days are shown in the slide-in panel. Tracked by id so it
   // survives a rows recompute (date-range change) and auto-closes if the person drops out.
   let selectedId: string | undefined
@@ -146,18 +175,34 @@
       <table class="yg-table">
         <thead>
           <tr>
-            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-            <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)</th>
-            <th class="yg-num"><Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)</th>
-            <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)</th>
-            <th class="yg-num"><Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Days} />)</th>
-            <th class="yg-num"><Label label={ygTimesheet.string.LateNightCol} /></th>
-            <th class="yg-num"><Label label={ygTimesheet.string.LateArrivals} /></th>
-            <th class="yg-num"><Label label={ygTimesheet.string.TotalExtraHours} /></th>
+            <SortableTh active={sortKey === 'name'} asc={sortDir === 1} on:click={() => toggleSort('name')}>
+              <Label label={ygTimesheet.string.Employee} />
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'offDayDays'} asc={sortDir === 1} on:click={() => toggleSort('offDayDays')}>
+              <Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Days} />)
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'offDayHours'} asc={sortDir === 1} on:click={() => toggleSort('offDayHours')}>
+              <Label label={ygTimesheet.string.OffDayWork} /> (<Label label={ygTimesheet.string.Hours} />)
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'overtimeHours'} asc={sortDir === 1} on:click={() => toggleSort('overtimeHours')}>
+              <Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Hours} />)
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'overtimeDays'} asc={sortDir === 1} on:click={() => toggleSort('overtimeDays')}>
+              <Label label={ygTimesheet.string.OvertimeCol} /> (<Label label={ygTimesheet.string.Days} />)
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'lateNightDays'} asc={sortDir === 1} on:click={() => toggleSort('lateNightDays')}>
+              <Label label={ygTimesheet.string.LateNightCol} />
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'lateArrivals'} asc={sortDir === 1} on:click={() => toggleSort('lateArrivals')}>
+              <Label label={ygTimesheet.string.LateArrivals} />
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'totalExtraHours'} asc={sortDir === 1} on:click={() => toggleSort('totalExtraHours')}>
+              <Label label={ygTimesheet.string.TotalExtraHours} />
+            </SortableTh>
           </tr>
         </thead>
         <tbody>
-          {#each rows as r (r.employee)}
+          {#each sortedRows as r (r.employee)}
             <tr class="yg-row perf-clickable" class:is-sel={r.employee === selectedId} on:click={() => (selectedId = r.employee)}>
               <td class="left">
                 <div class="yg-person">

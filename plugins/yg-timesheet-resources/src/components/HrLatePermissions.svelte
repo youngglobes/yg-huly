@@ -23,6 +23,7 @@
   import { Label, showPopup } from '@hcengineering/ui'
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
   import { Avatar } from '@hcengineering/contact-resources'
+  import SortableTh from './SortableTh.svelte'
   import ygTimesheet, { isHrDesignation, type LatePermission, type WorkDesignation } from '@hcengineering/yg-timesheet'
   import { approveLatePermission, rejectLatePermission } from '../utils/attendance-write'
   import LateDecisionPopup from './LateDecisionPopup.svelte'
@@ -55,6 +56,27 @@
     nameById = new Map(emps.map((e) => [e._id, formatName(e.name)]))
     empById = new Map(emps.map((e) => [e._id, e]))
   })
+
+  // Column sorting: Employee by name, Date/Minutes numeric, Status alphabetical. Date defaults to
+  // newest first (matching the query), a Date tiebreak keeps ties stable.
+  type SortKey = 'employee' | 'date' | 'minutesLate' | 'status'
+  let sortKey: SortKey = 'date'
+  let sortDir: 1 | -1 = -1
+  function toggleSort (k: SortKey): void {
+    if (sortKey === k) sortDir = sortDir === 1 ? -1 : 1
+    else { sortKey = k; sortDir = k === 'date' || k === 'minutesLate' ? -1 : 1 }
+  }
+  function compareRows (a: LatePermission, b: LatePermission): number {
+    let r = 0
+    switch (sortKey) {
+      case 'employee': r = (nameById.get(a.employee) ?? '').localeCompare(nameById.get(b.employee) ?? ''); break
+      case 'date': r = a.date - b.date; break
+      case 'minutesLate': r = a.minutesLate - b.minutesLate; break
+      case 'status': r = String(a.status).localeCompare(String(b.status)); break
+    }
+    return r !== 0 ? r * sortDir : b.date - a.date
+  }
+  $: sortedRows = [...rows].sort(compareRows)
 
   function onApprove (r: LatePermission): void {
     showPopup(LateDecisionPopup, { approve: true }, undefined, (res?: { reason: string }) => {
@@ -95,17 +117,25 @@
       <table class="yg-table">
         <thead>
           <tr>
-            <th class="left"><Label label={ygTimesheet.string.Employee} /></th>
-            <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-            <th class="yg-num"><Label label={ygTimesheet.string.MinutesLate} /></th>
+            <SortableTh active={sortKey === 'employee'} asc={sortDir === 1} on:click={() => toggleSort('employee')}>
+              <Label label={ygTimesheet.string.Employee} />
+            </SortableTh>
+            <SortableTh active={sortKey === 'date'} asc={sortDir === 1} on:click={() => toggleSort('date')}>
+              <Label label={ygTimesheet.string.Date} />
+            </SortableTh>
+            <SortableTh numeric active={sortKey === 'minutesLate'} asc={sortDir === 1} on:click={() => toggleSort('minutesLate')}>
+              <Label label={ygTimesheet.string.MinutesLate} />
+            </SortableTh>
             <th class="left"><Label label={ygTimesheet.string.Reason} /></th>
-            <th class="left"><Label label={ygTimesheet.string.Status} /></th>
+            <SortableTh active={sortKey === 'status'} asc={sortDir === 1} on:click={() => toggleSort('status')}>
+              <Label label={ygTimesheet.string.Status} />
+            </SortableTh>
             <th class="left"><Label label={ygTimesheet.string.HrReason} /></th>
             {#if isHr}<th class="left" />{/if}
           </tr>
         </thead>
         <tbody>
-          {#each rows as r (r._id)}
+          {#each sortedRows as r (r._id)}
             <tr class="yg-row">
               <td class="left">
                 <div class="yg-person">

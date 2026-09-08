@@ -19,7 +19,7 @@
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
-  import { UserBoxList } from '@hcengineering/contact-resources'
+  import { Avatar, UserBoxList } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
@@ -148,14 +148,20 @@
     .map(([id, name]): DropdownTextItem => ({ id, label: name }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
 
-  // Employee name map.
+  // Employee name + object maps (the object feeds <Avatar> so rows show the person's photo).
   const empQuery = createQuery()
   let employeeNames: Map<string, string> = new Map()
+  let empById: Map<string, Employee> = new Map()
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
     const m = new Map<string, string>()
+    const byId = new Map<string, Employee>()
     // Person.name is stored as "Last,First"; format to display order (e.g. "Praja Owner").
-    for (const e of res) m.set(e._id, formatName(e.name))
+    for (const e of res) {
+      m.set(e._id, formatName(e.name))
+      byId.set(e._id, e)
+    }
     employeeNames = m
+    empById = byId
   })
 
   // Issue workflow-status name map (Todo / In Progress / …).
@@ -260,6 +266,7 @@
       dueDate: issue?.dueDate ?? null,
       note: r.description ?? '',
       approvedHours: approved?.approvedHours,
+      approvedBy: approved?.approvedBy ?? undefined,
       approvedByName: approved?.approvedBy != null ? (employeeNames.get(approved.approvedBy) ?? undefined) : undefined
     }
   })
@@ -326,7 +333,7 @@
     return sorted.map((r) => {
       if (r.approvedHours == null) return r
       const key = `${r.employee}|${r.issue}|${localDayKey(r.date)}`
-      if (seenTask.has(key)) return { ...r, approvedHours: undefined, approvedByName: undefined }
+      if (seenTask.has(key)) return { ...r, approvedHours: undefined, approvedBy: undefined, approvedByName: undefined }
       seenTask.add(key)
       return r
     })
@@ -359,23 +366,6 @@
   const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
   // --- Presentation-only helpers (no data/query impact) ---------------------
-  // Avatar initials from a display name, e.g. "Oliver User" -> "OU" (mirrors Approvals.svelte).
-  function initials (name: string): string {
-    const parts = name.trim().split(/\s+/).filter((p) => p.length > 0)
-    if (parts.length === 0) return '?'
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
-
-  // Deterministic 1-4 avatar color bucket from an id/name string, so the same person always
-  // gets the same color across rows (unlike Approvals.svelte's per-group `i % 4`, Reports has
-  // many rows per person, so the bucket must be a function of identity, not row position).
-  function avatarBucket (key: string): number {
-    let h = 0
-    for (let i = 0; i < key.length; i++) h = (h + key.charCodeAt(i)) % 4
-    return h + 1
-  }
-
   // Best-effort status-chip variant from the issue workflow status NAME (statusQuery/statusNames
   // is preserved as-is and only ever carries names, no category ref) - purely a display bucket,
   // same idiom as HrTimesheet's `deriveDayStatus`-driven pill classing. Unrecognized/custom
@@ -556,7 +546,7 @@
                 <td class="left rp-date-cell">{dateFmt.format(r.date)}</td>
                 <td class="left">
                   <span class="rp-who">
-                    <span class="yg-avatar yg-av{avatarBucket(r.employee)}">{initials(r.employeeName)}</span>
+                    <Avatar person={empById.get(r.employee)} name={r.employeeName} size={'small'} />
                     {r.employeeName}
                   </span>
                 </td>
@@ -587,9 +577,7 @@
                 <td class="left">
                   {#if r.approvedByName != null}
                     <span class="rp-who">
-                      <span class="yg-avatar yg-avatar--sm yg-av{avatarBucket(r.approvedByName)}">
-                        {initials(r.approvedByName)}
-                      </span>
+                      <Avatar person={r.approvedBy != null ? empById.get(r.approvedBy) : undefined} name={r.approvedByName} size={'x-small'} />
                       {r.approvedByName}
                     </span>
                   {:else}

@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
+  import { Avatar } from '@hcengineering/contact-resources'
   import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
@@ -84,10 +85,16 @@
   // employeeNames (Person.name is stored "Last,First"; formatName renders display order).
   const empQuery = createQuery()
   let employeeNames: Map<string, string> = new Map()
+  let empById: Map<string, Employee> = new Map()
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
     const m = new Map<string, string>()
-    for (const e of res) m.set(e._id, formatName(e.name))
+    const byId = new Map<string, Employee>()
+    for (const e of res) {
+      m.set(e._id, formatName(e.name))
+      byId.set(e._id, e)
+    }
     employeeNames = m
+    empById = byId
   })
 
   interface ApprovalGroup {
@@ -181,14 +188,6 @@
   $: totalPeople = groups.length
   $: totalHours = groups.reduce((sum, g) => sum + g.hours, 0)
 
-  // Avatar initials from a display name, e.g. "Oliver User" -> "OU", "Cher" -> "CH".
-  function initials (name: string): string {
-    const parts = name.trim().split(/\s+/).filter((p) => p.length > 0)
-    if (parts.length === 0) return '?'
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
-
   async function onApprove (task: TimesheetTask, isReapproval: boolean = false): Promise<void> {
     // Give the approver context for setting approved hours (user request 2026-07-29): the issue's
     // estimation, and the employee's spent-time notes for THIS task's issue on THIS day.
@@ -260,7 +259,7 @@
       {#each groups as g, i (g.employee ?? i)}
         <div class="group">
           <div class="group__head">
-            <span class="yg-avatar yg-av{(i % 4) + 1}">{initials(g.name)}</span>
+            <Avatar person={g.employee != null ? empById.get(g.employee) : undefined} name={g.name} size={'medium'} />
             <span class="group__who">
               <span class="group__name">{g.name}</span>
               <span class="group__meta">Submitted {dayFmt.format(g.date)}</span>

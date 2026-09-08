@@ -312,6 +312,27 @@
   text-overflow: ellipsis;
   line-height: 1.25;
 }
+
+// Reusable clickable sort header. Put .yg-th-sort on a <th>, toggle .is-sorted when it is the
+// active column, wrap the label + chevron in .yg-hcell, and render the chevron as an inline SVG
+// with class .yg-sortarrow (add .up for ascending). The chevron is an SVG (not a unicode arrow,
+// which the brand fonts render as tofu) and uses currentColor, so it is theme- and accent-neutral.
+// Space is always reserved for it, so toggling never shifts the header text.
+:global(.yg-th-sort) { cursor: pointer; user-select: none; }
+:global(.yg-th-sort:hover) { color: var(--yg-text); }
+:global(.yg-th-sort.is-sorted) { color: var(--yg-text); }
+:global(.yg-hcell) { display: inline-flex; align-items: center; gap: 4px; }
+:global(.yg-hcell--num) { flex-direction: row-reverse; }
+:global(.yg-sortarrow) {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+:global(.yg-th-sort:hover .yg-sortarrow) { opacity: 0.4; }
+:global(.yg-th-sort.is-sorted .yg-sortarrow) { opacity: 1; }
+:global(.yg-sortarrow.up) { transform: rotate(180deg); }
 // Row hover matches the employees directory table's feedback (the header/hover tint), a clearer
 // highlight than the old faint list-row colour.
 :global(.yg-row:hover) {
