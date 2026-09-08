@@ -220,23 +220,30 @@
 {/if}
 
 <style lang="scss">
+  // Sticky search over the project list. The nav panel is a dark ground in both themes, so the
+  // header must be OPAQUE (matching --yg-nav-bg) or the scrolling project list bleeds through it,
+  // and the input needs a light-on-dark fill/border instead of the theme-light tokens (which read
+  // poorly here). Focus ring uses the accent.
   .project-search {
     position: sticky;
     top: 0;
     z-index: 1;
     padding: 0.25rem 0.75rem 0.5rem;
-    background-color: transparent;
+    background-color: var(--yg-nav-bg);
 
     :global(.searchInput-wrapper) {
-      background-color: var(--theme-navcard-BackgroundColor);
-      box-shadow: inset 0 0 0 1px var(--theme-divider-color);
+      background-color: rgba(255, 255, 255, 0.06);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
     }
     :global(.searchInput-wrapper:hover),
-    :global(.searchInput-wrapper:active),
+    :global(.searchInput-wrapper:active) {
+      background-color: rgba(255, 255, 255, 0.09);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    }
     :global(.searchInput-wrapper:focus-within) {
-      background-color: var(--theme-navcard-BackgroundColor);
+      background-color: rgba(255, 255, 255, 0.09);
       outline: none;
-      box-shadow: inset 0 0 0 1px var(--theme-divider-color);
+      box-shadow: inset 0 0 0 1px var(--yg-brand-active);
     }
   }
 </style>
