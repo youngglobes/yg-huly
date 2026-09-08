@@ -35,6 +35,14 @@ export interface AccentVars {
    * neutral preset sets this to white.
    */
   onAccent?: string
+  /**
+   * Slack-style sidebar tint: a darker tinted-dark shade for the app rail and a slightly lighter
+   * one for the navigator/submenu, both dark enough for the light rail text. Optional - presets
+   * that omit these keep the shipped near-black rail/nav (good for yellow/neutral, whose dark tint
+   * would read as muddy olive/grey).
+   */
+  railBg?: string
+  navBg?: string
 }
 
 export interface AccentPreset {
@@ -80,7 +88,9 @@ export const accentPresets: AccentPreset[] = [
       brandHover: '#FF9E33',
       brandActive: '#D26800',
       brandInk: '#9A4E00',
-      brandInkDark: '#F3B267'
+      brandInkDark: '#F3B267',
+      railBg: '#241a0e',
+      navBg: '#31240f'
     }
   },
   {
@@ -93,7 +103,9 @@ export const accentPresets: AccentPreset[] = [
       brandHover: '#3FD1C2',
       brandActive: '#0E9284',
       brandInk: '#0A6F65',
-      brandInkDark: '#6FE0D4'
+      brandInkDark: '#6FE0D4',
+      railBg: '#0b2723',
+      navBg: '#123833'
     }
   },
   {
@@ -106,7 +118,9 @@ export const accentPresets: AccentPreset[] = [
       brandHover: '#9A80FF',
       brandActive: '#5F3FE0',
       brandInk: '#5636C4',
-      brandInkDark: '#B7A5FF'
+      brandInkDark: '#B7A5FF',
+      railBg: '#191233',
+      navBg: '#221a45'
     }
   },
   {
@@ -119,7 +133,9 @@ export const accentPresets: AccentPreset[] = [
       brandHover: '#FF6A62',
       brandActive: '#CE3229',
       brandInk: '#9E2A24',
-      brandInkDark: '#FF9089'
+      brandInkDark: '#FF9089',
+      railBg: '#2a1512',
+      navBg: '#38201d'
     }
   }
 ]
@@ -149,6 +165,9 @@ export const buildAccentCss = (preset: AccentPreset): string => {
     v.onAccent != null
       ? `--global-on-accent-TextColor:${v.onAccent};--primary-button-color:${v.onAccent};`
       : ''
+  // Optional Slack-style tinted sidebar (darker rail + lighter submenu of the accent hue).
+  const sidebar =
+    v.railBg != null && v.navBg != null ? `--yg-rail-bg:${v.railBg};--yg-nav-bg:${v.navBg};` : ''
   return (
     '* {' +
     `--yg-brand:${v.brand};` +
@@ -158,6 +177,7 @@ export const buildAccentCss = (preset: AccentPreset): string => {
     `--yg-brand-ink:${v.brandInk};` +
     `--yg-brand-ink-dark:${v.brandInkDark};` +
     onAccent +
+    sidebar +
     '}'
   )
 }
