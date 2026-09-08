@@ -67,6 +67,19 @@ export const getCurrentLanguage = (): string => {
  */
 export const getCurrentEmoji = (): string => localStorage.getItem('emoji') ?? getDefaultProps('emoji', 'emoji-system')
 
+export { forceThemeRepaint } from './apply'
+export {
+  type AccentVars,
+  type AccentPreset,
+  accentPresets,
+  defaultAccentId,
+  getStoredAccent,
+  buildAccentCss,
+  applyAccent,
+  setAccent,
+  initAccent
+} from './accents'
+
 export class ThemeOptions {
   readonly variant: ThemeVariantType
   constructor (

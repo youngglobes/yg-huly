@@ -63,6 +63,7 @@ import { trainingOperation } from '@hcengineering/model-training'
 import { viewOperation } from '@hcengineering/model-view'
 import { workbenchOperation } from '@hcengineering/model-workbench'
 import { ygTimesheetOperation } from '@hcengineering/model-yg-timesheet'
+import { ygHrOperation } from '@hcengineering/model-yg-hr'
 
 export const migrateOperations: [string, MigrateOperation][] = [
   ['core', coreOperation],
@@ -114,5 +115,6 @@ export const migrateOperations: [string, MigrateOperation][] = [
   [processId, processOperation],
   [communicationId, communicationOperation],
   [recorderId, recorderOperation],
-  ['yg-timesheet', ygTimesheetOperation]
+  ['yg-timesheet', ygTimesheetOperation],
+  ['yg-hr', ygHrOperation]
 ]

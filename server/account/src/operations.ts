@@ -274,15 +274,16 @@ export async function loginOtp (
   const emailSocialId = await getEmailSocialId(db, normalizedEmail)
 
   if (emailSocialId == null) {
+    // A completely unknown email (no social id at all) is rejected - nothing to send an OTP to.
     throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
   }
 
-  const account = await getAccount(db, emailSocialId.personUuid as AccountUuid)
-
-  if (account == null) {
-    throw new PlatformError(new Status(Severity.ERROR, platform.status.AccountNotFound, {}))
-  }
-
+  // A KNOWN email whose social id has no account yet is allowed through (do NOT throw here). This is
+  // exactly an employee HR pre-created via ensurePerson (person + social id, no account) and then
+  // invited: sendOtp needs only the social id, and validateOtp creates the account on a valid code
+  // (the createAccount path). Without this, a fresh invitee hit "Account not found" on the locked
+  // OTP join even though a valid invite existed. Workspace access stays separately gated by the
+  // invite + membership, so allowing account creation on first OTP here grants no extra access.
   return await sendOtp(ctx, db, branding, emailSocialId)
 }
 
@@ -994,6 +995,33 @@ export async function resendInvite (
 }
 
 /**
+ * Returns whether an invitation record already exists for the given email in the caller's
+ * workspace. Drives the "Send invitation" vs "Resend invitation" label in the Contacts UI.
+ */
+export async function hasPendingInvite (
+  ctx: MeasureContext,
+  db: AccountDB,
+  branding: Branding | null,
+  token: string,
+  params: { email: string }
+): Promise<boolean> {
+  const { email } = params
+
+  if (email == null || email === '') {
+    return false
+  }
+
+  const { workspace: workspaceUuid } = decodeTokenVerbose(ctx, token)
+  if (workspaceUuid == null) {
+    return false
+  }
+
+  const invite = await db.invite.findOne({ workspaceUuid, email })
+
+  return invite != null
+}
+
+/**
  * Given an invite and sign in information, assigns the user to the workspace in a given role.
  * If already a member, updates the role if necessary.
  * Returns the workspace login information.
@@ -1064,7 +1092,7 @@ export async function getInviteInfo (
     return { workspaceName: null }
   }
 
-  return { workspaceName: workspace.name }
+  return { workspaceName: workspace.name, email: invite.email ?? null }
 }
 
 /**
@@ -1556,7 +1584,7 @@ export async function requestPasswordReset (
  * email+password as a secondary sign-in method.
  *
  * Requires authentication (session token). Only valid for accounts that have
- * no password set — accounts with an existing password must use changePassword.
+ * no password set (accounts with an existing password must use changePassword).
  */
 export async function requestPasswordSetup (
   ctx: MeasureContext,
@@ -1681,7 +1709,13 @@ export async function leaveWorkspace (
   const initiatorRole = await db.getWorkspaceRole(account, workspace)
   const targetRole = await db.getWorkspaceRole(targetAccount, workspace)
 
-  if (account !== targetAccount) {
+  // The System account (a trusted backend minting its own token - e.g. yg-hr's
+  // OnEmployeeStatusChange revoking a deactivated employee's access) may remove any member. System
+  // is never a workspace member, so it has no initiatorRole and would otherwise fail the
+  // Maintainer check below; this mirrors verifyAllowedRole's existing extra.admin bypass.
+  const isSystemInitiator = account === systemAccountUuid
+
+  if (account !== targetAccount && !isSystemInitiator) {
     if (initiatorRole == null || getRolePower(initiatorRole) < getRolePower(AccountRole.Maintainer)) {
       ctx.error("Need to be at least maintainer to remove someone else's account from workspace", {
         account,
@@ -3304,6 +3338,7 @@ export type AccountMethods =
   | 'createAccessLink'
   | 'sendInvite'
   | 'resendInvite'
+  | 'hasPendingInvite'
   | 'selectWorkspace'
   | 'join'
   | 'joinByToken'
@@ -3371,7 +3406,10 @@ export type AccountMethods =
 /**
  * @public
  */
-export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMethods, AccountMethodHandler>> {
+export function getMethods (
+  hasSignUp: boolean = true,
+  canCreateWorkspace: boolean = true
+): Partial<Record<AccountMethods, AccountMethodHandler>> {
   return {
     /* OPERATIONS */
     login: wrap(login),
@@ -3380,12 +3418,17 @@ export function getMethods (hasSignUp: boolean = true): Partial<Record<AccountMe
     ...(hasSignUp ? { signUp: wrap(signUp) } : {}),
     ...(hasSignUp ? { signUpOtp: wrap(signUpOtp) } : {}),
     validateOtp: wrap(validateOtp),
-    createWorkspace: wrap(createWorkspace),
+    // Workspace creation is gated: when disabled the method is not exposed at all, so no
+    // authenticated user can create a workspace via the API or by navigating to the create URL.
+    // The admin tool creates/restores workspaces through workspace-service directly (not this RPC),
+    // so it is unaffected.
+    ...(canCreateWorkspace ? { createWorkspace: wrap(createWorkspace) } : {}),
     createInvite: wrap(createInvite),
     createInviteLink: wrap(createInviteLink),
     createAccessLink: wrap(createAccessLink),
     sendInvite: wrap(sendInvite),
     resendInvite: wrap(resendInvite),
+    hasPendingInvite: wrap(hasPendingInvite),
     selectWorkspace: wrap(selectWorkspace),
     join: wrap(join),
     joinByToken: wrap(joinByToken),

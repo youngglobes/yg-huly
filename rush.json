@@ -1802,8 +1802,43 @@
       "shouldPublish": false
     },
     {
+      "packageName": "@hcengineering/yg-hr",
+      "projectFolder": "plugins/yg-hr",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/yg-hr-assets",
+      "projectFolder": "plugins/yg-hr-assets",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/yg-hr-resources",
+      "projectFolder": "plugins/yg-hr-resources",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/model-yg-hr",
+      "projectFolder": "models/yg-hr",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/server-yg-hr",
+      "projectFolder": "server-plugins/yg-hr",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/server-yg-hr-resources",
+      "projectFolder": "server-plugins/yg-hr-resources",
+      "shouldPublish": false
+    },
+    {
       "packageName": "@hcengineering/model-server-yg-timesheet",
       "projectFolder": "models/server-yg-timesheet",
+      "shouldPublish": false
+    },
+    {
+      "packageName": "@hcengineering/model-server-yg-hr",
+      "projectFolder": "models/server-yg-hr",
       "shouldPublish": false
     },
     {

@@ -115,7 +115,7 @@ export async function getCommonNotificationTxes (
   const res: Tx[] = []
   const notifyContexts = await control.findAll(ctx, notification.class.DocNotifyContext, { objectId: attachedTo })
 
-  await pushInboxNotifications(
+  const notificationTx = await pushInboxNotifications(
     ctx,
     control,
     res,
@@ -132,6 +132,19 @@ export async function getCommonNotificationTxes (
     true,
     tx
   )
+
+  // Record the enabled providers (incl. Push) for this notification so PushNotificationsHandler can
+  // web-push it. Without this, notifications created on the common path - notably @mentions - are
+  // never pushed even when Push is enabled, because push only fires for ids in this cache. Mirrors
+  // the activity path (getNotificationTxes).
+  if (notificationTx !== undefined) {
+    const current: AvailableProvidersCache = control.contextCache.get(AvailableProvidersCacheKey) ?? new Map()
+    const providers = Array.from(notifyResult.keys())
+    if (providers.length > 0) {
+      current.set(notificationTx.objectId, providers)
+      control.contextCache.set(AvailableProvidersCacheKey, current)
+    }
+  }
 
   return res
 }

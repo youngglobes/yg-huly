@@ -12,8 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 -->
+<!--
+  YG Portal: the invite link is "Log in with code" (OTP) ONLY. Accounts are created up
+  front from the Contacts UI, so there is no self sign up here: the password login form,
+  the "Sign up / create account" toggle, social providers, and the signUpJoin path are all
+  intentionally removed. A fresh invitee enters their email, receives an OTP, and is joined
+  to the workspace by joinByToken once the code validates.
+-->
 <script lang="ts">
-  import { OK, PlatformError, Severity, Status, getMetadata, setMetadata } from '@hcengineering/platform'
+  import { OK, PlatformError, Severity, Status, setMetadata } from '@hcengineering/platform'
   import {
     Button,
     Label,
@@ -24,124 +31,99 @@
     navigate
   } from '@hcengineering/ui'
   import presentation from '@hcengineering/presentation'
+  import { LoginInfo, WorkspaceLoginInfo } from '@hcengineering/account-client'
 
-  import {
-    checkJoined,
-    getInviteWorkspaceName,
-    join,
-    joinByToken,
-    setLoginInfo,
-    signUpJoin,
-    getLoginInfo
-  } from '../utils'
+  import { checkJoined, getInviteDetails, joinByToken, setLoginInfo, getLoginInfo } from '../utils'
+  import { loginOtp } from '../index'
   import Form from './Form.svelte'
+  import OtpForm from './OtpForm.svelte'
   import StatusControl from './StatusControl.svelte'
 
   import { Analytics } from '@hcengineering/analytics'
   import { signupStore } from '@hcengineering/analytics-providers'
   import { logIn, workbenchId } from '@hcengineering/workbench'
   import { onMount } from 'svelte'
-  import { loginAction, recoveryAction } from '../actions'
   import { loginFormMinHeight, loginFormPadding } from '../loginFormLayout'
   import login from '../plugin'
 
   const location = getCurrentLocation()
   Analytics.handleEvent('invite_link_activated', { invite_id: location.query?.inviteId })
 
-  const token = getMetadata(presentation.metadata.Token)
-  let page = token != null ? 'login' : 'signUp'
+  // Single-tenant YG deployment: the join page always names the product, not the workspace slug.
+  const PORTAL_NAME = 'YG Portal'
+
   let checking = true
   let showJoinWithAccount = false
   let currentAccountName: string | undefined
   let joiningWithAccount = false
-  let inviteWorkspaceName: string | undefined
+  // Set when the invite is bound to a specific address: we pre-fill and lock the email so the
+  // invitee can only join with the address the invite was created for (no other/extra accounts).
+  let inviteEmail: string | undefined
 
-  $: signupStore.setSignUpFlow(page === 'signUp')
-
-  $: fields =
-    page === 'login'
-      ? [
-          { id: 'email', name: 'username', i18n: login.string.Email },
-          {
-            id: 'current-password',
-            name: 'password',
-            i18n: login.string.Password,
-            password: true
-          }
-        ]
-      : [
-          { id: 'given-name', name: 'first', i18n: login.string.FirstName, short: true },
-          { id: 'family-name', name: 'last', i18n: login.string.LastName, short: true },
-          { id: 'email', name: 'username', i18n: login.string.Email },
-          { id: 'new-password', name: 'password', i18n: login.string.Password, password: true },
-          { id: 'new-password', name: 'password2', i18n: login.string.PasswordRepeat, password: true }
-        ]
-
-  $: object = {
-    first: '',
-    last: '',
-    username: '',
-    password: '',
-    password2: ''
-  }
+  let step: 'email' | 'otp' = 'email'
+  let otpRetryOn = 0
+  const emailData = { username: '' }
+  $: emailLocked = inviteEmail !== undefined && inviteEmail !== ''
+  $: emailFields = [{ id: 'email', name: 'username', i18n: login.string.Email, disabled: emailLocked }]
 
   let status = OK
 
-  $: action = {
-    i18n: page === 'login' ? login.string.LogInAndJoin : login.string.SignUpAndJoin,
+  const sendOtpAction = {
+    i18n: login.string.LogIn,
     func: async () => {
       status = new Status(Severity.INFO, login.status.ConnectingToServer, {})
+      const [otpStatus, result] = await loginOtp(emailData.username)
+      status = otpStatus
 
-      const [loginStatus, result] =
-        page === 'login'
-          ? await join(
-            object.username,
-            object.password,
-            location.query?.inviteId ?? '',
-            location.query?.workspace ?? ''
-          )
-          : await signUpJoin(
-            object.username,
-            object.password,
-            object.first,
-            object.last,
-            location.query?.inviteId ?? '',
-            location.query?.workspace ?? ''
-          )
-      status = loginStatus
-
-      if (result != null) {
-        await logIn(result)
-        setLoginInfo(result)
-
-        if (location.query?.navigateUrl != null) {
-          try {
-            const loc = JSON.parse(decodeURIComponent(location.query.navigateUrl)) as Location
-            if (loc.path[1] === result.workspaceUrl) {
-              navigate(loc)
-              return
-            }
-          } catch (err: any) {
-            // Json parse error could be ignored
-          }
-        }
-
-        navigate({ path: [workbenchId, result.workspaceUrl] })
+      if (result?.sent === true && otpStatus === OK) {
+        step = 'otp'
+        otpRetryOn = result.retryOn
       }
     }
   }
 
-  $: secondaryButtonLabel = page === 'login' ? login.string.CreateNewAccount : login.string.HaveAccount
-  $: secondaryButtonAction =
-    page === 'login'
-      ? () => {
-          page = 'signUp'
+  function navigateAfterJoin (result: WorkspaceLoginInfo): void {
+    if (location.query?.navigateUrl != null) {
+      try {
+        const loc = JSON.parse(decodeURIComponent(location.query.navigateUrl)) as Location
+        if (loc.path[1] === result.workspaceUrl) {
+          navigate(loc)
+          return
         }
-      : () => {
-          page = 'login'
-        }
+      } catch (err: any) {
+        // Json parse error could be ignored
+      }
+    }
+    navigate({ path: [workbenchId, result.workspaceUrl] })
+  }
+
+  // Called by OtpForm once the code validates. We have a session token now, so attach the
+  // account to the invited workspace with joinByToken (no password, no sign up) and go in.
+  async function handleOtpJoin (loginInfo: LoginInfo | null, otpStatus: Status): Promise<void> {
+    status = otpStatus
+    if (loginInfo == null || loginInfo.token == null) {
+      return
+    }
+    setMetadata(presentation.metadata.Token, loginInfo.token)
+
+    const inviteId = location.query?.inviteId
+    if (inviteId == null || inviteId === '') {
+      return
+    }
+
+    try {
+      const result = await joinByToken(inviteId)
+      await logIn(result)
+      setLoginInfo(result)
+      navigateAfterJoin(result)
+    } catch (err: any) {
+      status =
+        err instanceof PlatformError ? err.status : new Status(Severity.ERROR, login.status.ConnectingToServer, {})
+    }
+  }
 
   onMount(() => {
+    signupStore.setSignUpFlow(false)
     void check()
   })
 
@@ -154,25 +136,16 @@
     status = new Status(Severity.INFO, login.status.ConnectingToServer, {})
 
     const inviteId = location.query.inviteId
-    const [result, workspaceName] = await Promise.all([checkJoined(inviteId), getInviteWorkspaceName(inviteId)])
-    inviteWorkspaceName = workspaceName
+    const [result, details] = await Promise.all([checkJoined(inviteId), getInviteDetails(inviteId)])
+    inviteEmail = details.email
+    if (inviteEmail !== undefined && inviteEmail !== '') {
+      emailData.username = inviteEmail
+    }
     status = OK
 
     if (result != null) {
       setLoginInfo(result)
-
-      if (location.query?.navigateUrl != null) {
-        try {
-          const loc = JSON.parse(decodeURIComponent(location.query.navigateUrl)) as Location
-          if (loc.path[1] === result.workspaceUrl) {
-            navigate(loc)
-            return
-          }
-        } catch (err: any) {
-          // Json parse error could be ignored
-        }
-      }
-      navigate({ path: [workbenchId, result.workspaceUrl] })
+      navigateAfterJoin(result)
       return
     }
 
@@ -201,19 +174,7 @@
       const result = await joinByToken(inviteId)
       await logIn(result)
       setLoginInfo(result)
-
-      if (location.query?.navigateUrl != null) {
-        try {
-          const loc = JSON.parse(decodeURIComponent(location.query.navigateUrl)) as Location
-          if (loc.path[1] === result.workspaceUrl) {
-            navigate(loc)
-            return
-          }
-        } catch (err: any) {
-          // Json parse error could be ignored
-        }
-      }
-      navigate({ path: [workbenchId, result.workspaceUrl] })
+      navigateAfterJoin(result)
     } catch (err: any) {
       status =
         err instanceof PlatformError ? err.status : new Status(Severity.ERROR, login.status.ConnectingToServer, {})
@@ -225,30 +186,9 @@
   function handleUseDifferentAccount (): void {
     setMetadata(presentation.metadata.Token, null)
     showJoinWithAccount = false
-    page = 'login'
-  }
-
-  async function handleUseCurrentAccountToJoin (): Promise<void> {
-    try {
-      if (currentAccountName == null) {
-        console.error('Current account is not found')
-        return
-      }
-      const info = await getLoginInfo()
-      if (info != null) {
-        showJoinWithAccount = true
-      }
-    } catch {
-      // No session
-    }
-  }
-
-  const useCurrentAccountToJoinAction = {
-    caption: login.string.UseCurrentAccountToJoin,
-    i18n: login.string.JoinWithThisAccount,
-    func: () => {
-      void handleUseCurrentAccountToJoin()
-    }
+    currentAccountName = undefined
+    emailData.username = inviteEmail ?? ''
+    step = 'email'
   }
 </script>
 
@@ -265,7 +205,7 @@
   >
     <div class="join-with-account">
       <div class="join-title">
-        <Label label={login.string.JoinWorkspace} params={{ workspaceName: inviteWorkspaceName ?? '' }} />
+        <Label label={login.string.JoinWorkspace} params={{ workspaceName: PORTAL_NAME }} />
       </div>
       {#if currentAccountName}
         <div class="join-subtitle pb-4">
@@ -299,24 +239,28 @@
       </div>
     </div>
   </div>
-{:else}
+{:else if step === 'email'}
   <Form
     caption={login.string.JoinWorkspace}
-    captionParams={{ workspaceName: inviteWorkspaceName ?? '' }}
+    captionParams={{ workspaceName: PORTAL_NAME }}
     actionButtonDataId="join-form-submit"
-    secondaryButtonDataId="join-form-toggle"
     {status}
-    {fields}
-    {object}
-    {action}
-    {secondaryButtonLabel}
-    {secondaryButtonAction}
-    bottomActions={[
-      loginAction,
-      ...(currentAccountName != null ? [useCurrentAccountToJoinAction] : []),
-      recoveryAction
-    ]}
-    withProviders
+    fields={emailFields}
+    object={emailData}
+    action={sendOtpAction}
+    signUpDisabled
+    ignoreInitialValidation
+  />
+{:else}
+  <OtpForm
+    email={emailData.username}
+    signUpDisabled
+    retryOn={otpRetryOn}
+    onLogin={handleOtpJoin}
+    canChangeEmail={!emailLocked}
+    on:step={() => {
+      step = 'email'
+    }}
   />
 {/if}
 

@@ -258,6 +258,7 @@
   }
 
   onMount(() => {
+    pushRootBarComponent('right', workbench.component.ThemeToggle, 20)
     pushRootBarComponent('right', view.component.SearchSelector)
     pushRootBarComponent('left', workbench.component.WorkbenchTabs, 30)
     void getResource(login.function.GetWorkspaces).then(async (getWorkspaceFn) => {
@@ -326,7 +327,7 @@
       windowWorkspaceName = wsUrl
     }
     const docTitle = await getWindowTitle(loc)
-    // YG Portal: title is "<page> - <brand>" (or just the brand) — do NOT prepend the raw
+    // YG Portal: title is "<page> - <brand>" (or just the brand) - do NOT prepend the raw
     // workspace slug (avoids the awkward "yg - YG Portal").
     const brand = getMetadata(workbench.metadata.PlatformTitle) ?? 'YG Portal'
     if (docTitle !== undefined && docTitle !== '') {
@@ -493,9 +494,23 @@
         alias: app
       })
       if (newApplication?.accessLevel === undefined || hasAccountRole(account, newApplication.accessLevel)) {
-        currentApplication = newApplication
-        currentAppAlias = currentApplication?.alias
-        navigatorModel = await buildNavModel(client, currentApplication)
+        // yg: an app may carry an `accessCheck` predicate (e.g. HR-team membership, the AI-usage
+        // allowlist) that a plain accessLevel role threshold cannot express. When present and it
+        // denies, do NOT mount the app - leave it cleared (from clear(1) above) and raise the
+        // existing "Access denied" (403) view. Apps without accessCheck are unaffected.
+        let accessAllowed = true
+        if (newApplication?.accessCheck !== undefined) {
+          const check = await getResource(newApplication.accessCheck)
+          accessAllowed = await check()
+        }
+        if (accessAllowed) {
+          accessDeniedStore.set(false)
+          currentApplication = newApplication
+          currentAppAlias = currentApplication?.alias
+          navigatorModel = await buildNavModel(client, currentApplication)
+        } else {
+          accessDeniedStore.set(true)
+        }
       }
     }
 
@@ -1209,8 +1224,6 @@
       :global(.workbench-container.inner) {
         background-color: var(--theme-navcard-BackgroundColor, var(--theme-panel-color));
         border-top: 1px solid var(--theme-navpanel-border);
-        border-left: 1px solid var(--theme-navpanel-border);
-        border-top-left-radius: 0.75rem;
       }
     }
   }
@@ -1251,7 +1264,8 @@
       border-top: none;
     }
     .antiPanel-application:not(.horizontal) {
-      border-radius: var(--medium-BorderRadius) 0 0 var(--medium-BorderRadius);
+      // YG reskin: the rail sits flush with the nav panel (no rounded left corners).
+      border-radius: 0;
       border-right: none;
     }
   }
@@ -1316,7 +1330,6 @@
       flex-direction: column;
       margin-bottom: 1.25rem;
       padding-top: 1rem;
-      border-top: 1px solid var(--theme-navpanel-divider);
 
       &-mobile {
         margin-bottom: 1rem;
@@ -1346,7 +1359,6 @@
     &.vertical {
       flex-direction: column;
       margin-top: auto;
-      border-top: 1px solid var(--theme-navpanel-divider);
       padding: 0.5rem 0;
       gap: 0.25rem;
     }

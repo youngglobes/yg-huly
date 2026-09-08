@@ -13,7 +13,8 @@
 // limitations under the License.
 -->
 <script lang="ts">
-  import { type IntlString, getMetadata } from '@hcengineering/platform'
+  import { type IntlString, getMetadata, getEmbeddedLabel } from '@hcengineering/platform'
+  import { accentPresets, getStoredAccent, setAccent } from '@hcengineering/theme'
   import { getContext } from 'svelte'
   import { type Readable } from 'svelte/store'
 
@@ -29,7 +30,8 @@
     showPopup,
     deviceOptionsStore as deviceInfo,
     modalStore,
-    eventToHTMLElement
+    eventToHTMLElement,
+    tooltip
   } from '../..'
   import EmojiStyle from './icons/EmojiStyle.svelte'
 
@@ -109,6 +111,13 @@
     setTheme(theme)
   }
 
+  let currentAccent = getStoredAccent()
+  function selectAccent (id: string): void {
+    if (currentAccent === id) return
+    currentAccent = id
+    setAccent(id)
+  }
+
   function selectLanguage (language: string): void {
     if ($currentLanguage === language) return
     setLanguage(language)
@@ -147,6 +156,29 @@
               <Label label={theme.label} />
             </span>
           </div>
+        {/each}
+      </div>
+
+      <div class="ap-menuItem separator halfMargin" />
+
+      <div class="flex-row-center accent-row m-4">
+        {#each accentPresets as preset}
+          {@const selected = currentAccent === preset.id}
+          <button
+            class="accent-swatch"
+            class:selected
+            style:background-color={preset.swatch}
+            use:tooltip={{ label: getEmbeddedLabel(preset.label) }}
+            aria-label={preset.label}
+            aria-pressed={selected}
+            on:click={() => {
+              selectAccent(preset.id)
+            }}
+          >
+            {#if selected}
+              <svg class="accent-check" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19 7" /></svg>
+            {/if}
+          </button>
         {/each}
       </div>
 
@@ -248,3 +280,43 @@
 
   <div class="ap-space" />
 </div>
+
+<style lang="scss">
+  .accent-row {
+    gap: 0.75rem;
+  }
+  .accent-swatch {
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    outline: none;
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.1s ease;
+
+    &:hover {
+      transform: scale(1.12);
+    }
+    // Active accent: a ring (gap in the popup colour) plus a checkmark, so the current one is
+    // unmistakable in the row.
+    &.selected {
+      border-color: var(--theme-popup-color);
+      box-shadow: 0 0 0 2px var(--theme-caption-color);
+    }
+    &:focus-visible {
+      box-shadow: 0 0 0 2px var(--primary-button-outline);
+    }
+  }
+  .accent-check {
+    width: 0.9rem;
+    height: 0.9rem;
+    // A white tick reads on dark swatches; the drop-shadow keeps it legible on the light ones (yellow).
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.55));
+    pointer-events: none;
+  }
+</style>

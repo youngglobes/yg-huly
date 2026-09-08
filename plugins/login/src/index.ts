@@ -52,6 +52,7 @@ export default plugin(loginId, {
     LoginEndpoint: '' as Metadata<string>,
     LoginAccount: '' as Metadata<string>,
     DisableSignUp: '' as Metadata<boolean>,
+    DisableWorkspaceCreation: '' as Metadata<boolean>,
     HideLocalLogin: '' as Metadata<boolean>,
     TransactorOverride: '' as Metadata<string>,
     PasswordValidations: '' as Metadata<{
@@ -107,6 +108,7 @@ export default plugin(loginId, {
   function: {
     SendInvite: '' as Resource<(email: string, role: AccountRole) => Promise<void>>,
     ResendInvite: '' as Resource<(email: string, role: AccountRole) => Promise<void>>,
+    HasPendingInvite: '' as Resource<(email: string) => Promise<boolean>>,
     GetInviteLink: '' as Resource<
     (
       expHours: number,

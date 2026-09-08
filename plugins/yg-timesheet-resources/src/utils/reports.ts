@@ -19,6 +19,7 @@ export interface ReportRow {
   dueDate: number | null
   note: string // TimeSpendReport.description (the note on the logged time)
   approvedHours?: number // from the per-task TimesheetApproval doc (private Approvals space)
+  approvedBy?: string // approver's employee id, for the approver avatar
   approvedByName?: string // approver's display name, resolved from TimesheetApproval.approvedBy
 }
 
@@ -51,13 +52,13 @@ export function ddmmyyyy (ms: number): string {
   return `${day}-${month}-${d.getFullYear()}`
 }
 
-// CSV export — everything, including the Issue Title (the on-screen table shows the linked id
+// CSV export - everything, including the Issue Title (the on-screen table shows the linked id
 // only). Hours are emitted as decimals (spreadsheet-friendly, matches the team's sheet); dates
 // as YYYY-MM-DD; due date blank when unset.
 //
-// Of the four approval columns after "Spent": the TL/PM pair is now DATA-DRIVEN — sourced from
+// Of the four approval columns after "Spent": the TL/PM pair is now DATA-DRIVEN - sourced from
 // the per-task TimesheetApproval doc (private ygTimesheet.space.Approvals), keyed by issue+day.
-// Non-members of that space see 0 approval rows, so their columns come out blank — that's the
+// Non-members of that space see 0 approval rows, so their columns come out blank - that's the
 // correct, intended behavior (this report's approver columns are for the approver audience).
 // The Client Approved pair remains an intentionally BLANK manual-entry placeholder (separate,
 // out-of-scope process): the client-approved (billable) hours + who approved each, filled in
@@ -80,8 +81,8 @@ export function toCSV (rows: ReportRow[]): string {
     String(r.hours),
     r.approvedHours != null ? String(r.approvedHours) : '', // TL/PM Approved Hours (from approval)
     r.approvedByName != null ? escText(r.approvedByName) : '', // TL/PM Approved By (from approval)
-    '', // Client Approved Hours — manual
-    '', // Client Approved By — manual
+    '', // Client Approved Hours - manual
+    '', // Client Approved By - manual
     escText(r.statusName),
     escText(priorityLabel(r.priority)),
     r.dueDate != null ? esc(ddmmyyyy(r.dueDate)) : '""',

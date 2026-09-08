@@ -7,6 +7,7 @@ import type { Asset, IntlString, Plugin, Resource } from '@hcengineering/platfor
 import { plugin } from '@hcengineering/platform'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import type { AnyComponent, Location, ResolvedLocation } from '@hcengineering/ui'
+import { isHrDesignationByFlag, type Designation } from '@hcengineering/yg-hr'
 
 export type DayStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected'
 
@@ -44,7 +45,7 @@ export interface TimesheetDay extends AttachedDoc {
   snapshot?: TimesheetLine[]
 }
 
-/** Per-task (one issue per day) approval record — the unit an approver actions. */
+/** Per-task (one issue per day) approval record - the unit an approver actions. */
 export interface TimesheetTask extends AttachedDoc {
   date: Timestamp
   issue: Ref<Issue>
@@ -64,11 +65,11 @@ export interface TimesheetTask extends AttachedDoc {
 
 /**
  * The approval overlay for one task. Lives in the PRIVATE ygTimesheet.space.Approvals so employees
- * cannot read it — approved hours are for the PM-report audience and are discussed with the
+ * cannot read it - approved hours are for the PM-report audience and are discussed with the
  * employee at the weekly meeting, not shown on their own sheet.
  *
  * approvedBy / approvedOn are optional (same idiom as TimesheetDay/TimesheetTask's own stamps):
- * the CLIENT creates/updates this doc with `task` + `approvedHours` only — the server trigger
+ * the CLIENT creates/updates this doc with `task` + `approvedHours` only - the server trigger
  * stamps approvedBy/approvedOn authoritatively, same division of labour as the task-level flow.
  */
 export interface TimesheetApproval extends Doc {
@@ -132,8 +133,18 @@ export interface WorkProfile extends Employee {
 // Users. Kept here as the single source of truth so the client gate (HrLatePermissions.svelte) and
 // the server guard (OnLatePermissionUpdate) cannot drift apart on who counts as HR.
 export const HR_DESIGNATION: WorkDesignation = 'HR Executive'
-export function isHrDesignation (d: WorkDesignation | undefined): boolean {
-  return d === HR_DESIGNATION
+
+// Legacy string-based check (WorkProfile.designation), kept working unchanged for existing
+// callers (HrLatePermissions.svelte, server-plugins/yg-timesheet-resources) during the migration
+// to yg-hr's flag-based Designation list. The overload accepting a resolved yg-hr Designation doc
+// delegates to isHrDesignationByFlag, the single source of truth for flag-based HR detection
+// (see plugins/yg-hr/src/index.ts) - callers that have migrated to the new list should prefer it.
+export function isHrDesignation (d: WorkDesignation | undefined): boolean
+export function isHrDesignation (d: Designation | undefined): boolean
+export function isHrDesignation (d: WorkDesignation | Designation | undefined): boolean {
+  if (d === undefined) return false
+  if (typeof d === 'string') return d === HR_DESIGNATION
+  return isHrDesignationByFlag(d)
 }
 
 // Indian Standard Time is a fixed UTC+5:30 with no daylight saving, so attendance day-boundaries and
@@ -285,7 +296,8 @@ export default plugin(ygTimesheetId, {
     HrHolidays: '' as AnyComponent,
     HrLatePermissions: '' as AnyComponent,
     AiUsage: '' as AnyComponent,
-    AiUsageConfig: '' as AnyComponent
+    AiUsageConfig: '' as AnyComponent,
+    AiUsageGuard: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -495,7 +507,13 @@ export default plugin(ygTimesheetId, {
     // project OR leadership designation (WorkProfile). Consumed by core tracker-resources and
     // workbench-resources to hide the "Create project" affordance - imported as this PLUGIN only
     // (never yg-timesheet-resources) so those core packages stay free of a circular dependency.
-    CanCreateProject: '' as Resource<() => Promise<boolean>>
+    CanCreateProject: '' as Resource<() => Promise<boolean>>,
+    // App route gate (workbench.class.Application.accessCheck) for the HR module: Owner/
+    // Maintainer/Admin OR a member of ygTimesheet.space.HrData. See utils/access.ts.
+    CheckHrAppAccess: '' as Resource<() => Promise<boolean>>,
+    // App route gate for the AI Usage app: Owner/Maintainer/Admin OR the usage-sidecar's viewer
+    // allowlist. Also used by AiUsageGuard.svelte to toggle the icon's per-user hide.
+    CheckAiUsageAccess: '' as Resource<() => Promise<boolean>>
   },
   resolver: {
     Location: '' as Resource<(loc: Location) => Promise<ResolvedLocation | undefined>>,

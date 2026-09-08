@@ -54,7 +54,8 @@
   font-weight: 700;
   font-size: 1.25rem;
   line-height: 1.5rem;
-  color: var(--global-primary-TextColor);
+  // YG reskin: light text on the fixed dark rail, in both themes (brand constant, not a token).
+  color: var(--yg-rail-fg-strong);
   text-rendering: optimizeLegibility;
 
   &:not(.withButton) {
@@ -65,6 +66,59 @@
     min-height: 0;
   }
   &.small { padding-bottom: var(--spacing-1_5); }
+}
+
+// YG reskin: dark-rail nav item states, scoped to the per-app navigator only (never the
+// main content panel). NavItem.svelte's own styles are Svelte-scoped, which stamps a scope
+// hash on both ends of each nested selector and pushes their specificity above what a plain
+// global selector can reach - !important is required to win, same approach as _notion-nav.scss.
+.antiPanel-navigator .hulyNavItem-container {
+  .hulyNavItem-icon,
+  .hulyNavItem-label {
+    color: var(--yg-rail-fg) !important;
+  }
+  .hulyNavItem-label {
+    font-weight: 500 !important;
+    font-size: 0.9375rem !important;
+  }
+  .hulyNavItem-icon > svg {
+    width: 1.125rem !important;
+    height: 1.125rem !important;
+  }
+
+  &:not(.selected):hover,
+  &:not(.selected).showMenu {
+    background-color: var(--yg-rail-hover) !important;
+
+    .hulyNavItem-icon,
+    .hulyNavItem-label {
+      color: var(--yg-rail-fg-strong) !important;
+    }
+  }
+
+  &.selected {
+    position: relative;
+    background-color: var(--yg-rail-selected) !important;
+
+    .hulyNavItem-icon,
+    .hulyNavItem-label:not(.description) {
+      color: var(--yg-rail-fg-strong) !important;
+    }
+    .hulyNavItem-label:not(.description) {
+      font-weight: 600 !important;
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      background: var(--yg-accent);
+    }
+  }
 }
 
 .hulyNavGroup-container {

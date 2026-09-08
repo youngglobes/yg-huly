@@ -14,12 +14,12 @@
 -->
 <!--
   PM report: a flat, paginated table with one row per logged time entry (TimeSpendReport)
-  enriched with its issue's fields — matching the team's Google-sheet tracking format.
+  enriched with its issue's fields - matching the team's Google-sheet tracking format.
   The all-employee / attendance views live in the (separate) HR report.
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
-  import { UserBoxList } from '@hcengineering/contact-resources'
+  import { Avatar, UserBoxList } from '@hcengineering/contact-resources'
   import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
@@ -40,7 +40,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  // Role gate — mirrors Approvals.svelte EXACTLY (UI convenience only; render-block for direct-URL
+  // Role gate - mirrors Approvals.svelte EXACTLY (UI convenience only; render-block for direct-URL
   // access, since the sidebar `visibleIf` only hides the menu item). Any PM/TL on ANY project, or
   // an HR admin (Maintainer), can view Reports.
   const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -67,9 +67,11 @@
   let statusSel: string | undefined
 
   // Date range is chosen by a preset; "custom" reveals the From/To pickers. Labels are inline
-  // (like pageSizeItems) — internal, English-primary.
+  // (like pageSizeItems) - internal, English-primary.
   let preset: string = 'thisWeek'
   const presetItems: DropdownTextItem[] = [
+    { id: 'today', label: 'Today' },
+    { id: 'yesterday', label: 'Yesterday' },
     { id: 'thisWeek', label: 'This week' },
     { id: 'lastWeek', label: 'Last week' },
     { id: 'thisMonth', label: 'This month' },
@@ -87,14 +89,17 @@
     return new Date(y, m - 1, d + 1).getTime()
   }
 
-  // Resolve the 4 non-custom presets to a [from, to) window (to is exclusive). This/last week reuse
-  // weekRange (Mon-Sun); this month = the 1st through today inclusive; last month = the whole
-  // previous calendar month.
+  // Resolve the non-custom presets to a [from, to) window (to is exclusive). Today/yesterday are single
+  // local days; this/last week reuse weekRange (Mon-Sun); this month = the 1st through today inclusive;
+  // last month = the whole previous calendar month. All bounds use new Date(y, mo, d) local-midnight
+  // constructors, so they are DST-safe.
   function rangeForPreset (p: string): { from: number, to: number } {
     const now = new Date()
     const y = now.getFullYear()
     const mo = now.getMonth()
     const d = now.getDate()
+    if (p === 'today') return { from: new Date(y, mo, d).getTime(), to: new Date(y, mo, d + 1).getTime() }
+    if (p === 'yesterday') return { from: new Date(y, mo, d - 1).getTime(), to: new Date(y, mo, d).getTime() }
     if (p === 'lastWeek') {
       const lw = new Date()
       lw.setDate(lw.getDate() - 7)
@@ -107,7 +112,7 @@
     return { from: w.start, to: w.end }
   }
 
-  // For a non-custom preset, mirror its window into fromStr/toStr — that feeds the read-out and
+  // For a non-custom preset, mirror its window into fromStr/toStr - that feeds the read-out and
   // pre-seeds the From/To pickers when the user switches to "custom". Reads only `preset`, so its
   // own fromStr/toStr writes never loop it.
   $: if (preset !== 'custom') {
@@ -143,14 +148,20 @@
     .map(([id, name]): DropdownTextItem => ({ id, label: name }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
 
-  // Employee name map.
+  // Employee name + object maps (the object feeds <Avatar> so rows show the person's photo).
   const empQuery = createQuery()
   let employeeNames: Map<string, string> = new Map()
+  let empById: Map<string, Employee> = new Map()
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
     const m = new Map<string, string>()
+    const byId = new Map<string, Employee>()
     // Person.name is stored as "Last,First"; format to display order (e.g. "Praja Owner").
-    for (const e of res) m.set(e._id, formatName(e.name))
+    for (const e of res) {
+      m.set(e._id, formatName(e.name))
+      byId.set(e._id, e)
+    }
     employeeNames = m
+    empById = byId
   })
 
   // Issue workflow-status name map (Todo / In Progress / …).
@@ -162,7 +173,7 @@
     statusNames = m
   })
 
-  // Per-task approval overlay — indexed by employee+issue+day so the row builder looks up approved
+  // Per-task approval overlay - indexed by employee+issue+day so the row builder looks up approved
   // hours/approver per logged time entry WITHOUT crossing employees: two people can log the same
   // issue on the same calendar day, and without the employee in the key one's approval would bleed
   // onto the other's row (payroll misattribution). Reuses `employeeNames` (above) for the approver's
@@ -255,11 +266,12 @@
       dueDate: issue?.dueDate ?? null,
       note: r.description ?? '',
       approvedHours: approved?.approvedHours,
+      approvedBy: approved?.approvedBy ?? undefined,
       approvedByName: approved?.approvedBy != null ? (employeeNames.get(approved.approvedBy) ?? undefined) : undefined
     }
   })
 
-  // Rows filtered by everything EXCEPT status — used both to build the Status dropdown options
+  // Rows filtered by everything EXCEPT status - used both to build the Status dropdown options
   // (so selecting a status never empties its own choices) and as the base for the final filter.
   $: baseFilter = {
     from,
@@ -272,19 +284,47 @@
     .sort((a, b) => a.localeCompare(b))
     .map((s): DropdownTextItem => ({ id: s, label: s }))
   // If the chosen status is no longer among the available options (e.g. after narrowing the
-  // project), clear it — otherwise the dropdown reads as empty while the filter still hides
+  // project), clear it - otherwise the dropdown reads as empty while the filter still hides
   // everything, and the table shows a misleading "No data".
   $: if (statusSel != null && !statusItems.some((i) => i.id === statusSel)) statusSel = undefined
 
   $: filter = { ...baseFilter, status: statusSel != null && statusSel !== '' ? statusSel : undefined }
-  // Newest work first; ties broken by employee then issue id — stable & predictable across pages.
-  $: rows = ((): ReportRow[] => {
-    const sorted = filterRows(allRows, filter).sort(
-      (a, b) =>
-        b.date - a.date ||
-        a.employeeName.localeCompare(b.employeeName) ||
-        a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+
+  // Column sorting. Click a header to sort by it; click again to flip direction. Text columns
+  // default to ascending, Date/Spent to descending (most recent / largest first). A stable
+  // tiebreak (date desc, then employee, then issue id) keeps equal rows grouped and predictable.
+  type SortKey = 'date' | 'person' | 'project' | 'spent' | 'status'
+  let sortKey: SortKey = 'date'
+  let sortDir: 1 | -1 = -1
+  function toggleSort (key: SortKey): void {
+    if (sortKey === key) {
+      sortDir = sortDir === 1 ? -1 : 1
+    } else {
+      sortKey = key
+      sortDir = key === 'date' || key === 'spent' ? -1 : 1
+    }
+  }
+  function compareRows (a: ReportRow, b: ReportRow): number {
+    let r = 0
+    if (sortKey === 'date') r = a.date - b.date
+    else if (sortKey === 'person') r = a.employeeName.localeCompare(b.employeeName)
+    else if (sortKey === 'project') r = a.projectName.localeCompare(b.projectName)
+    else if (sortKey === 'spent') r = a.hours - b.hours
+    else if (sortKey === 'status') r = a.statusName.localeCompare(b.statusName)
+    if (r !== 0) return r * sortDir
+    // Stable, direction-independent tiebreak so equal rows stay grouped across pages.
+    return (
+      b.date - a.date ||
+      a.employeeName.localeCompare(b.employeeName) ||
+      a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
     )
+  }
+
+  $: rows = ((): ReportRow[] => {
+    // Reference sortKey/sortDir so the memo recomputes when the sort changes.
+    sortKey
+    sortDir
+    const sorted = filterRows(allRows, filter).sort(compareRows)
     // A task (employee+issue+day) has ONE approval but can span several TimeSpendReport rows (time
     // logged in more than one sitting). Keep the approved hours/approver on the FIRST row of each task
     // only and blank the rest, so the Approved column and its footer total sum the approval ONCE -
@@ -293,7 +333,7 @@
     return sorted.map((r) => {
       if (r.approvedHours == null) return r
       const key = `${r.employee}|${r.issue}|${localDayKey(r.date)}`
-      if (seenTask.has(key)) return { ...r, approvedHours: undefined, approvedByName: undefined }
+      if (seenTask.has(key)) return { ...r, approvedHours: undefined, approvedBy: undefined, approvedByName: undefined }
       seenTask.add(key)
       return r
     })
@@ -312,7 +352,7 @@
   $: pageSize = Number(pageSizeSel)
   let page = 1
   // Reset to page 1 whenever the filtered set or page size changes.
-  $: filterSig = `${preset}|${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}`
+  $: filterSig = `${preset}|${fromStr}|${toStr}|${members.join(',')}|${projectSels.join(',')}|${statusSel ?? ''}|${pageSize}|${sortKey}|${sortDir}`
   $: {
     filterSig
     page = 1
@@ -326,25 +366,8 @@
   const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
   // --- Presentation-only helpers (no data/query impact) ---------------------
-  // Avatar initials from a display name, e.g. "Oliver User" -> "OU" (mirrors Approvals.svelte).
-  function initials (name: string): string {
-    const parts = name.trim().split(/\s+/).filter((p) => p.length > 0)
-    if (parts.length === 0) return '?'
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
-
-  // Deterministic 1-4 avatar color bucket from an id/name string, so the same person always
-  // gets the same color across rows (unlike Approvals.svelte's per-group `i % 4`, Reports has
-  // many rows per person, so the bucket must be a function of identity, not row position).
-  function avatarBucket (key: string): number {
-    let h = 0
-    for (let i = 0; i < key.length; i++) h = (h + key.charCodeAt(i)) % 4
-    return h + 1
-  }
-
   // Best-effort status-chip variant from the issue workflow status NAME (statusQuery/statusNames
-  // is preserved as-is and only ever carries names, no category ref) — purely a display bucket,
+  // is preserved as-is and only ever carries names, no category ref) - purely a display bucket,
   // same idiom as HrTimesheet's `deriveDayStatus`-driven pill classing. Unrecognized/custom
   // status names fall back to the neutral "back" (backlog-style) look.
   function statusChipVariant (name: string): 'done' | 'prog' | 'back' {
@@ -482,14 +505,39 @@
         <table class="yg-table">
           <thead>
             <tr>
-              <th class="left"><Label label={ygTimesheet.string.Date} /></th>
-              <th class="left">Person</th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'date'} on:click={() => toggleSort('date')}>
+                <span class="rp-hcell">
+                  <Label label={ygTimesheet.string.Date} />
+                  <svg class="rp-sortarrow" class:up={sortKey === 'date' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
+              </th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'person'} on:click={() => toggleSort('person')}>
+                <span class="rp-hcell">
+                  Person
+                  <svg class="rp-sortarrow" class:up={sortKey === 'person' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
+              </th>
               <th class="left">Task</th>
-              <th class="left"><Label label={ygTimesheet.string.Project} /></th>
-              <th class="yg-num"><Label label={ygTimesheet.string.Spent} /></th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'project'} on:click={() => toggleSort('project')}>
+                <span class="rp-hcell">
+                  <Label label={ygTimesheet.string.Project} />
+                  <svg class="rp-sortarrow" class:up={sortKey === 'project' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
+              </th>
+              <th class="yg-num rp-sortable" class:rp-sorted={sortKey === 'spent'} on:click={() => toggleSort('spent')}>
+                <span class="rp-hcell rp-hcell--num">
+                  <Label label={ygTimesheet.string.Spent} />
+                  <svg class="rp-sortarrow" class:up={sortKey === 'spent' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
+              </th>
               <th class="yg-num"><Label label={ygTimesheet.string.Approved} /></th>
               <th class="left">Approved by</th>
-              <th class="left"><Label label={ygTimesheet.string.Status} /></th>
+              <th class="left rp-sortable" class:rp-sorted={sortKey === 'status'} on:click={() => toggleSort('status')}>
+                <span class="rp-hcell">
+                  <Label label={ygTimesheet.string.Status} />
+                  <svg class="rp-sortarrow" class:up={sortKey === 'status' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -498,11 +546,11 @@
                 <td class="left rp-date-cell">{dateFmt.format(r.date)}</td>
                 <td class="left">
                   <span class="rp-who">
-                    <span class="yg-avatar yg-av{avatarBucket(r.employee)}">{initials(r.employeeName)}</span>
+                    <Avatar person={empById.get(r.employee)} name={r.employeeName} size={'small'} />
                     {r.employeeName}
                   </span>
                 </td>
-                <td class="left">
+                <td class="left yg-truncate">
                   <span class="rp-task">
                     <span class="yg-idbadge rp-idbadge">{r.identifier}</span>
                     {#if r.identifier !== '-'}
@@ -517,7 +565,7 @@
                     {/if}
                   </span>
                 </td>
-                <td class="left rp-proj">{r.projectName}</td>
+                <td class="left rp-proj yg-truncate">{r.projectName}</td>
                 <td class="yg-num">{formatHours(r.hours)}</td>
                 <td class="yg-num">
                   {#if r.approvedHours != null}
@@ -529,9 +577,7 @@
                 <td class="left">
                   {#if r.approvedByName != null}
                     <span class="rp-who">
-                      <span class="yg-avatar yg-avatar--sm yg-av{avatarBucket(r.approvedByName)}">
-                        {initials(r.approvedByName)}
-                      </span>
+                      <Avatar person={r.approvedBy != null ? empById.get(r.approvedBy) : undefined} name={r.approvedByName} size={'x-small'} />
                       {r.approvedByName}
                     </span>
                   {:else}
@@ -591,7 +637,7 @@
 
   // --- Filter toolbar --------------------------------------------------------
   // Each `.rp-ctrl` is a "pill" wrapper (mockup's `.ctrl`) around the REAL, functional Huly
-  // control (native date input, DropdownLabels, EmployeeBox) — restyle-only, the controls
+  // control (native date input, DropdownLabels, EmployeeBox) - restyle-only, the controls
   // underneath stay interactive and bound to the existing filter state.
   .rp-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 1rem; }
   .rp-ctrl {
@@ -613,19 +659,49 @@
     overflow: auto; background: var(--yg-panel); border: 1px solid var(--yg-border);
     border-radius: var(--yg-radius); box-shadow: var(--yg-shadow);
   }
+  // Clickable sort headers: pointer + hover feedback, active column emphasised. The direction arrow
+  // is an inline SVG chevron (the brand fonts have no triangle glyph, so unicode arrows rendered as
+  // tofu boxes). Space is always reserved for it so toggling sort never shifts the header text.
+  .rp-sortable { cursor: pointer; user-select: none; }
+  .rp-sortable:hover { color: var(--yg-text); }
+  .rp-sorted { color: var(--yg-text); }
+  .rp-hcell { display: inline-flex; align-items: center; gap: 4px; }
+  .rp-hcell--num { flex-direction: row-reverse; }
+  // Note: distinct from the pager's .rp-arrow button class below - do not merge the two.
+  .rp-sortarrow {
+    width: 11px;
+    height: 11px;
+    flex: none;
+    opacity: 0;
+    transition: opacity 0.1s ease, transform 0.1s ease;
+  }
+  .rp-sortable:hover .rp-sortarrow { opacity: 0.4; }
+  .rp-sorted .rp-sortarrow { opacity: 1; }
+  .rp-sortarrow.up { transform: rotate(180deg); }
+
   .rp-date-cell { color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
   .rp-who { display: inline-flex; align-items: center; gap: 8px; }
-  .rp-task { display: inline-flex; align-items: center; gap: 8px; }
+  // Flex row so the id badge stays fixed and the title link shrinks + ellipsizes inside the
+  // truncating Task cell (yg-truncate), instead of the long title widening the whole table.
+  .rp-task { display: flex; align-items: center; gap: 8px; min-width: 0; }
   // `.yg-idbadge` (Task 1) is sized for the roomier timesheet/approvals rows; a bit large for
   // this dense table, so a local size tweak only (the shared class itself is untouched).
-  .rp-idbadge { font-size: 11px; padding: 1px 6px; }
-  .rp-link { color: var(--yg-text); text-decoration: none; font-weight: 500; }
+  .rp-idbadge { font-size: 11px; padding: 1px 6px; flex: none; }
+  .rp-link {
+    color: var(--yg-text);
+    text-decoration: none;
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .rp-link:hover { text-decoration: underline; text-underline-offset: 2px; }
   .rp-proj { color: var(--yg-text-dim); }
   .rp-muted { color: var(--yg-text-faint); }
 
   // Issue workflow-status chip (dot + label). Not part of the shared `yg-table.scss` vocabulary
-  // (that file has no `.schip`), so it is defined locally here — mirrors the mockup's
+  // (that file has no `.schip`), so it is defined locally here - mirrors the mockup's
   // `.schip`/`.schip.done`/`.schip.prog`/`.schip.back` family 1:1.
   .schip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yg-text-dim); font-weight: 500; }
   .schip__dot { width: 7px; height: 7px; border-radius: 2px; background: var(--yg-grey); flex: none; }

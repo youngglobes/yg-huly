@@ -60,9 +60,8 @@
   })
 
   function getDisplayTime (time: number): string {
-    const options: Intl.DateTimeFormatOptions = { minute: 'numeric', second: 'numeric' }
+    const options: Intl.DateTimeFormatOptions = { minute: 'numeric', second: 'numeric', timeZone: 'UTC' }
     if (showHours) {
-      options.timeZone = 'UTC'
       options.hour = 'numeric'
     }
 

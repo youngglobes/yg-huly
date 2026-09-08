@@ -50,6 +50,7 @@
     "@hcengineering/task": "workspace:^0.7.426",
     "@hcengineering/tracker": "workspace:^0.7.426",
     "@hcengineering/yg-timesheet": "workspace:^0.7.426",
+    "@hcengineering/workbench": "workspace:^0.7.426",
     "svelte": "^4.2.20",
     "write-excel-file": "^2.0.0"
   }

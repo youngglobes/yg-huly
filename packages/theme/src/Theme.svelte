@@ -26,7 +26,9 @@
     isSystemThemeDark,
     isThemeDark,
     themeStore as themeOptions,
-    getCurrentEmoji
+    getCurrentEmoji,
+    forceThemeRepaint,
+    initAccent
   } from './'
 
   const currentTheme = writable<string>(getCurrentTheme())
@@ -49,6 +51,12 @@
       `${getRealTheme(theme)} ${getCurrentFontSize()} ${getCurrentEmoji()}`
     )
     setOptions(getCurrentFontSize(), theme, getCurrentLanguage(), getCurrentEmoji())
+    // On a live theme change the class swaps and the CSS variables re-resolve, but Chromium does
+    // not always repaint content behind filter/backdrop-filter layers until a reflow - so nudge one.
+    // Skipped on the initial mount (set === false), which is already painted fresh.
+    if (set) {
+      forceThemeRepaint()
+    }
   }
   const setRootFontSize = (fontsize: string, set = true) => {
     currentFontSize.set(fontsize)
@@ -128,6 +136,7 @@
 
   onMount(() => {
     setRootColors($currentTheme, false)
+    initAccent()
     setRootFontSize($currentFontSize, false)
     void setLanguage($currentLanguage, false)
     void loadPluginStrings($currentLanguage)

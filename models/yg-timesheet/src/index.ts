@@ -86,7 +86,7 @@ export class TTimesheetDay extends TAttachedDoc implements TimesheetDay {
   @Prop(TypeString(), core.string.Object) rejectReason?: string
   @Prop(TypeNumber(), core.string.Object) totalHours!: number
 
-  // snapshot stored as an opaque array — persisted as plain data, no Prop editor.
+  // snapshot stored as an opaque array - persisted as plain data, no Prop editor.
   declare snapshot?: TimesheetLine[]
 }
 
@@ -295,10 +295,10 @@ export function createModel (builder: Builder): void {
   )
 
   // Dedicated "Human Resource" app hosting the HR Timesheets/Overview sub-modules (and the
-  // Owner-only roster) as a native vertical navigator — mirrors models/contact's Application
+  // Owner-only roster) as a native vertical navigator - mirrors models/contact's Application
   // (navigatorModel.specials, no top-level `component`; see that file's Contacts app doc).
   // App visibility (user decision 2026-07-22, superseding 2026-07-17): registered with NO
-  // `accessLevel`, because "HR" must be HrData-space membership, NOT a workspace role — HR staff
+  // `accessLevel`, because "HR" must be HrData-space membership, NOT a workspace role - HR staff
   // stay ordinary Users with no admin powers. `accessLevel` cannot express this: it is a threshold
   // on the AccountRole ladder, so any rung that excludes Maintainers also excludes non-Owner HR.
   //
@@ -311,7 +311,7 @@ export function createModel (builder: Builder): void {
   // yg-timesheet-resources). Owners self-add to HrData via ensureHrMembership, so admins + roster
   // members see it; everyone else has it hidden.
   //
-  // Icon hiding is BEST-EFFORT (a user can un-hide from the app switcher); the data is absolute —
+  // Icon hiding is BEST-EFFORT (a user can un-hide from the app switcher); the data is absolute -
   // HrTimeEntry lives in the private HrData space and the server refuses every row to non-members,
   // so a non-member who forces the app open sees empty screens.
   builder.createDoc(
@@ -323,6 +323,11 @@ export function createModel (builder: Builder): void {
       alias: 'yg-hr',
       hidden: false,
       position: 'top',
+      // Route gate (2026-09-04): the icon-hide above is best-effort only. This is the actual
+      // security boundary - a non-HR user hitting /workbench/.../yg-hr by URL now gets the 403
+      // Access Denied view instead of the module. Same rule as the icon-hide (Owner/Maintainer
+      // OR ygTimesheet.space.HrData member); see plugins/yg-timesheet-resources/src/utils/access.ts.
+      accessCheck: ygTimesheet.function.CheckHrAppAccess,
       navigatorModel: {
         spaces: [],
         specials: [
@@ -384,30 +389,22 @@ export function createModel (builder: Builder): void {
             component: ygTimesheet.component.HrRoster,
             accessLevel: AccountRole.Owner,
             position: 'bottom'
-          },
-          {
-            id: 'team-profiles',
-            label: ygTimesheet.string.TeamProfiles,
-            icon: contact.icon.Person,
-            component: ygTimesheet.component.WorkProfileEditor,
-            // DocGuest like the other HR specials: HR-app visibility is already gated to HrData members
-            // + owners (the HiddenApplication trigger), so this shows team-profiles to HR staff too, not
-            // just owners. (Was Owner-only; HR users need to manage designations/departments/IDs.)
-            accessLevel: AccountRole.DocGuest,
-            position: 'bottom'
           }
+          // 'team-profiles' (WorkProfileEditor) removed: designation/department/employeeId/shiftStart
+          // are now managed in the yg-hr employee profile (the single source), which syncs back into
+          // WorkProfile server-side (OnEmployeeJobSync). See models/yg-hr migration remove-team-profiles.
         ]
       }
     },
     ygTimesheet.app.HumanResource
   )
-  // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) —
+  // NOTE: hiding the stock HR app happens in the migration (models/yg-timesheet/src/migration.ts) -
   // Builder has no updateDoc; only a TxOperations client (migration) can update an existing app doc.
 
   // New self-service "Attendance" app (Phase 1d). Same native-navigator pattern as the HR app:
   // navigatorModel.specials, no top-level `component`. One special for v1 (My Attendance, the
   // default landing); Leave + attendance-report specials get added here in later phases.
-  // No accessLevel — every workspace user punches their own attendance. AttendanceSession docs
+  // No accessLevel - every workspace user punches their own attendance. AttendanceSession docs
   // live in core.space.Workspace (shared, like Timesheet), so no space is provisioned here.
   builder.createDoc(
     workbench.class.Application,
@@ -452,15 +449,28 @@ export function createModel (builder: Builder): void {
     ygTimesheet.app.Dashboard
   )
 
-  // Admin-only "AI Usage" app. Registered as its own top-level Application rather than as a
-  // branch of DashboardHome, because DashboardHome is a role ROUTER: resolveDashboardRole picks
-  // exactly one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard
-  // beside PM and HR without changing who sees the other two.
+  // "AI Usage" app. Registered as its own top-level Application rather than as a branch of
+  // DashboardHome, because DashboardHome is a role ROUTER: resolveDashboardRole picks exactly
+  // one of org/pm/teamLead/hr/employee, so there is no slot to add a third dashboard beside PM
+  // and HR without changing who sees the other two.
   //
-  // accessLevel is the right nav gate here (unlike the HR app, where "is HR staff" is space
-  // membership and cannot be expressed as a rung on the AccountRole ladder). It is also
-  // client-side ONLY: it hides the icon. The real gate is the sidecar, which verifies the
-  // caller's Huly token and asks the account service for their workspace role before answering.
+  // The icon itself is visible to every workspace User, not just Maintainer+: a Team Leader is a
+  // plain User on the AccountRole ladder (their "Team Leader" designation lives on the
+  // WorkProfile mixin, not on AccountRole), so any accessLevel above User would hide the app from
+  // every TL as well as everyone else. Neither special carries an accessLevel either, for the
+  // same reason: `config` used to gate at Maintainer, but a TL who is only an editor (not an
+  // admin) still needs to reach it to map projects and assign devices, so nav-level gating can no
+  // longer express who may open this page -- only the page and the sidecar can, since only they
+  // know the caller's role AND their viewer/editor status. This is consistent with the icon
+  // already being visible to all users: nothing here was ever the security boundary.
+  //
+  // Do not overstate what accessLevel buys (there being none left to overstate is the point):
+  // the actual gate is the sidecar. `/report` requires an admin role OR the caller's account uuid
+  // on its viewer allowlist. Mapping rules and device-employee assignment additionally accept an
+  // editor (a viewer with can_edit set). Device enrollment/revoke, the account fee, and the
+  // viewer/editor list itself require a full admin role, full stop -- see AiUsageConfig.svelte's
+  // capability-based rendering and usage-sidecar/server.js's route tiering. A crafted request
+  // straight at the sidecar is judged by that check, never by what this file hides.
   builder.createDoc(
     workbench.class.Application,
     core.space.Model,
@@ -470,7 +480,12 @@ export function createModel (builder: Builder): void {
       alias: 'yg-ai-usage',
       hidden: false,
       position: 'top',
-      accessLevel: AccountRole.Maintainer,
+      accessLevel: AccountRole.User,
+      // Route gate (2026-09-04): the icon itself stays visible to every User (see the note above -
+      // accessLevel cannot express the viewer allowlist), but the route now refuses a non-allowlisted
+      // caller with the 403 Access Denied view. AiUsageGuard.svelte (registered below as a global
+      // WorkbenchExtensions component) runs the SAME predicate to also hide the icon for that user.
+      accessCheck: ygTimesheet.function.CheckAiUsageAccess,
       navigatorModel: {
         spaces: [],
         specials: [
@@ -495,7 +510,7 @@ export function createModel (builder: Builder): void {
   )
 
   // Inbox click-through: an inbox notification navigates to its context object's ObjectPanel
-  // (rendered embedded in the Inbox — see plugins/notification-resources). Our approval notifications
+  // (rendered embedded in the Inbox - see plugins/notification-resources). Our approval notifications
   // attach to a TimesheetDay (submit) or TimesheetTask (approve/reject); registering
   // NotificationRedirect as their ObjectPanel makes the click land on the right app view (Approvals
   // vs My Timesheet) instead of a raw doc panel. The component just navigates away on mount.
@@ -524,5 +539,13 @@ export function createModel (builder: Builder): void {
   builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
     extension: workbench.extensions.WorkbenchExtensions,
     component: ygTimesheet.component.LocationPermissionBanner
+  })
+
+  // AI Usage icon-hide (2026-09-04): mirrors checkAiUsageAccess onto the current user's own
+  // workbench.class.HiddenApplication for ygTimesheet.app.AiUsage, so the icon agrees with the
+  // route's accessCheck above. Same global slot, renders nothing. See AiUsageGuard.svelte.
+  builder.createDoc(presentation.class.ComponentPointExtension, core.space.Model, {
+    extension: workbench.extensions.WorkbenchExtensions,
+    component: ygTimesheet.component.AiUsageGuard
   })
 }

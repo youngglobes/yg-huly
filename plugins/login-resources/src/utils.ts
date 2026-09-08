@@ -587,6 +587,25 @@ export async function getInviteWorkspaceName (inviteId: string): Promise<string 
   }
 }
 
+/**
+ * Public invite details for the join page. `email` is set only when the invite is bound to a
+ * specific address, which lets the page pre-fill and lock the email field. Falls back to an empty
+ * object (nothing pre-filled) when the backend does not return an email or the invite is invalid.
+ */
+export async function getInviteDetails (inviteId: string): Promise<{ workspaceName?: string, email?: string }> {
+  try {
+    const client = getAccountClient(null)
+    const info = await client.getInviteInfo(inviteId)
+    return { workspaceName: info.workspaceName ?? undefined, email: info.email ?? undefined }
+  } catch (err: any) {
+    console.error('Failed to get invite details', err)
+    if (!(err instanceof PlatformError)) {
+      Analytics.handleError(err)
+    }
+    return {}
+  }
+}
+
 export async function joinByToken (inviteId: string): Promise<WorkspaceLoginInfo> {
   const token = getMetadata(presentation.metadata.Token)
 
@@ -792,6 +811,15 @@ export async function resendInvite (email: string, role: AccountRole): Promise<v
   } catch (e) {
     console.log('Failed to resend invite', email, role)
     console.error(e)
+  }
+}
+
+export async function hasPendingInvite (email: string): Promise<boolean> {
+  try {
+    return await getAccountClient().hasPendingInvite(email)
+  } catch (e) {
+    console.error('Failed to check pending invite', email, e)
+    return false
   }
 }
 

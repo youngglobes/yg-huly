@@ -14,6 +14,7 @@
 -->
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee } from '@hcengineering/contact'
+  import { Avatar } from '@hcengineering/contact-resources'
   import core, { AccountRole, getCurrentAccount, hasAccountRole, SortingOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type Project, type TimeSpendReport } from '@hcengineering/tracker'
@@ -31,7 +32,7 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  // Role gate — mirrors ygTimesheet.function.CanApprove EXACTLY (UI convenience only; the server
+  // Role gate - mirrors ygTimesheet.function.CanApprove EXACTLY (UI convenience only; the server
   // trigger is the real enforcement). Any PM/TL on ANY project, or an HR admin (Maintainer), can
   // approve.
   const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
@@ -46,7 +47,7 @@
   })
   $: canApprove = isHRAdmin || isApprover
 
-  // Submitted tasks, cross-project — ANY assigned PM/TL sees EVERY submitted task (covering for
+  // Submitted tasks, cross-project - ANY assigned PM/TL sees EVERY submitted task (covering for
   // an absent lead is the point). Nested $lookup resolves the employee via task → day → timesheet.
   let query = createQuery()
   let queue: TimesheetTask[] = []
@@ -65,7 +66,7 @@
   } else {
     // Do NOT reassign `query` here. `query` is read inside this same reactive statement (via
     // .query()/.unsubscribe()), so an assignment to it inside the statement makes Svelte
-    // re-run the statement every time it runs — an unbounded self-triggering loop. A bare
+    // re-run the statement every time it runs - an unbounded self-triggering loop. A bare
     // .unsubscribe() is sufficient: LiveQuery's unsubscribe() clears its remembered
     // class/query/callback/options (see packages/presentation/src/utils.ts), so a later
     // .query() call on this SAME instance always sees needUpdate() = true and correctly
@@ -84,10 +85,16 @@
   // employeeNames (Person.name is stored "Last,First"; formatName renders display order).
   const empQuery = createQuery()
   let employeeNames: Map<string, string> = new Map()
+  let empById: Map<string, Employee> = new Map()
   empQuery.query(contact.mixin.Employee, {}, (res: Employee[]) => {
     const m = new Map<string, string>()
-    for (const e of res) m.set(e._id, formatName(e.name))
+    const byId = new Map<string, Employee>()
+    for (const e of res) {
+      m.set(e._id, formatName(e.name))
+      byId.set(e._id, e)
+    }
     employeeNames = m
+    empById = byId
   })
 
   interface ApprovalGroup {
@@ -98,7 +105,7 @@
     hours: number
   }
 
-  // Group the flat, already-fetched queue by employee — the ONE allowed logic addition (pure
+  // Group the flat, already-fetched queue by employee - the ONE allowed logic addition (pure
   // presentation grouping; does not touch the query/gate/handlers above). Unresolved-employee
   // tasks (lookup miss) fall into a single "Unknown" bucket rather than being dropped, so an
   // approval task never silently disappears from the queue.
@@ -181,14 +188,6 @@
   $: totalPeople = groups.length
   $: totalHours = groups.reduce((sum, g) => sum + g.hours, 0)
 
-  // Avatar initials from a display name, e.g. "Oliver User" -> "OU", "Cher" -> "CH".
-  function initials (name: string): string {
-    const parts = name.trim().split(/\s+/).filter((p) => p.length > 0)
-    if (parts.length === 0) return '?'
-    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-  }
-
   async function onApprove (task: TimesheetTask, isReapproval: boolean = false): Promise<void> {
     // Give the approver context for setting approved hours (user request 2026-07-29): the issue's
     // estimation, and the employee's spent-time notes for THIS task's issue on THIS day.
@@ -260,7 +259,7 @@
       {#each groups as g, i (g.employee ?? i)}
         <div class="group">
           <div class="group__head">
-            <span class="yg-avatar yg-av{(i % 4) + 1}">{initials(g.name)}</span>
+            <Avatar person={g.employee != null ? empById.get(g.employee) : undefined} name={g.name} size={'medium'} />
             <span class="group__who">
               <span class="group__name">{g.name}</span>
               <span class="group__meta">Submitted {dayFmt.format(g.date)}</span>
@@ -387,7 +386,9 @@
 
   .approw {
     display: grid;
-    grid-template-columns: 92px 96px 1fr auto auto;
+    // minmax(0, 1fr) lets the title column shrink so a long title ellipsizes instead of widening
+    // the row (a plain 1fr keeps its content's min width).
+    grid-template-columns: 92px 96px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
     padding: 12px 16px;
@@ -398,6 +399,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
     color: var(--yg-text);
     text-decoration: none;
     font-weight: 500;

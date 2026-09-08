@@ -102,6 +102,14 @@
     url('../fonts/complete/woff/IBMPlexSans-Bold.woff') format('woff');
 }
 
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 400; font-display: swap; src: url('../fonts/dm-sans/DMSans-Regular.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/dm-sans/DMSans-Medium.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/dm-sans/DMSans-SemiBold.woff2') format('woff2'); }
+@font-face { font-family: 'DM Sans'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/dm-sans/DMSans-Bold.woff2') format('woff2'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 500; font-display: swap; src: url('../fonts/space-grotesk/SpaceGrotesk-Medium.woff2') format('woff2'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 600; font-display: swap; src: url('../fonts/space-grotesk/SpaceGrotesk-SemiBold.woff2') format('woff2'); }
+@font-face { font-family: 'Space Grotesk'; font-style: normal; font-weight: 700; font-display: swap; src: url('../fonts/space-grotesk/SpaceGrotesk-Bold.woff2') format('woff2'); }
+
 * {
   box-sizing: border-box;
   touch-action: manipulation;
@@ -109,7 +117,8 @@
   scrollbar-width: none;
   --body-font-size: .875rem;
   --panel-aside-width: 25rem; // 20rem;
-  --font-family: 'Inter', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto;
+  --font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-display: 'Space Grotesk', 'DM Sans', -apple-system, sans-serif;
   --mono-font: 'IBM Plex Mono', monospace;
   --timing-shadow: cubic-bezier(0,.65,.35,1);
   --timing-main: cubic-bezier(0.25, 0.46, 0.45, 0.94);
@@ -196,6 +205,8 @@ body {
     }
   }
 }
+
+h1, h2, h3, h4, .fs-title { font-family: var(--font-family-display); letter-spacing: -0.01em; }
 
 html,
 body {

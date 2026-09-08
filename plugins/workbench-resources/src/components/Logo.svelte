@@ -58,7 +58,8 @@
       height: 1.75rem;
     }
     &.red {
-      background-color: rgb(246, 105, 77);
+      background-color: var(--yg-brand);
+      color: #16161a;
     }
   }
   .logo-medium {

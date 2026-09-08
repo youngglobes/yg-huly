@@ -1,8 +1,9 @@
 <script lang="ts">
   // Admin config for the AI Usage dashboard: mapping rules (cwd prefix -> project or label),
-  // account-to-employee links with a monthly fee, and device enrollment tokens. Every control
-  // here talks to the sidecar (usage-sidecar/server.js) via usageGet/usagePost/usageDelete, and
-  // the snapshot is reloaded after every mutation so the page can never show a stale write.
+  // account-to-employee links with a monthly fee, device enrollment tokens, and the viewer
+  // allowlist (who besides an admin may read the dashboard). Every control here talks to the
+  // sidecar (usage-sidecar/server.js) via usageGet/usagePost/usageDelete, and the snapshot is
+  // reloaded after every mutation so the page can never show a stale write.
   //
   // Styling follows AiUsage.svelte and its aiusage/* siblings: --theme-* variables, the same
   // .state loading/error treatment, and the same section/table chrome as ProjectLedger.svelte.
@@ -13,11 +14,11 @@
   import { onMount } from 'svelte'
   import contact, { formatName, type Employee, type Person } from '@hcengineering/contact'
   import { EmployeeBox } from '@hcengineering/contact-resources'
-  import type { Ref } from '@hcengineering/core'
+  import { AccountRole, roleOrder, type Ref } from '@hcengineering/core'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Project } from '@hcengineering/tracker'
   import { Scroller, TimeSince } from '@hcengineering/ui'
-  import ygTimesheet from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { type WorkProfile } from '@hcengineering/yg-timesheet'
   import { fmtM } from '../utils/ai-usage'
   import { usageGet, usagePost, usageDelete } from '../utils/ai-usage-api'
 
@@ -57,19 +58,55 @@
     accounts: DeviceAccountRef[]
   }
   interface UnmappedEntry { cwd: string, cwd_norm: string, tokens: number }
+  // account_uuid is the viewer's Huly ACCOUNT uuid (what the sidecar matches against the
+  // token's `account` claim), not the employee/person ref -- see addViewer below for how it is
+  // resolved from a picked employee. employee_ref/employee_name are a display label only.
+  interface ConfigViewer {
+    account_uuid: string
+    employee_ref: string | null
+    employee_name: string | null
+    added: string | null
+    created: number
+    can_edit: number // 0 or 1, straight off the sqlite column
+  }
+  // Sent on every GET /config so the page can render by capability without guessing from which
+  // fields happen to be present. role is the raw workspace role string (e.g. 'OWNER', 'USER');
+  // can_edit is true for an admin too (an admin can do everything an editor can), computed
+  // server-side -- see server.js's GET /config handler.
+  interface ConfigMe {
+    role: string
+    can_edit: boolean
+  }
   interface ConfigSnapshot {
     rules: ConfigRule[]
     accounts: ConfigAccount[]
     devices: ConfigDevice[]
+    // Present ONLY for an admin caller -- the sidecar omits this key entirely for anyone else,
+    // so a non-admin can never read who else is on the list. Never rely on ITS absence to infer
+    // admin-ness in the UI below; branch on `me` instead, which is always present.
+    viewers?: ConfigViewer[]
     unmapped: UnmappedEntry[]
+    me: ConfigMe
   }
 
   let snap: ConfigSnapshot | undefined
   let loading = true
   let loadError: string | undefined
+  // Set instead of loadError for a 401: an expected, everyday outcome now that this page is
+  // reachable by every workspace User (see models/yg-timesheet's AiUsage registration), not a
+  // service failure -- same calm, distinct treatment as AiUsage.svelte's `forbidden`.
+  let forbidden: string | undefined
   // Set after a mutation fails, shown as a page-top banner. Cleared at the start of the next
   // attempt, not on a timer, so it stays visible until the admin either fixes it or retries.
   let actionError: string | undefined
+
+  // isAdmin uses the platform's own Maintainer+ threshold (roleOrder, the same one
+  // hasAccountRole compares against) rather than hand-rolling a role list here, so it can never
+  // drift from what the sidecar's ADMIN_ROLES actually means. canEdit is a plain server-computed
+  // boolean (true for an admin too, see ConfigMe above); the "neither" case renders as a polite
+  // refusal, exactly like AiUsage.svelte does for its own 401.
+  $: isAdmin = snap?.me != null && roleOrder[snap.me.role as AccountRole] >= roleOrder[AccountRole.Maintainer]
+  $: canEdit = snap?.me?.can_edit === true
 
   // A non-401 failure from usageGet/usagePost/usageDelete carries its HTTP status on `.status`
   // (see ai-usage-api.ts), not just in the message prose, so classification never depends on
@@ -78,7 +115,7 @@
   // other.
   function friendlyError (e: unknown, fallback: string): string {
     const status = e instanceof Error ? (e as Error & { status?: number }).status : undefined
-    if (status === 503) return 'The Huly account service is unreachable right now. This is not a permissions problem, try again shortly.'
+    if (status === 503) return 'The account service is unreachable right now. This is not a permissions problem, try again shortly.'
     if (status === 409) return 'That label is already in use.'
     if (status === 404) return 'Not found. It may already have been removed.'
     if (status === 400) return 'That request was rejected as invalid.'
@@ -89,12 +126,17 @@
   async function load (): Promise<void> {
     loading = true
     loadError = undefined
+    forbidden = undefined
     try {
       snap = await usageGet('/config')
       resetAccountDrafts()
       resetDeviceDrafts()
     } catch (e) {
-      loadError = friendlyError(e, 'Could not reach the usage service.')
+      if ((e as Error & { status?: number })?.status === 401) {
+        forbidden = 'You do not have access to AI Usage. Ask a workspace owner to add you as a viewer.'
+      } else {
+        loadError = friendlyError(e, 'Could not reach the usage service.')
+      }
       snap = undefined
     } finally {
       loading = false
@@ -108,11 +150,19 @@
   let projects: Project[] = []
   projectQuery.query(tracker.class.Project, {}, (res) => { projects = res })
 
-  // --- Employees, for resolving the name snapshot sent with a device's employee link -------
+  // --- Employees, for resolving the name snapshot sent with a device's employee link, and the
+  // account uuid sent with a viewer link -----------------------------------------------------
   const employeeQuery = createQuery()
   let employeeName = new Map<Ref<Employee>, string>()
+  // Employee.personUuid IS the Huly account uuid for that person (see
+  // employeeRefByAccountUuidStore in contact-resources/src/utils.ts, which builds the reverse
+  // map from this exact field) -- NOT the same identifier as the employee ref (`_id`). The
+  // sidecar's viewer table keys on the account uuid because that is what a request's decoded
+  // token carries as `account`; sending the employee ref there would silently never match.
+  let employeeByRef = new Map<Ref<Employee>, Employee>()
   employeeQuery.query(contact.mixin.Employee, { active: true }, (res: Employee[]) => {
     employeeName = new Map(res.map((e) => [e._id, formatName(e.name)]))
+    employeeByRef = new Map(res.map((e) => [e._id, e]))
   })
 
   // A previously-linked employee can be inactive (outside the active query above); fall back to
@@ -125,6 +175,14 @@
     const emp = await getClient().findOne(contact.mixin.Employee, { _id: ref as Ref<Employee> })
     return emp != null ? formatName(emp.name) : null
   }
+
+  // --- Team Leaders, so the viewer picker below can put them first: adding a TL is the main
+  // use case for the Viewers panel, but any active employee may be added. -------------------
+  const teamLeadQuery = createQuery()
+  let teamLeadRefs = new Set<Ref<Employee>>()
+  teamLeadQuery.query(ygTimesheet.mixin.WorkProfile, { designation: 'Team Leader' }, (res: WorkProfile[]) => {
+    teamLeadRefs = new Set(res.map((e) => e._id as unknown as Ref<Employee>))
+  })
 
   // Busy keys disable the one control in flight without freezing the rest of the page.
   let busy = new Set<string>()
@@ -329,6 +387,77 @@
       setBusy(`device:${device.id}`, false)
     }
   }
+
+  // =========================================================================================
+  // Viewers
+  // =========================================================================================
+  // Grants read-only access to the whole dashboard (GET /report) to someone who is not a
+  // workspace admin -- the Team Leader case this panel exists for. It carries no admin power:
+  // every /config/* route, including this one, still requires an admin role on the sidecar side.
+  let newViewerEmployee: Ref<Person> | null = null
+  let addViewerError: string | undefined
+
+  async function addViewer (): Promise<void> {
+    actionError = undefined
+    addViewerError = undefined
+    if (newViewerEmployee == null) { addViewerError = 'Pick an employee.'; return }
+    const emp = employeeByRef.get(newViewerEmployee as Ref<Employee>)
+    if (emp === undefined) { addViewerError = 'Could not find that employee.'; return }
+    // Employee.personUuid is the Huly account uuid (see the note by employeeByRef above). A
+    // person who has never accepted their workspace invite has none yet -- refuse explicitly
+    // here rather than sending a wrong id that would silently never match the token's account
+    // claim on the sidecar side.
+    const accountUuid = emp.personUuid
+    if (accountUuid == null || accountUuid === '') {
+      addViewerError = `${formatName(emp.name)} has no linked YG Portal account yet (they have not signed in), so they cannot be added as a viewer.`
+      return
+    }
+    setBusy('viewer-add', true)
+    try {
+      await usagePost('/config/viewer', {
+        account_uuid: accountUuid,
+        employee_ref: emp._id,
+        employee_name: formatName(emp.name)
+      })
+      newViewerEmployee = null
+      await load()
+    } catch (e) {
+      addViewerError = friendlyError(e, 'Could not add that viewer.')
+    } finally {
+      setBusy('viewer-add', false)
+    }
+  }
+
+  async function removeViewer (viewer: ConfigViewer): Promise<void> {
+    actionError = undefined
+    setBusy(`viewer:${viewer.account_uuid}`, true)
+    try {
+      await usageDelete(`/config/viewer/${encodeURIComponent(viewer.account_uuid)}`)
+      await load()
+    } catch (e) {
+      actionError = friendlyError(e, 'Could not remove that viewer.')
+    } finally {
+      setBusy(`viewer:${viewer.account_uuid}`, false)
+    }
+  }
+
+  // Promotes/demotes an existing viewer between the viewer and editor tiers. Editor grants
+  // exactly two capabilities on the sidecar (mapping rules, device-employee assignment) and
+  // nothing more -- see server.js's route tiering -- so this toggle never widens beyond that.
+  async function toggleViewerEdit (viewer: ConfigViewer): Promise<void> {
+    actionError = undefined
+    setBusy(`viewer-edit:${viewer.account_uuid}`, true)
+    try {
+      await usagePost(`/config/viewer/${encodeURIComponent(viewer.account_uuid)}/edit`, {
+        can_edit: viewer.can_edit !== 1
+      })
+      await load()
+    } catch (e) {
+      actionError = friendlyError(e, 'Could not change that viewer\'s access.')
+    } finally {
+      setBusy(`viewer-edit:${viewer.account_uuid}`, false)
+    }
+  }
 </script>
 
 <Scroller>
@@ -340,8 +469,12 @@
 
     {#if loading}
       <div class="state">Loading configuration...</div>
+    {:else if forbidden !== undefined}
+      <div class="state">{forbidden}</div>
     {:else if loadError !== undefined}
       <div class="state err">{loadError}</div>
+    {:else if snap !== undefined && !isAdmin && !canEdit}
+      <div class="state">You do not have access to AI Usage configuration. Ask a workspace owner to add you as a viewer or editor.</div>
     {:else if snap !== undefined}
       {#if actionError !== undefined}
         <div class="state err">{actionError}</div>
@@ -433,15 +566,20 @@
       <!-- Accounts =========================================================================== -->
       <section class="panel">
         <div class="head"><h2>Accounts</h2><span class="tag">Billing</span></div>
-        <p class="note">Set each Claude account's monthly plan fee, in whole currency units. The
-          fee is a property of the subscription, not of a person, so it is set here; who uses
-          the account is assigned per device, in the Devices panel below. The fee is stored in
-          cents and prorated on the usage dashboard.</p>
+        {#if isAdmin}
+          <p class="note">Set each Claude account's monthly plan fee, in whole currency units. The
+            fee is a property of the subscription, not of a person, so it is set here; who uses
+            the account is assigned per device, in the Devices panel below. The fee is stored in
+            cents and prorated on the usage dashboard.</p>
+        {:else}
+          <p class="note">Each Claude account's monthly plan fee. Only an owner can change it; who
+            uses the account is assigned per device, in the Devices panel below.</p>
+        {/if}
 
         <div class="scroll">
           <table>
             <thead>
-              <tr><th>Account</th><th class="n">Monthly fee</th><th class="act" /></tr>
+              <tr><th>Account</th><th class="n">Monthly fee</th>{#if isAdmin}<th class="act" />{/if}</tr>
             </thead>
             <tbody>
               {#each snap.accounts as a (a.uuid)}
@@ -451,19 +589,25 @@
                     {#if a.email != null && a.email !== ''}<div class="acct-email">{a.email}</div>{/if}
                   </td>
                   <td class="n">
-                    {#if accountDrafts[a.uuid] !== undefined}
-                      <input class="txt fee" type="number" min="0" step="0.01" bind:value={accountDrafts[a.uuid].fee} />
+                    {#if isAdmin}
+                      {#if accountDrafts[a.uuid] !== undefined}
+                        <input class="txt fee" type="number" min="0" step="0.01" bind:value={accountDrafts[a.uuid].fee} />
+                      {/if}
+                    {:else}
+                      {(a.plan_cents / 100).toFixed(2)}
                     {/if}
                   </td>
-                  <td class="act">
-                    <button
-                      type="button" class="link-btn"
-                      disabled={accountDrafts[a.uuid] === undefined || busy.has(`account:${a.uuid}`)}
-                      on:click={() => saveAccount(a)}
-                    >Save</button>
-                  </td>
+                  {#if isAdmin}
+                    <td class="act">
+                      <button
+                        type="button" class="link-btn"
+                        disabled={accountDrafts[a.uuid] === undefined || busy.has(`account:${a.uuid}`)}
+                        on:click={() => saveAccount(a)}
+                      >Save</button>
+                    </td>
+                  {/if}
                 </tr>
-                {#if accountDrafts[a.uuid]?.error !== undefined}
+                {#if isAdmin && accountDrafts[a.uuid]?.error !== undefined}
                   <tr><td colspan="3" class="inline-err">{accountDrafts[a.uuid].error}</td></tr>
                 {/if}
               {/each}
@@ -534,7 +678,7 @@
                       disabled={deviceDrafts[device.id] === undefined || busy.has(`device-employee:${device.id}`)}
                       on:click={() => saveDeviceEmployee(device)}
                     >Save</button>
-                    {#if device.revoked_at == null}
+                    {#if isAdmin && device.revoked_at == null}
                       <button
                         type="button" class="link-btn danger"
                         disabled={busy.has(`device:${device.id}`)}
@@ -554,26 +698,114 @@
           </table>
         </div>
 
-        <form class="add-row" on:submit|preventDefault={addDevice}>
-          <input class="txt" type="text" placeholder="Device label" bind:value={addDeviceLabel} />
-          <button class="primary-btn" type="submit" disabled={busy.has('device-add')}>Add device</button>
-        </form>
-        {#if addDeviceError !== undefined}
-          <div class="inline-err">{addDeviceError}</div>
-        {/if}
+        {#if isAdmin}
+          <!-- Enrollment mints a token that is a write credential over the whole fact space, so
+               this stays admin-only, unlike the employee picker above (an editor may use that). -->
+          <form class="add-row" on:submit|preventDefault={addDevice}>
+            <input class="txt" type="text" placeholder="Device label" bind:value={addDeviceLabel} />
+            <button class="primary-btn" type="submit" disabled={busy.has('device-add')}>Add device</button>
+          </form>
+          {#if addDeviceError !== undefined}
+            <div class="inline-err">{addDeviceError}</div>
+          {/if}
 
-        {#if newDeviceToken !== undefined}
-          <div class="token-box">
-            <div class="token-head">Token for <b>{newDeviceToken.label}</b></div>
-            <code class="token-value">{newDeviceToken.token}</code>
-            <div class="token-row">
-              <button type="button" class="primary-btn" on:click={copyToken}>{copied ? 'Copied' : 'Copy'}</button>
-              <button type="button" class="link-btn" on:click={() => { newDeviceToken = undefined }}>Done</button>
+          {#if newDeviceToken !== undefined}
+            <div class="token-box">
+              <div class="token-head">Token for <b>{newDeviceToken.label}</b></div>
+              <code class="token-value">{newDeviceToken.token}</code>
+              <div class="token-row">
+                <button type="button" class="primary-btn" on:click={copyToken}>{copied ? 'Copied' : 'Copy'}</button>
+                <button type="button" class="link-btn" on:click={() => { newDeviceToken = undefined }}>Done</button>
+              </div>
+              <p class="token-note">Copy this now. It is shown once and cannot be retrieved later.</p>
             </div>
-            <p class="token-note">Copy this now. It is shown once and cannot be retrieved later.</p>
-          </div>
+          {/if}
         {/if}
       </section>
+
+      <!-- Viewers ============================================================================ -->
+      <!-- Admin-only, full stop: managing this list IS the access model, so it is never shown to
+           an editor, who is themselves only ever a row in it. -->
+      {#if isAdmin}
+        <section class="panel">
+          <div class="head"><h2>Viewers</h2><span class="tag">Access</span></div>
+          <p class="note">Anyone on this list can see the whole dashboard without being a workspace
+            owner, mainly for Team Leaders who need to check their team's usage. An <b>editor</b>
+            can additionally map projects and assign devices to people, same as an owner, but
+            nothing more: no enrolling or revoking devices, no billing, no changing this list.</p>
+
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr><th>Person</th><th>Access</th><th>Added</th><th class="act" /></tr>
+              </thead>
+              <tbody>
+                {#each snap.viewers ?? [] as viewer (viewer.account_uuid)}
+                  <tr>
+                    <td>
+                      <div class="acct-name">{viewer.employee_name ?? viewer.account_uuid}</div>
+                    </td>
+                    <td>
+                      <span class="chip" class:chip-editor={viewer.can_edit === 1}>
+                        {viewer.can_edit === 1 ? 'Editor' : 'Viewer'}
+                      </span>
+                    </td>
+                    <td><TimeSince value={viewer.created * 1000} /></td>
+                    <td class="act">
+                      <button
+                        type="button" class="link-btn"
+                        disabled={busy.has(`viewer-edit:${viewer.account_uuid}`)}
+                        on:click={() => toggleViewerEdit(viewer)}
+                      >{viewer.can_edit === 1 ? 'Make viewer-only' : 'Make editor'}</button>
+                      <button
+                        type="button" class="link-btn danger"
+                        disabled={busy.has(`viewer:${viewer.account_uuid}`)}
+                        on:click={() => removeViewer(viewer)}
+                      >Remove</button>
+                    </td>
+                  </tr>
+                {/each}
+                {#if (snap.viewers ?? []).length === 0}
+                  <tr><td colspan="4" class="empty">No viewers added yet.</td></tr>
+                {/if}
+              </tbody>
+            </table>
+          </div>
+
+          <form class="add-row viewer-add" on:submit|preventDefault={addViewer}>
+            <!-- Team Leaders first, since adding a TL is the main reason this panel exists, but
+                 the second box reaches every active employee so anyone can be added. Both are the
+                 same EmployeeBox picker used for the device assignment above; only their docQuery
+                 (and so which employees show up) differs. Both boxes are bound to the same value:
+                 whichever one the admin picks from is what gets added. New viewers always start
+                 as viewer-only (can_edit defaults to false server-side); promote with the "Make
+                 editor" button above once they're on the list, to keep the two steps separate. -->
+            <div class="picker">
+              <span class="picker-label">Team Leader</span>
+              <EmployeeBox
+                docQuery={{ active: true, _id: { $in: Array.from(teamLeadRefs) } }}
+                label={ygTimesheet.string.Employee}
+                bind:value={newViewerEmployee}
+                kind="regular"
+                size="medium"
+              />
+            </div>
+            <div class="picker">
+              <span class="picker-label">Any employee</span>
+              <EmployeeBox
+                label={ygTimesheet.string.Employee}
+                bind:value={newViewerEmployee}
+                kind="regular"
+                size="medium"
+              />
+            </div>
+            <button class="primary-btn" type="submit" disabled={busy.has('viewer-add')}>Add viewer</button>
+          </form>
+          {#if addViewerError !== undefined}
+            <div class="inline-err">{addViewerError}</div>
+          {/if}
+        </section>
+      {/if}
     {/if}
   </div>
 </Scroller>
@@ -617,6 +849,7 @@
   .chip-project { background: var(--theme-navpanel-selected, var(--theme-comp-header-color)); color: var(--theme-caption-color); font-weight: 600; }
   .chip-label { color: var(--theme-dark-color); font-style: italic; }
   .chip-account { background: var(--theme-comp-header-color); color: var(--theme-caption-color); font-weight: 500; margin: 0 .25rem .25rem 0; }
+  .chip-editor { background: var(--theme-navpanel-selected, var(--theme-comp-header-color)); color: var(--theme-caption-color); font-weight: 600; }
   .muted { color: var(--theme-dark-color); }
 
   .acct-name { font-weight: 500; color: var(--theme-caption-color); }
@@ -632,6 +865,9 @@
   .badge.warn { color: var(--theme-warning-color); border-color: var(--theme-warning-color); }
 
   .add-row { display: flex; flex-wrap: wrap; gap: .625rem; align-items: center; margin-top: .875rem; }
+  .viewer-add { align-items: flex-end; }
+  .picker { display: flex; flex-direction: column; gap: .25rem; }
+  .picker-label { font-size: .625rem; color: var(--theme-dark-color); text-transform: uppercase; letter-spacing: .06em; }
   .txt, select.txt {
     font: inherit; font-size: .8125rem; color: var(--theme-content-color);
     background: var(--theme-bg-color); border: 1px solid var(--theme-divider-color);

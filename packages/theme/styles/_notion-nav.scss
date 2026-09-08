@@ -1,5 +1,5 @@
 //
-// Notion-style navigator — scoped to the Tracker app only.
+// Notion-style navigator, scoped to the Tracker app only.
 //
 // The panel is tagged `data-app="tracker"` in Workbench.svelte, so nothing here
 // touches any other app's navigator.
@@ -10,7 +10,16 @@
 // can reach. Huly's own kanban overrides take the same approach.
 //
 // The look: quieter greys, roomier 14px rows, a neutral (not accent-blue) selected
-// state, hover pills, and softened section dividers — Notion's calm sidebar.
+// state, hover pills, and softened section dividers: Notion's calm sidebar.
+//
+// 2026-09-05 (task 6 fix round 1): the navigator is now a fixed dark rail (#16161A) in
+// BOTH themes (see panel.scss), but these colors were still the theme-adaptive
+// `--global-*-TextColor` vars. In the light theme those vars resolve to near-black, which
+// is invisible on the dark rail. Tracker is the most-used app, so all text/icon/background
+// colors below are now hardcoded to the same light-on-dark palette as the general nav-item
+// rule in panel.scss, instead of theme vars. This file keeps its own !important + higher
+// specificity (`[data-app='tracker']`) so Tracker still gets its distinct roomier/quieter
+// layout - only the color VALUES changed, not which rule wins.
 
 .antiPanel-navigator[data-app='tracker'] {
   .hulyNavItem-container {
@@ -18,35 +27,47 @@
     border-radius: 6px;
 
     .hulyNavItem-icon {
-      color: var(--global-tertiary-TextColor) !important;
+      color: var(--yg-rail-fg) !important;
     }
     .hulyNavItem-label {
-      color: var(--global-secondary-TextColor) !important;
+      color: var(--yg-rail-fg) !important;
       font-size: 0.8125rem !important;
       font-weight: 400 !important;
     }
 
-    // hover: text darkens, subtle grey pill
+    // hover: light text, subtle white-on-dark pill
     &:not(.selected):hover,
     &:not(.selected).showMenu {
-      background-color: var(--global-ui-hover-highlight-BackgroundColor);
+      background-color: var(--yg-rail-hover);
 
       .hulyNavItem-icon,
       .hulyNavItem-label {
-        color: var(--global-primary-TextColor) !important;
+        color: var(--yg-rail-fg-strong) !important;
       }
     }
 
-    // Notion selected: neutral grey fill + dark text (no accent blue)
+    // selected: same yellow tint + left-bar as the general active-item treatment
     &.selected {
-      background-color: var(--global-ui-highlight-BackgroundColor);
+      position: relative;
+      background-color: var(--yg-rail-selected);
 
       .hulyNavItem-icon {
-        color: var(--global-primary-TextColor) !important;
+        color: var(--yg-rail-fg-strong) !important;
       }
       .hulyNavItem-label:not(.description) {
-        color: var(--global-primary-TextColor) !important;
+        color: var(--yg-rail-fg-strong) !important;
         font-weight: 600 !important;
+      }
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 6px;
+        bottom: 6px;
+        width: 3px;
+        border-radius: 0 3px 3px 0;
+        background: var(--yg-accent);
       }
     }
   }
@@ -56,24 +77,26 @@
   .hulyNavGroup-header__label {
     font-size: 0.75rem !important;
     font-weight: 550 !important;
-    color: var(--global-tertiary-TextColor) !important;
+    color: var(--yg-rail-fg) !important;
     letter-spacing: 0 !important;
     text-transform: none !important;
     background-color: transparent !important;
   }
 
   // project names (e.g. "ABI") are nested inside the "Your projects" group's
-  // content, unlike the "Your projects" header itself — use that to give just
-  // the project name the prominent primary text color without touching the
-  // section header. Theme-adaptive (dark in light mode, light in dark mode).
+  // content, unlike the "Your projects" header itself. Use that to give just
+  // the project name the prominent light text color without touching the
+  // section header.
   // (2026-07-31: was hardcoded #000000, which was invisible in dark mode.)
+  // (2026-09-05: was var(--global-primary-TextColor), near-black in light mode on the
+  // now-fixed-dark rail - hardcoded to the light-on-dark palette instead.)
   .hulyNavGroup-content .hulyNavGroup-header__label {
     font-size: 0.875rem !important;
     font-weight: 500 !important;
-    color: var(--global-primary-TextColor) !important;
+    color: var(--yg-rail-fg-strong) !important;
   }
 
-  // soften section dividers — Notion separates with space, not hairlines
+  // soften section dividers: Notion separates with space, not hairlines
   .hulyNavGroup-container:not(.nested, .selectableHeader, .noDivider),
   .hulyNavGroup-container.noDivider + .hulyNavGroup-container.noDivider {
     border-top: none;

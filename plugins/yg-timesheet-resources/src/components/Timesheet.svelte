@@ -143,7 +143,7 @@
 
   // The employee-scoped TimesheetTask rows, grouped by local day key (submitDay stamps
   // task.date = the day's date, so localDayKey(task.date) matches day.key exactly).
-  // Scoped through dayIds (this employee's own TimesheetDay ids) — NOT a bare date-range query —
+  // Scoped through dayIds (this employee's own TimesheetDay ids) - NOT a bare date-range query -
   // because TimesheetTask lives in the shared core.space.Workspace and is not employee-scoped; a
   // date-range-only query would mix in OTHER employees' tasks for the same week.
   const taskQuery = createQuery()
@@ -612,7 +612,8 @@
   .tasks { display: flex; flex-direction: column; }
   .task {
     display: grid;
-    grid-template-columns: 88px 1fr auto auto;
+    // minmax(0, 1fr) lets the title column shrink so a long title ellipsizes instead of widening the row.
+    grid-template-columns: 88px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
     padding: 11px 18px 11px 20px;
@@ -622,6 +623,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
     color: var(--yg-text);
     text-decoration: none;
     font-weight: 500;

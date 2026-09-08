@@ -36,7 +36,7 @@
   import { get } from 'svelte/store'
   import { buildWeekGrid, type HrEntry } from '../utils/hr-report'
   import { ensureHrMembership } from '../utils/hrMembership'
-  import { hrSelectedEmployee } from '../utils/hrStore'
+  import { hrSelectedEmployee, hrSelectedWeek } from '../utils/hrStore'
   import { deriveDayStatus, type DerivedDayStatus } from '../utils/task-approval'
   import { formatHours, localDayKey, weekRange } from '../utils/week'
 
@@ -53,7 +53,14 @@
     hrSelectedEmployee.set(undefined)
   }
 
-  let weekMs = Date.now()
+  // Seed the week from the same click-through so we land on the week the user was viewing on
+  // Overview, not the current one; cleared on consume so a later direct visit still opens on today.
+  const preWeek = get(hrSelectedWeek)
+  if (preWeek !== undefined) {
+    hrSelectedWeek.set(undefined)
+  }
+
+  let weekMs = preWeek ?? Date.now()
   $: week = weekRange(weekMs)
   function shiftWeek (deltaDays: number): void {
     const d = new Date(weekMs)
@@ -98,13 +105,13 @@
   )
   $: grid = buildWeekGrid(hrEntries, week)
 
-  // Per-day approval status, ALL employees for the visible week — this IS a cross-employee view,
+  // Per-day approval status, ALL employees for the visible week - this IS a cross-employee view,
   // so a week date-range query is correct here (unlike Timesheet.svelte's own employee-scoped
   // dayIds query). Query TimesheetTask directly (never the deprecated TimesheetDay.status) and
   // resolve each task's employee via the nested attachedTo lookup: task → TimesheetDay →
   // Timesheet → .employee, exactly as Approvals.svelte:51-61. Group by
   // `${employee}|${localDayKey(task.date)}` (submitDay stamps task.date = the day's date) and
-  // derive each entry's label via deriveDayStatus — never stored, never read off TimesheetDay.
+  // derive each entry's label via deriveDayStatus - never stored, never read off TimesheetDay.
   function employeeOfTask (task: TimesheetTask): Ref<Employee> | undefined {
     const day = task.$lookup?.attachedTo as TimesheetDay | undefined
     const parent = day?.$lookup?.attachedTo as Timesheet | undefined
@@ -166,77 +173,79 @@
     <div class="hrt-empty"><Label label={ygTimesheet.string.NoEmployeeSelected} /></div>
   {:else}
     <div class="yg-scroll">
-      <table class="yg-table">
-        <thead>
-          <tr>
-            <th><Label label={ygTimesheet.string.Project} /></th>
-            {#each week.days as d, i (d.key)}
-              <th class="yg-num" class:hrt-weekend={isWeekend(i)}>{dowFmt.format(d.date)}</th>
-            {/each}
-            <th class="yg-num"><Label label={ygTimesheet.string.TotalHours} /></th>
-          </tr>
-        </thead>
-        <tbody>
-          {#if grid.rows.length === 0}
-            <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
-          {:else}
-            {#each grid.rows as r (r.issue)}
-              <tr>
-                <td>
-                  <div class="hrt-task">
-                    <span class="hrt-task__project">{r.projectName}</span>
-                    <span class="hrt-task__id">{r.identifier}</span>
-                    <span class="hrt-task__title">{r.title}</span>
-                  </div>
-                </td>
-                {#each r.cells as c, i (i)}
-                  <td class="yg-num" title={r.notesByDay[i]}>
-                    {c === 0 ? '·' : formatHours(c)}
-                    {#if r.notesByDay[i] !== undefined}
-                      <span class="hrt-note-dot" title={r.notesByDay[i]}>●</span>
-                    {/if}
+      <div class="yg-table-wrap">
+        <table class="yg-table">
+          <thead>
+            <tr>
+              <th><Label label={ygTimesheet.string.Project} /></th>
+              {#each week.days as d, i (d.key)}
+                <th class="yg-num" class:hrt-weekend={isWeekend(i)}>{dowFmt.format(d.date)}</th>
+              {/each}
+              <th class="yg-num"><Label label={ygTimesheet.string.TotalHours} /></th>
+            </tr>
+          </thead>
+          <tbody>
+            {#if grid.rows.length === 0}
+              <tr><td colspan={9} class="yg-empty"><Label label={ygTimesheet.string.NoData} /></td></tr>
+            {:else}
+              {#each grid.rows as r (r.issue)}
+                <tr>
+                  <td class="yg-truncate">
+                    <div class="hrt-task">
+                      <span class="hrt-task__project">{r.projectName}</span>
+                      <span class="hrt-task__id">{r.identifier}</span>
+                      <span class="hrt-task__title" title={r.title}>{r.title}</span>
+                    </div>
                   </td>
-                {/each}
-                <td class="yg-num"><b>{formatHours(r.rowTotal)}</b></td>
-              </tr>
-            {/each}
-          {/if}
-        </tbody>
-        <tfoot>
-          <tr class="yg-totals">
-            <td><Label label={ygTimesheet.string.TotalHours} /></td>
-            {#each grid.dayTotals as t, i (i)}
-              <td
-                class="yg-num"
-                class:yg-amber={!isWeekend(i) && t < DAY_TARGET}
-                class:yg-green={!isWeekend(i) && t >= DAY_TARGET}
-              >
-                {formatHours(t)}
-              </td>
-            {/each}
-            <td class="yg-num"><b>{formatHours(grid.grandTotal)}</b></td>
-          </tr>
-          <tr class="hrt-status-row">
-            <td><Label label={ygTimesheet.string.Status} /></td>
-            {#each statusRow as s, i (i)}
-              <td class="yg-num">
-                {#if s !== undefined}
-                  <span class="yg-pill yg-pill--{s.toLowerCase()}">
-                    {#if s === 'PartiallyApproved'}
-                      <Label label={ygTimesheet.string.PartiallyApproved} />
-                    {:else}
-                      {s}
-                    {/if}
-                  </span>
-                {:else}
-                  <span class="hrt-muted">·</span>
-                {/if}
-              </td>
-            {/each}
-            <td />
-          </tr>
-        </tfoot>
-      </table>
+                  {#each r.cells as c, i (i)}
+                    <td class="yg-num" title={r.notesByDay[i]}>
+                      {c === 0 ? '·' : formatHours(c)}
+                      {#if r.notesByDay[i] !== undefined}
+                        <span class="hrt-note-dot" title={r.notesByDay[i]}>●</span>
+                      {/if}
+                    </td>
+                  {/each}
+                  <td class="yg-num"><b>{formatHours(r.rowTotal)}</b></td>
+                </tr>
+              {/each}
+            {/if}
+          </tbody>
+          <tfoot>
+            <tr class="yg-totals">
+              <td><Label label={ygTimesheet.string.TotalHours} /></td>
+              {#each grid.dayTotals as t, i (i)}
+                <td
+                  class="yg-num"
+                  class:yg-amber={!isWeekend(i) && t < DAY_TARGET}
+                  class:yg-green={!isWeekend(i) && t >= DAY_TARGET}
+                >
+                  {formatHours(t)}
+                </td>
+              {/each}
+              <td class="yg-num"><b>{formatHours(grid.grandTotal)}</b></td>
+            </tr>
+            <tr class="hrt-status-row">
+              <td><Label label={ygTimesheet.string.Status} /></td>
+              {#each statusRow as s, i (i)}
+                <td class="yg-num">
+                  {#if s !== undefined}
+                    <span class="yg-pill yg-pill--{s.toLowerCase()}">
+                      {#if s === 'PartiallyApproved'}
+                        <Label label={ygTimesheet.string.PartiallyApproved} />
+                      {:else}
+                        {s}
+                      {/if}
+                    </span>
+                  {:else}
+                    <span class="hrt-muted">·</span>
+                  {/if}
+                </td>
+              {/each}
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   {/if}
 </div>
@@ -251,7 +260,7 @@
   // differs from HrOverview's (centered/uppercase/middle-aligned) even though both now share
   // `.yg-table`/`.yg-num` class names via yg-table.scss. These local rules are plain
   // (non-`:global`) Svelte-scoped rules, so the compiler auto-suffixes them with this
-  // component's own scope class — that reliably out-specificities the shared partial's
+  // component's own scope class - that reliably out-specificities the shared partial's
   // `:global(...)` (hash-less) base rules regardless of source order, letting this component
   // keep its pre-existing look on top of the shared class names rather than adopting
   // HrOverview's flavor. See yg-table.scss's header comment for the full rationale.
@@ -261,22 +270,26 @@
     color: var(--theme-dark-color);
     font-size: inherit;
     text-transform: none;
-    padding: 0.375rem 0.5rem;
+    padding: 0.75rem 0.9375rem;
     border-bottom: 1px solid var(--theme-divider-color);
     white-space: nowrap;
     position: sticky;
     top: 0;
-    background: var(--theme-bg-color);
+    z-index: 2;
+    background: var(--theme-comp-header-color);
   }
-  .yg-table th:first-child { text-align: left; }
+  .yg-table th:first-child { text-align: left; padding-left: 1.125rem; }
+  .yg-table th:last-child { padding-right: 1.125rem; }
   .yg-table td {
-    padding: 0.375rem 0.5rem;
+    padding: 0.75rem 0.9375rem;
     border-bottom: 1px solid var(--theme-divider-color);
     vertical-align: top;
     text-align: left;
     font-variant-numeric: normal;
     white-space: normal;
   }
+  .yg-table td:first-child { padding-left: 1.125rem; }
+  .yg-table td:last-child { padding-right: 1.125rem; }
   .yg-table th.yg-num,
   .yg-table td.yg-num {
     text-align: right;
@@ -285,7 +298,9 @@
   }
 
   .hrt-weekend { color: var(--theme-darker-color); }
-  .hrt-task { display: flex; flex-direction: column; gap: 0.0625rem; }
+  .hrt-task { display: flex; flex-direction: column; gap: 0.0625rem; min-width: 0; }
+  .hrt-task__project,
+  .hrt-task__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hrt-task__project { color: var(--theme-dark-color); font-size: 0.6875rem; }
   .hrt-task__id { color: var(--theme-dark-color); font-weight: 600; }
   .hrt-task__title { color: var(--theme-content-color); }

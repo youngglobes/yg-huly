@@ -45,7 +45,7 @@
 // background, ink-fg text) stays legible in both.
 :global(.theme-light) {
   --yg-ink:#17181f; --yg-ink-fg:#fff; --yg-bg:#f4f5f8; --yg-panel:#fff; --yg-panel-soft:#fafbfd;
-  --yg-border:#e7e8ef; --yg-border-strong:#dcdde6; --yg-text:#191a23; --yg-text-dim:#63657a; --yg-text-faint:#9a9caf;
+  --yg-border:#e7e8ef; --yg-border-strong:#dcdde6; --yg-text:#191a23; --yg-text-dim:#565869; --yg-text-faint:#6f7189;
   --yg-green:#1f9d55; --yg-green-bg:#e8f6ee; --yg-green-line:#bfe6cd;
   --yg-amber:#b7770a; --yg-amber-bg:#fbf1dc; --yg-amber-line:#eed9ab;
   --yg-red:#d1434e; --yg-red-bg:#fbe9eb; --yg-red-line:#f2c4c8;
@@ -55,7 +55,7 @@
 }
 :global(.theme-dark) {
   --yg-ink:#f2f3f8; --yg-ink-fg:#16171c; --yg-bg:#131419; --yg-panel:#1c1d25; --yg-panel-soft:#191a21;
-  --yg-border:#2a2c37; --yg-border-strong:#363845; --yg-text:#e8e9f1; --yg-text-dim:#a2a4b6; --yg-text-faint:#6f7183;
+  --yg-border:#2a2c37; --yg-border-strong:#363845; --yg-text:#e8e9f1; --yg-text-dim:#b3b5c6; --yg-text-faint:#9799ad;
   --yg-green:#4cc981; --yg-green-bg:#16281e; --yg-green-line:#244b34;
   --yg-amber:#e0a441; --yg-amber-bg:#2a2213; --yg-amber-line:#4d3d1c;
   --yg-red:#ec6b74; --yg-red-bg:#2c1619; --yg-red-line:#522a2f;
@@ -191,44 +191,152 @@
   background: var(--yg-grey);
 }
 
+// Opaque, bordered, rounded panel the grid sits in - matches the employees directory table.
+// Without it the transparent .yg-table rows sit straight on the page background and read as raw.
+// `overflow: clip` rounds the corners WITHOUT creating a scroll container, so the sticky header
+// below still sticks to the .yg-scroll ancestor (plain `overflow: hidden` would break that).
+:global(.yg-table-wrap) {
+  background: var(--theme-panel-color);
+  border: 1px solid var(--theme-divider-color);
+  border-radius: 14px;
+  overflow: clip;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
 :global(.yg-table) {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  // Larger body scale to match the YG artifact's roomier tables (was 13px).
+  font-size: 0.875rem;
 }
 :global(.yg-table th) {
-  font-size: 0.625rem;
-  color: var(--theme-dark-color);
+  // Bigger, clearer column headers per the YG artifact reference (was 11px / trans).
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  color: var(--theme-halfcontent-color);
   text-transform: uppercase;
   text-align: center;
   font-weight: 600;
-  padding: 0.5rem;
+  // Roomier header band (13px 18px) matching the artifact so the grid breathes.
+  padding: 0.8125rem 1.125rem;
   white-space: nowrap;
   position: sticky;
   top: 0;
-  background: var(--theme-bg-color);
+  // z-index keeps the sticky header ABOVE the scrolling body cells - without it the rows (and their
+  // avatars) paint over the header when scrolled.
+  z-index: 2;
+  // Distinct header band (a real tint) instead of the page background, which blended in.
+  background: var(--theme-comp-header-color);
   border-bottom: 1px solid var(--theme-divider-color);
 }
 :global(.yg-table th.left),
 :global(.yg-table td.left) {
   text-align: left;
 }
+// A touch more breathing room on the first and last columns, matching the directory table's edges.
+:global(.yg-table th:first-child),
+:global(.yg-table td:first-child) {
+  padding-left: 1.125rem;
+}
+:global(.yg-table th:last-child),
+:global(.yg-table td:last-child) {
+  padding-right: 1.125rem;
+}
 :global(.yg-table td) {
-  padding: 0.5rem;
+  padding: 0.8125rem 1.125rem;
   text-align: center;
   vertical-align: middle;
   border-bottom: 1px solid var(--theme-divider-color);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+:global(.yg-table tbody tr:last-child td) {
+  border-bottom: none;
+}
 :global(.yg-table td.bold) {
   font-weight: 600;
 }
-// NB: no `cursor: pointer` here, only HrOverview's rows are actually clickable (`on:click`).
-// Reports/Approvals/Timesheet rows are not, so the shared hover only highlights; clickable
-// consumers add their own local `cursor: pointer` (see HrOverview.svelte).
+
+// Truncating text cell: the column shrinks to share the row width and ellipsizes its content
+// instead of forcing the table wider, which pushed later columns (e.g. Project) off-screen. Apply
+// to the one flexible text column of a table. The table is width:100% and the other cells are
+// nowrap, so this cell absorbs the remaining space and clips with an ellipsis.
+:global(.yg-table td.yg-truncate),
+:global(.yg-table th.yg-truncate) {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+// A flex row inside a truncating cell: keeps a fixed leading element (a tag/badge) and lets the
+// trailing text shrink and ellipsize. min-width:0 is what allows the flex child to shrink below
+// its content width.
+:global(.yg-cellflex) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+:global(.yg-ellipsis) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+// Person cell: avatar + stacked name / sub-line (designation), reused across the timesheet and
+// attendance list tables so an employee reads the same everywhere. The sub-line ellipsizes so a
+// long designation never widens the column.
+:global(.yg-person) {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  min-width: 0;
+}
+:global(.yg-person__text) {
+  min-width: 0;
+}
+:global(.yg-person__name) {
+  font-weight: 600;
+  color: var(--yg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+:global(.yg-person__sub) {
+  font-size: 0.75rem;
+  color: var(--yg-text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+// Reusable clickable sort header. Put .yg-th-sort on a <th>, toggle .is-sorted when it is the
+// active column, wrap the label + chevron in .yg-hcell, and render the chevron as an inline SVG
+// with class .yg-sortarrow (add .up for ascending). The chevron is an SVG (not a unicode arrow,
+// which the brand fonts render as tofu) and uses currentColor, so it is theme- and accent-neutral.
+// Space is always reserved for it, so toggling never shifts the header text.
+:global(.yg-th-sort) { cursor: pointer; user-select: none; }
+:global(.yg-th-sort:hover) { color: var(--yg-text); }
+:global(.yg-th-sort.is-sorted) { color: var(--yg-text); }
+:global(.yg-hcell) { display: inline-flex; align-items: center; gap: 4px; }
+:global(.yg-hcell--num) { flex-direction: row-reverse; }
+:global(.yg-sortarrow) {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+}
+:global(.yg-th-sort:hover .yg-sortarrow) { opacity: 0.4; }
+:global(.yg-th-sort.is-sorted .yg-sortarrow) { opacity: 1; }
+:global(.yg-sortarrow.up) { transform: rotate(180deg); }
+// Row hover matches the employees directory table's feedback (the header/hover tint), a clearer
+// highlight than the old faint list-row colour.
 :global(.yg-row:hover) {
-  background: var(--theme-list-row-color);
+  background: var(--theme-comp-header-color);
 }
 :global(.yg-amber) {
   color: var(--theme-warning-color);
