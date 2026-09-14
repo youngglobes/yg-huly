@@ -148,6 +148,8 @@ export const accentPresets: AccentPreset[] = [
             '--caption-color': '#16161A',
             '--content-color': 'rgba(0, 0, 0, 0.82)',
             '--dark-color': 'rgba(0, 0, 0, 0.6)',
+            '--accent-color': '#282a30',
+            '--global-primary-LinkColor': 'var(--yg-brand-ink)',
             '--theme-caption-color': '#0B0B0D',
             '--theme-content-color': 'rgba(0, 0, 0, 0.82)',
             '--theme-dark-color': 'rgba(0, 0, 0, 0.76)',

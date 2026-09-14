@@ -202,6 +202,11 @@
   --caption-color: #FFFFFF;
   --content-color: rgba(255, 255, 255, .82);
   --dark-color: rgba(255, 255, 255, .6);
+  // ...and the Planner mini-calendar weekday numbers use --accent-color (near-black in light theme,
+  // so Mon-Fri vanished while the .day-off Saturdays on --content-color stayed readable) and "today"
+  // uses --global-primary-LinkColor (the light-surface brand ink). Pin both to their dark-surface values.
+  --accent-color: #d7d8db;
+  --global-primary-LinkColor: var(--yg-brand-ink-dark);
 
   // YG reskin: fixed dark ground in both themes (brand constant, not a token). !important
   // fights both the var(--theme-navpanel-color) fallback and Workbench.svelte's "railed"

@@ -99,6 +99,10 @@ describe('buildAccentCss', () => {
     expect(css).toContain('--yg-nav-bg:#FBFBFC;')
     expect(css).toContain('--yg-rail-fg:#26262B;')
     expect(css).toContain('--global-primary-TextColor:#16161A;')
+    // The Planner mini-calendar day numbers (--accent-color) and "today" (--global-primary-LinkColor)
+    // are pinned light-on-dark in common.scss; Classic's white nav must flip them dark again.
+    expect(css).toContain('--accent-color:#282a30;')
+    expect(css).toContain('--global-primary-LinkColor:var(--yg-brand-ink);')
     // The scoped rules come after the closing brace of the base * block.
     expect(css.indexOf('.theme-light')).toBeGreaterThan(css.indexOf('}'))
   })
