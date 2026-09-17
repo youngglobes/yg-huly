@@ -142,7 +142,7 @@ jobs:
         run: node common/scripts/install-run-rush.js install
 
       - name: Build backend dependency graphs
-        run: node common/scripts/install-run-rush.js build --to @hcengineering/pod-workspace --to @hcengineering/pod-server --to @hcengineering/tool
+        run: node common/scripts/install-run-rush.js build --to @hcengineering/pod-workspace --to @hcengineering/pod-server --to @hcengineering/tool --to @hcengineering/pod-account
 
       - name: Compute versions
         run: |
@@ -154,6 +154,7 @@ jobs:
           cd pods/workspace && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
           cd pods/server    && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
           cd dev/tool       && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
+          cd pods/account   && node ../../common/scripts/install-run-rushx.js bundle && cd ../..
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -163,4 +164,5 @@ jobs:
           docker build -t "$REG/workspace:$TAG"  pods/workspace && docker push "$REG/workspace:$TAG"
           docker build -t "$REG/transactor:$TAG" pods/server    && docker push "$REG/transactor:$TAG"
           docker build -t "$REG/tool:$TAG"       dev/tool       && docker push "$REG/tool:$TAG"
-          echo "Pushed workspace/transactor/tool :$TAG"
+          docker build -t "$REG/account:$TAG"    pods/account   && docker push "$REG/account:$TAG"
+          echo "Pushed workspace/transactor/tool/account :$TAG"
