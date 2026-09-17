@@ -321,6 +321,8 @@ function defineApplication (
       icon: tracker.icon.TrackerApplication,
       alias: trackerId,
       hidden: false,
+      position: 'top',
+      order: 4,
       locationResolver: tracker.resolver.Location,
       navigatorModel: {
         specials: [

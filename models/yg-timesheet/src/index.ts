@@ -245,6 +245,7 @@ export function createModel (builder: Builder): void {
       alias: ygTimesheetId,
       hidden: false,
       position: 'top',
+      order: 5,
       locationResolver: ygTimesheet.resolver.Location,
       navigatorModel: {
         spaces: [],
@@ -323,6 +324,7 @@ export function createModel (builder: Builder): void {
       alias: 'yg-hr',
       hidden: false,
       position: 'top',
+      order: 2,
       // Route gate (2026-09-04): the icon-hide above is best-effort only. This is the actual
       // security boundary - a non-HR user hitting /workbench/.../yg-hr by URL now gets the 403
       // Access Denied view instead of the module. Same rule as the icon-hide (Owner/Maintainer
@@ -415,6 +417,7 @@ export function createModel (builder: Builder): void {
       alias: 'yg-attendance',
       hidden: false,
       position: 'top',
+      order: 3,
       locationResolver: ygTimesheet.resolver.AttendanceLocation,
       navigatorModel: {
         spaces: [],
@@ -480,6 +483,7 @@ export function createModel (builder: Builder): void {
       alias: 'yg-ai-usage',
       hidden: false,
       position: 'top',
+      order: 310,
       accessLevel: AccountRole.User,
       // Route gate (2026-09-04): the icon itself stays visible to every User (see the note above -
       // accessLevel cannot express the viewer allowlist), but the route now refuses a non-allowlisted
