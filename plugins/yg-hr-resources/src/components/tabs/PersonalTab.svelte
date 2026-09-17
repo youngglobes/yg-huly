@@ -51,10 +51,12 @@
   let fDob = ''
   let fNickname = ''
 
-  // Re-seed the edit-mode fields from the live doc whenever edit mode turns on (and keep them in
-  // sync with our own just-saved values afterwards) - there is no separate "begin edit" step now
-  // that editing is a single profile-wide toggle instead of a per-card one.
-  $: if (editing) {
+  // Seed the edit-mode fields ONCE when edit mode turns on, through plain functions. They must not
+  // be assigned inside a `$:` block: Svelte 4 links a two-way bound variable to the reactive block
+  // that assigns it, so every keystroke re-invalidated `employee`/`editing` and the block overwrote
+  // the typed value with the stored one (the "cannot type in the profile" bug on live, 2026-09-17).
+  let seeded = false
+  function seedIdentity (): void {
     fFirstName = getFirstName(employee.name)
     fLastName = getLastName(employee.name)
     fMiddleName = personal?.middleName ?? ''
@@ -86,7 +88,7 @@
   let fDriverLicenseNo = ''
   let fDriverLicenseExpiry = ''
 
-  $: if (editing) {
+  function seedDetails (): void {
     fMarital = personal?.maritalStatus ?? ''
     fNationality = personal?.nationality ?? ''
     fBloodGroup = personal?.bloodGroup ?? ''
@@ -94,6 +96,13 @@
     fDriverLicenseNo = personal?.driverLicenseNo ?? ''
     fDriverLicenseExpiry = dateToInput(personal?.driverLicenseExpiry)
   }
+
+  $: if (editing && !seeded) {
+    seeded = true
+    seedIdentity()
+    seedDetails()
+  }
+  $: if (!editing && seeded) seeded = false
 
   async function saveDetails (): Promise<void> {
     const upd: Partial<EmployeePersonal> = {

@@ -46,7 +46,12 @@
   let fZip = ''
   let fCountry = ''
 
-  $: if (editing) {
+  // Seed the edit-mode fields ONCE when edit mode turns on, through plain functions. They must not
+  // be assigned inside a `$:` block: Svelte 4 links a two-way bound variable to the reactive block
+  // that assigns it, so every keystroke re-invalidated `employee`/`editing` and the block overwrote
+  // the typed value with the stored one (the "cannot type in the profile" bug on live, 2026-09-17).
+  let seeded = false
+  function seedContact (): void {
     fStreet1 = info?.street1 ?? ''
     fStreet2 = info?.street2 ?? ''
     fCity = info?.addressCity ?? ''
@@ -71,11 +76,18 @@
   let fHomePhone = ''
   let fOtherEmail = ''
 
-  $: if (editing) {
+  function seedAddress (): void {
     fMobile = info?.mobile ?? ''
     fHomePhone = info?.homePhone ?? ''
     fOtherEmail = info?.otherEmail ?? ''
   }
+
+  $: if (editing && !seeded) {
+    seeded = true
+    seedContact()
+    seedAddress()
+  }
+  $: if (!editing && seeded) seeded = false
 
   async function saveReach (): Promise<void> {
     const upd: Partial<EmployeeContact> = {
