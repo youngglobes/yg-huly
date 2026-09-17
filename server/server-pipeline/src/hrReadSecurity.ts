@@ -66,6 +66,9 @@ import ygTimesheet from '@hcengineering/yg-timesheet'
 /**
  * @public
  */
+/** Roster cache lifetime; a stale roster is re-read after this even without an invalidating tx. */
+const HR_MEMBERS_TTL_MS = 60_000
+
 export class HrReadSecurityMiddleware extends BaseMiddleware implements Middleware {
   // The three sensitive mixins to strip from Person/Employee results. NEVER contact.mixin.Employee itself
   // (name/avatar/active must stay world-readable).
@@ -86,8 +89,13 @@ export class HrReadSecurityMiddleware extends BaseMiddleware implements Middlewa
   ]
 
   // HrData.members, cached per-pipeline (shared across sessions), invalidated on a tx touching the HrData
-  // space. undefined = not yet loaded; the promise de-dupes concurrent initialisers.
+  // space and, as a safety net, re-read after HR_MEMBERS_TTL_MS (a missed invalidation must never lock
+  // HR staff out until the next transactor restart; seen on live 2026-09-17, where the cached set was
+  // empty while the space listed five members). undefined = not yet loaded; the promise de-dupes
+  // concurrent initialisers. An empty read (space not found) is NOT cached: it is served as "nobody" for
+  // that request and retried on the next one.
   private hrMembers: Set<AccountUuid> | undefined
+  private hrMembersAt = 0
   private hrMembersInit: Promise<Set<AccountUuid>> | undefined
 
   // account uuid -> the reader's own Person ids. personUuid rarely changes; an empty result is NOT cached so
@@ -107,12 +115,21 @@ export class HrReadSecurityMiddleware extends BaseMiddleware implements Middlewa
   }
 
   private async getHrMembers (ctx: MeasureContext): Promise<Set<AccountUuid>> {
-    if (this.hrMembers !== undefined) return this.hrMembers
+    if (this.hrMembers !== undefined && Date.now() - this.hrMembersAt < HR_MEMBERS_TTL_MS) return this.hrMembers
     if (this.hrMembersInit === undefined) {
       this.hrMembersInit = (async () => {
-        const spaces = await this.provideFindAll(ctx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 })
-        const members = new Set<AccountUuid>((spaces[0]?.members ?? []) as AccountUuid[])
+        // Read the space without the reader's identity, the way SpaceSecurityMiddleware reads spaces for
+        // its own init: the roster must not depend on who happens to trigger the (re)load.
+        const readCtx = ctx.newChild('hr-members', {})
+        readCtx.contextData = undefined as any
+        const spaces = await this.provideFindAll(readCtx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 })
+        if (spaces.length === 0) {
+          ctx.warn('HrReadSecurity: HrData space not found, roster not cached', {})
+          return new Set<AccountUuid>()
+        }
+        const members = new Set<AccountUuid>((spaces[0].members ?? []) as AccountUuid[])
         this.hrMembers = members
+        this.hrMembersAt = Date.now()
         return members
       })()
     }

@@ -119,7 +119,7 @@ function child (cls: Ref<Class<Doc>>, attachedTo: string): any {
 
 interface Env {
   dataset: Record<string, any[]>
-  members: { list: string[] }
+  members: { list: string[] | null }
   ownByUuid: Record<string, string[]>
   spaceReads: number
 }
@@ -135,6 +135,9 @@ function makeMiddleware (env: Env): any {
     findAll: async (_ctx: MeasureContext, _class: Ref<Class<Doc>>, query: DocumentQuery<Doc>, _options?: any) => {
       if ((_class as unknown as string) === (core.class.Space as unknown as string)) {
         env.spaceReads++
+        // The roster read must not carry the reader's identity (see getHrMembers).
+        expect((_ctx as any).contextData).toBeUndefined()
+        if (env.members.list === null) return toFindResult([])
         return toFindResult([{ _id: HRDATA, members: env.members.list } as any])
       }
       if ((_class as unknown as string) === (PERSON as unknown as string) && (query as any)?.personUuid !== undefined) {
@@ -309,6 +312,54 @@ describe('HrReadSecurityMiddleware', () => {
   })
 
   // ── Membership cache invalidation (no stale over-grant) ────────────────────
+  it('does not cache an empty roster read (space not found): the next read retries', async () => {
+    const M = 'member-x'
+    const env = baseEnv(M, 'pm')
+    env.members.list = null // space not found on the first read
+    env.dataset[EMP] = [emp(OTHER_UUID)]
+    const mw = makeMiddleware(env)
+
+    let res = await mw.findAll(ctxFor(acct(AccountRole.User, M)), EMP, {})
+    expect(res[0][PERSONAL]).toBeUndefined() // served as "nobody" for this request
+    expect((mw as any).hrMembers).toBeUndefined() // but nothing cached
+    expect(env.spaceReads).toBe(1)
+
+    env.members.list = [M]
+    res = await mw.findAll(ctxFor(acct(AccountRole.User, M)), EMP, {})
+    expect(env.spaceReads).toBe(2)
+    expect(res[0][PERSONAL]).toBeDefined()
+  })
+
+  it('re-reads the roster after the TTL even without an invalidating tx', async () => {
+    const M = 'member-x'
+    const env = baseEnv(M, 'pm')
+    env.members.list = []
+    env.dataset[EMP] = [emp(OTHER_UUID)]
+    const mw = makeMiddleware(env)
+
+    let res = await mw.findAll(ctxFor(acct(AccountRole.User, M)), EMP, {})
+    expect(res[0][PERSONAL]).toBeUndefined()
+    expect(env.spaceReads).toBe(1)
+
+    // Membership granted outside the tx hook's view (e.g. a missed invalidation); within the TTL the
+    // stale roster is still served ...
+    env.members.list = [M]
+    res = await mw.findAll(ctxFor(acct(AccountRole.User, M)), EMP, {})
+    expect(env.spaceReads).toBe(1)
+    expect(res[0][PERSONAL]).toBeUndefined()
+
+    // ... and after the TTL it is re-read.
+    const realNow = Date.now
+    Date.now = () => realNow() + 61_000
+    try {
+      res = await mw.findAll(ctxFor(acct(AccountRole.User, M)), EMP, {})
+    } finally {
+      Date.now = realNow
+    }
+    expect(env.spaceReads).toBe(2)
+    expect(res[0][PERSONAL]).toBeDefined()
+  })
+
   it('invalidates the HrData membership cache on a tx to that space (removed HR member loses access)', async () => {
     const M = 'member-x'
     const env = baseEnv(M, 'pm')
