@@ -81,7 +81,7 @@ describe('groupByDay', () => {
 
 // YoungGlobes work week: Mon-Fri + odd (1st/3rd/5th) Saturdays; even Sat + Sun off.
 // Aug 2026 Saturdays: 1st=Aug 1, 2nd=Aug 8, 3rd=Aug 15, 4th=Aug 22, 5th=Aug 29.
-const D = (y: number, m: number, d: number): number => new Date(y, m, d).getTime()
+const D = (y: number, m: number, d: number, h = 0): number => new Date(y, m, d, h).getTime()
 
 describe('isOddSaturday', () => {
   it('true for 1st/3rd/5th Saturday, false for 2nd/4th', () => {
