@@ -22,6 +22,7 @@
   import SubmitErrorNotification from './SubmitErrorNotification.svelte'
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers, type TimesheetRejectCycle } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
+  import { sortApprovalGroups } from '../utils/approval-order'
   import { approveTask, rejectTask } from '../utils/day'
   import { asRefArray } from '../utils/workflow'
   import { cycleKey, groupCycles, closedCycles } from '../utils/reject-cycle'
@@ -129,7 +130,8 @@
       g.hours += task.submittedHours
       if (task.date < g.date) g.date = task.date
     }
-    return [...byEmployee.values()]
+    // Name order, not first-appearance order: approving someone's oldest task must not move them.
+    return sortApprovalGroups([...byEmployee.values()])
   })()
 
   //
@@ -213,8 +215,10 @@
         isReapproval
       },
       undefined,
-      (res?: { approvedHours: number }) => {
-        if (res !== undefined) {
+      (res?: { approvedHours: number } | null) => {
+        // Cancel dispatches `close` with no detail; the DOM CustomEvent turns that into null, not
+        // undefined. Treat both as "cancelled" or the callback throws before the popup can close.
+        if (res != null) {
           void approveTask(client, task._id, res.approvedHours).then(() => {
             addNotification('Time approved', `${task.identifier} approved.`, SubmitErrorNotification, undefined, NotificationSeverity.Success)
           })
@@ -230,8 +234,8 @@
       RejectTaskPopup,
       { identifier: task.identifier, title: task.title },
       undefined,
-      (res?: { reason: string }) => {
-        if (res !== undefined) {
+      (res?: { reason: string } | null) => {
+        if (res != null) {
           void rejectTask(client, task._id, res.reason, employee).then(() => {
             addNotification('Time rejected', `${task.identifier} sent back to the employee.`, SubmitErrorNotification, undefined, NotificationSeverity.Info)
           })

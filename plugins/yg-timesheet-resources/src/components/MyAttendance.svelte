@@ -153,10 +153,10 @@
         ygTimesheet.class.AttendanceSession, { employee: me, date: localMidnight(at) }, { limit: 1 }
       )
       if (priorToday.length === 0) {
-        const res = await new Promise<{ reason: string } | undefined>((resolve) => {
+        const res = await new Promise<{ reason: string } | null | undefined>((resolve) => {
           showPopup(LateReasonPopup, { minutesLate: minutesLateOf(at, shiftStart as number) }, undefined, resolve)
         })
-        if (res === undefined) {
+        if (res == null) {
           busy = false
           pending = null
           return // cancelled: do not punch

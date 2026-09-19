@@ -111,8 +111,8 @@
   }
 
   function openExport (): void {
-    showPopup(HrExportDialog, { anchorMs: week.start }, undefined, (period?: Period) => {
-      if (period !== undefined) void runExport(period)
+    showPopup(HrExportDialog, { anchorMs: week.start }, undefined, (period?: Period | null) => {
+      if (period != null) void runExport(period)
     })
   }
 

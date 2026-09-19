@@ -79,14 +79,15 @@
   $: sortedRows = [...rows].sort(compareRows)
 
   function onApprove (r: LatePermission): void {
-    showPopup(LateDecisionPopup, { approve: true }, undefined, (res?: { reason: string }) => {
-      if (res !== undefined) void approveLatePermission(client, r._id, res.reason)
+    showPopup(LateDecisionPopup, { approve: true }, undefined, (res?: { reason: string } | null) => {
+      // null on Cancel (CustomEvent detail), so a loose check is required here.
+      if (res != null) void approveLatePermission(client, r._id, res.reason)
     })
   }
 
   function onReject (r: LatePermission): void {
-    showPopup(LateDecisionPopup, { approve: false }, undefined, (res?: { reason: string }) => {
-      if (res !== undefined) void rejectLatePermission(client, r._id, res.reason)
+    showPopup(LateDecisionPopup, { approve: false }, undefined, (res?: { reason: string } | null) => {
+      if (res != null) void rejectLatePermission(client, r._id, res.reason)
     })
   }
 
