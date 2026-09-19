@@ -1,25 +1,25 @@
 //
-// YoungGlobes: server-yg-timesheet-resources — real workflow enforcement trigger (Phase 1b Task 4).
+// YoungGlobes: server-yg-timesheet-resources - real workflow enforcement trigger (Phase 1b Task 4).
 //
 // OnTimesheetDayUpdate enforces authorization on the TimesheetDay state machine.
 //
 // Proven constraints (Task 1 spike):
 //  - The trigger MUST be async (a sync trigger doing control.findAll deadlocks the tx).
 //  - Triggers see POST-APPLY state: control.findAll returns the doc already carrying the
-//    update's new values — you cannot read the "from" state. So we enforce on the new
+//    update's new values - you cannot read the "from" state. So we enforce on the new
 //    state + who acted (getEmployee(control, tx.modifiedBy)).
 //  - Compensating reverts / authoritative stamps are emitted via control.apply (not by
 //    returning them); the trigger returns [].
 //
 // Division of labour: the client computes and SENDS approvers (on submit) and
-// snapshot + totalHours (on approve). This server trigger does NOT recompute them — it
+// snapshot + totalHours (on approve). This server trigger does NOT recompute them - it
 // only (a) validates authorization and reverts violations and (b) stamps approvedBy /
 // approvedOn authoritatively on approve and clears them on reopen. The checks are inline
 // ref comparisons (the resources package's pure functions are NOT imported server-side).
 //
 // Loop-safety: control.apply'd txes re-enter this async trigger. Every compensating write
 // is attributed to the System account (createTxUpdateDoc's modifiedBy override), and the
-// top-of-loop guard skips System-authored txes — so the trigger's own writes never
+// top-of-loop guard skips System-authored txes - so the trigger's own writes never
 // re-enter and re-revert, regardless of the revert target.
 //
 import core, {
@@ -68,6 +68,7 @@ import task from '@hcengineering/task'
 import workbench, { type Application, type HiddenApplication } from '@hcengineering/workbench'
 import { estimateRequiredToActivate } from './estimate-gate'
 import { inDayWindow, roundedHoursDiffer, sumHoursInDayWindow } from './approval-drift'
+import { hasOtherOpenSession, originalPunchOut } from './attendance-guard'
 
 // Local copy of the client-side normalizer (server-plugins cannot import client resources).
 // Legacy scalar or new array -> clean array; null/undefined/empty -> [].
@@ -127,7 +128,7 @@ async function notifyInbox (
   const receivers = await getReceiversInfo(control.ctx, accounts, control)
   if (receivers.length === 0) return
 
-  // `obj` is the DocNotifyContext object the notification attaches to — a TimesheetDay (submit) or
+  // `obj` is the DocNotifyContext object the notification attaches to - a TimesheetDay (submit) or
   // TimesheetTask (approve/reject). Its class drives the Inbox click-through: NotificationRedirect
   // is registered as the ObjectPanel for both, sending a submit notification to Approvals and an
   // approve/reject notification to My Timesheet (see models/yg-timesheet + NotificationRedirect.svelte).
@@ -176,7 +177,7 @@ async function notifyInbox (
 // Submit -> notify approvers. Fires on the day-level update that submitDay writes AFTER creating
 // the TimesheetTask rows (approvers/submittedOn/totalHours). A submit sets `submittedOn` to a
 // positive timestamp; a recall $unsets it (absent from operations); approve/reject act on
-// TimesheetTask, never the day — so a set `submittedOn` here uniquely identifies a fresh submit.
+// TimesheetTask, never the day - so a set `submittedOn` here uniquely identifies a fresh submit.
 // One notification per approver per submit (user decision 2026-07-25), attached to the day's
 // lowest-identifier issue for a stable, navigable header chip.
 //
@@ -250,7 +251,7 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 
     const next = (utx.operations as Partial<TimesheetDay>).status as DayStatus | undefined
 
-    // Compensating write — attributed to System (7th arg modifiedBy) so it doesn't re-trigger.
+    // Compensating write - attributed to System (7th arg modifiedBy) so it doesn't re-trigger.
     const apply = async (ops: Partial<TimesheetDay>): Promise<void> => {
       const t = control.txFactory.createTxUpdateDoc(
         utx.objectClass,
@@ -267,7 +268,7 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
     // Rule A: approve / reject authorization + no-self-approve.
     if (next === 'Approved' || next === 'Rejected') {
       if (actorRef !== undefined && owner !== undefined && actorRef === owner) {
-        // Self-approve/-reject — forbidden even for admin. Revert to Submitted, clear stamps.
+        // Self-approve/-reject - forbidden even for admin. Revert to Submitted, clear stamps.
         await apply({ status: 'Submitted', approvedBy: null, approvedOn: null, rejectReason: null } as any)
         continue
       }
@@ -325,27 +326,27 @@ export async function OnTimesheetDayUpdate (txes: Tx[], control: TriggerControl)
 }
 
 //
-// Per-task approval authorization — REVISION 2 (Task 3 of the revised plan, 2026-07-2x).
+// Per-task approval authorization - REVISION 2 (Task 3 of the revised plan, 2026-07-2x).
 //
 // History (why this trigger looks nothing like its predecessor): an earlier version tried to
-// authorize using data the client could write — the task's own `approvers` array — and tried to
+// authorize using data the client could write - the task's own `approvers` array - and tried to
 // guard the payroll fields (approvedHours/approvedBy/approvedOn) by enumerating every dangerous
 // field/operator. THREE rounds of adversarial security review each found a new bypass ($inc
 // slipping past a naked-equality check, a status-downgrade slipping past the "only guard on
-// status change" scope...). That whole approach is abandoned here — this rewrite removes the
+// status change" scope...). That whole approach is abandoned here - this rewrite removes the
 // bypass CLASS instead of chasing individual bypasses:
 //
 //  - Authorization is a ROLE check, derived server-side from the ProjectApprovers mixin on every
-//    project (pm + teamLead) — see `approverRoleSet` below. There is nothing left on the task
-//    document that can poison this decision; `task.approvers` is NEVER read for authorization —
+//    project (pm + teamLead) - see `approverRoleSet` below. There is nothing left on the task
+//    document that can poison this decision; `task.approvers` is NEVER read for authorization -
 //    it is client-writable NOTIFICATION ROUTING only (who gets pinged), not a permission list.
 //  - The payroll fields no longer live on TimesheetTask at all (Task 2, 2026-07-23): they moved to
 //    `TimesheetApproval` docs in the PRIVATE space `ygTimesheet.space.Approvals`. A non-member's
 //    read or write to that space is refused STRUCTURALLY by the server (space membership), not by
-//    this trigger — so there is no longer a dangerous-field list to enumerate here at all.
+//    this trigger - so there is no longer a dangerous-field list to enumerate here at all.
 //  - Business rule: ANY employee assigned as PM or Team Lead on ANY project may approve/reject ANY
-//    task (a lead covering for an absent one is the motivating case) — what matters is ATTRIBUTION
-//    (who acted), not prevention. Self-approval is forbidden for EVERYONE, including admins — and
+//    task (a lead covering for an absent one is the motivating case) - what matters is ATTRIBUTION
+//    (who acted), not prevention. Self-approval is forbidden for EVERYONE, including admins - and
 //    if the timesheet owner can't be resolved, we fail closed (deny), never allow.
 //
 // Loop-safety: the only compensating write this trigger issues is a status-revert, attributed to
@@ -375,12 +376,12 @@ function lazyApproverRoleSet (control: TriggerControl): () => Promise<Set<Ref<Em
 }
 
 // IMPORTANT E: the Approvals space's server-derived membership = every PM/TeamLead (given as
-// `roles`, already resolved by the caller — see lazyApproverRoleSet) UNIONED WITH `ownersAllowlist`
+// `roles`, already resolved by the caller - see lazyApproverRoleSet) UNIONED WITH `ownersAllowlist`
 // (the space's own `owners` field). `owners` is the admin/break-glass signal: an Owner self-adds to
-// BOTH `members` and `owners` (the same idiom as ensureHrMembership for HrData — see
+// BOTH `members` and `owners` (the same idiom as ensureHrMembership for HrData - see
 // plugins/yg-timesheet-resources/src/utils/hrMembership.ts). There is no generic "every account's
 // workspace role" query on TriggerControl, so `owners` is the only queryable admin signal available
-// here — which is exactly why OnApprovalsMembershipGuard (Critical A) protects `owners` from
+// here - which is exactly why OnApprovalsMembershipGuard (Critical A) protects `owners` from
 // untrusted writes before any caller trusts it in this union.
 async function deriveApprovalsMembers (
   control: TriggerControl,
@@ -397,7 +398,7 @@ async function deriveApprovalsMembers (
 
 //
 // ############################################################################################
-// ⚠️  KNOWN SECURITY GAP — OPEN, ACCEPTED FOR BETA ONLY (user decision 2026-07-23)
+// ⚠️  KNOWN SECURITY GAP - OPEN, ACCEPTED FOR BETA ONLY (user decision 2026-07-23)
 //     DO NOT USE THIS FEATURE WITH REAL PAYROLL DATA UNTIL FIXED.
 //
 //     Any workspace member can FORGE an approval with arbitrary hours, without a PM/TL role and
@@ -406,18 +407,18 @@ async function deriveApprovalsMembers (
 //
 //     Why this trigger does not stop it: the design assumed a PRIVATE space refuses non-member
 //     writes. It does not. foundations/server/packages/middleware/src/spaceSecurity.ts has ZERO
-//     `throw` statements — it maintains read filters and indexes only, and never rejects a tx.
-//     PRIVATE = READ-BLOCKED, NOT WRITE-BLOCKED. (Read-privacy does NOT robustly hold either —
+//     `throw` statements - it maintains read filters and indexes only, and never rejects a tx.
+//     PRIVATE = READ-BLOCKED, NOT WRITE-BLOCKED. (Read-privacy does NOT robustly hold either -
 //     CORRECTED 2026-07-24 after the final whole-branch review; the earlier "forgery not exposure"
-//     note was WRONG. A member can self-promote into the Approvals space MEMBERSHIP — via
+//     note was WRONG. A member can self-promote into the Approvals space MEMBERSHIP - via
 //     updateDoc carrying the ProjectApprovers mixin attrs, or a TxMixin whose guard-revert is a
-//     System tx that OnProjectApproversChange skips so membership never re-syncs down — and
+//     System tx that OnProjectApproversChange skips so membership never re-syncs down - and
 //     membership grants READ of everyone's approvedHours. So the gap is forgery AND read-exposure.)
 //
 //     AGREED FIX (not implemented): clients must NEVER write TimesheetApproval. The approver's
 //     hours ride on the role-guarded task tx; the SERVER alone materialises/updates/deletes the
 //     approval row; any client-authored tx on that class is reverted unconditionally
-//     (deny-by-default — no field/operator enumeration to keep current).
+//     (deny-by-default - no field/operator enumeration to keep current).
 //
 //     Full analysis + 5-round review history:
 //       docs/superpowers/specs/2026-07-22-per-task-timesheet-approval-design.md (final section)
@@ -429,7 +430,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
   for (const tx of txes) {
     // Loop-safety: our own compensating writes below (task status revert, TimesheetApproval row
     // removal on revert, TimesheetApproval attribution stamp on authorized approve) are ALL
-    // System-attributed — skip System-authored txes so none of them can re-enter and re-fire.
+    // System-attributed - skip System-authored txes so none of them can re-enter and re-fire.
     if (tx.modifiedBy === core.account.System) continue
     if (tx._class !== core.class.TxUpdateDoc) continue
 
@@ -445,7 +446,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
     if (task === undefined) continue
 
     // Timesheet owner = the employee this task's day belongs to (task -> day -> timesheet). This
-    // is the "self" in the self-approval bar — never the task's own (client-writable) approvers.
+    // is the "self" in the self-approval bar - never the task's own (client-writable) approvers.
     const day = (
       await control.findAll(control.ctx, ygTimesheet.class.TimesheetDay, { _id: task.attachedTo as Ref<TimesheetDay> }, { limit: 1 })
     )[0]
@@ -460,12 +461,12 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
     // Admin break-glass: workspace Owner/Maintainer. Still subject to the self-approval bar below.
     const isAdmin = hasAccountRole(control.ctx.contextData.account, AccountRole.Maintainer)
 
-    // Fail closed: if the owner can't be resolved we cannot rule out self-approval, so deny —
+    // Fail closed: if the owner can't be resolved we cannot rule out self-approval, so deny -
     // unconditionally, admin included (mirrors OnTimesheetDayUpdate's Rule A precedent).
     //
     // IMPORTANT C: `actorId !== undefined` is now REQUIRED unconditionally, not just compared
     // against `owner`. Previously an unresolvable actor left `actorId === undefined`, and
-    // `undefined !== owner` trivially passed whenever `owner` was resolved — so an admin acting
+    // `undefined !== owner` trivially passed whenever `owner` was resolved - so an admin acting
     // through an unlinked social id could self-approve unattributably (isAdmin alone authorized
     // it). Attribution is the whole point of this feature (SPEC FAILURE 1), so an actor that can't
     // be resolved to an Employee can never be authorized, admin included.
@@ -476,7 +477,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
       (isAdmin || (await getApproverSet()).has(actorId))
 
     if (authorized) {
-      // SPEC FAILURE 1: attribution is the whole feature — stamp the private TimesheetApproval row
+      // SPEC FAILURE 1: attribution is the whole feature - stamp the private TimesheetApproval row
       // authoritatively now that we know WHO (actorId, resolved above and required to be defined)
       // approved and WHEN. The client (utils/day.ts approveTask) only ever writes `task` +
       // `approvedHours`; this is the only place approvedBy/approvedOn are ever written.
@@ -488,7 +489,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
         )[0]
         if (approval === undefined) {
           // Client-ordering issue (approveTask should always create/update the row alongside this
-          // status write) — not a security problem, so warn rather than crash or revert a status
+          // status write) - not a security problem, so warn rather than crash or revert a status
           // change that was itself properly authorized.
           control.ctx.warn(
             'yg-timesheet: TimesheetTask approved but no TimesheetApproval row found to stamp (client-ordering?)',
@@ -509,7 +510,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
       }
 
       // Notify the employee (owner) that their task was approved/rejected. This is inside the
-      // `authorized` branch ON PURPOSE — a forged/unauthorized approval that the trigger reverts
+      // `authorized` branch ON PURPOSE - a forged/unauthorized approval that the trigger reverts
       // (below) never reaches here, so no false "approved" ping is ever sent. task.rejectReason is
       // read post-apply (the client's reject sets status + rejectReason in one tx). We do NOT
       // include approved HOURS in the employee's copy (they may be reduced from submitted, and
@@ -537,7 +538,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
       isAdmin
     })
 
-    // Compensating writes — attributed to System (7th arg) so they can never re-enter this trigger.
+    // Compensating writes - attributed to System (7th arg) so they can never re-enter this trigger.
     const revertTxes: Tx[] = [
       control.txFactory.createTxUpdateDoc(
         task._class,
@@ -552,7 +553,7 @@ export async function OnTimesheetTaskUpdate (txes: Tx[], control: TriggerControl
 
     // IMPORTANT D: an unauthorized approval must not leave its payroll row behind. Whatever put a
     // TimesheetApproval row on this task (a legitimate prior approval now being illegitimately
-    // touched, or an attacker-planted row — e.g. via the Critical-A self-join hole this same
+    // touched, or an attacker-planted row - e.g. via the Critical-A self-join hole this same
     // change closes), a task that is being forced back to Submitted must not keep one: Submitted
     // means "not approved", and the row may carry an attacker-chosen approvedHours.
     const approvalRow = (
@@ -635,6 +636,26 @@ export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): P
       if (utx.objectClass !== ygTimesheet.class.AttendanceSession) continue
       if (utx.operations.punchOut === undefined) continue
       const now = Date.now()
+
+      // Re-close guard: a stale tab (frozen phone tab, slept desktop) can send a punch-out for a
+      // session that was closed long ago; accepting it overwrites punchOut and the session then
+      // overlaps whatever legitimately ran since. The doc is already updated by the time a trigger
+      // runs, so the previous state comes from the tx log: any EARLIER tx that set punchOut means
+      // this one is a re-close, and the original close is restored. See attendance-guard.ts.
+      const closes = await control.findAll<TxUpdateDoc<AttendanceSession>>(
+        control.ctx, core.class.TxUpdateDoc, { objectId: utx.objectId }, {}
+      )
+      const original = originalPunchOut(closes, utx._id)
+      if (original !== undefined) {
+        control.ctx.warn('yg-timesheet: punch-out on an already-closed session reverted', {
+          session: utx.objectId, actor: utx.modifiedBy, original, attempted: utx.operations.punchOut
+        })
+        res.push(control.txFactory.createTxUpdateDoc(
+          utx.objectClass, utx.objectSpace, utx.objectId, { punchOut: original }, false, now, core.account.System
+        ))
+        continue
+      }
+
       res.push(control.txFactory.createTxUpdateDoc(
         utx.objectClass, utx.objectSpace, utx.objectId, { punchOut: now }, false, now, core.account.System
       ))
@@ -647,13 +668,30 @@ export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): P
 
     const now = Date.now()
     const date = istDayStart(now)
+    const employee = ctx.attributes.employee
+
+    // Single-open-session guard, server side. The client checks too, but its findAll can be served
+    // from the LiveQuery cache of a stale tab, so it is not authoritative. A punch-in while another
+    // session is open is removed outright: the open one keeps running, the tab refreshes to it.
+    const open = await control.findAll(
+      control.ctx, ygTimesheet.class.AttendanceSession, { employee, punchOut: { $exists: false } }, {}
+    )
+    if (hasOtherOpenSession(open, ctx.objectId)) {
+      control.ctx.warn('yg-timesheet: punch-in while another session is open removed', {
+        session: ctx.objectId, actor: ctx.modifiedBy, open: open.filter((s) => s._id !== ctx.objectId).map((s) => s._id)
+      })
+      res.push(control.txFactory.createTxRemoveDoc(
+        ctx.objectClass, ctx.objectSpace, ctx.objectId, now, core.account.System
+      ))
+      continue
+    }
+
     // Authoritative punch-in time + IST day key, discarding whatever the browser sent.
     res.push(control.txFactory.createTxUpdateDoc(
       ctx.objectClass, ctx.objectSpace, ctx.objectId, { punchIn: now, date }, false, now, core.account.System
     ))
 
     // Late detection: only the FIRST punch of the IST day (earlier sessions carry the server-set date).
-    const employee = ctx.attributes.employee
     const sameDay = (
       await control.findAll(control.ctx, ygTimesheet.class.AttendanceSession, { employee, date }, {})
     ).filter((s) => s._id !== ctx.objectId)
@@ -687,16 +725,16 @@ export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): P
 // Membership of the private Approvals space = every currently-assigned PM/TL, kept in sync with
 // the ProjectApprovers mixin so a newly assigned lead can immediately read (and be attributed on)
 // approvals, and a removed lead loses access immediately. Reconciles GLOBALLY (across every
-// project) on any change touching ANY project — cheap, idempotent, and correctness doesn't depend
+// project) on any change touching ANY project - cheap, idempotent, and correctness doesn't depend
 // on diffing which project changed or which field on it.
 //
 // Loop-safety: registered with txMatch objectClass: tracker.class.Project (see
 // models/server-yg-timesheet/src/index.ts). This trigger's only write is a TxUpdateDoc on
-// ygTimesheet.space.Approvals — objectClass core.class.Space, never tracker.class.Project — so
+// ygTimesheet.space.Approvals - objectClass core.class.Space, never tracker.class.Project - so
 // that write structurally cannot match this trigger's own txMatch and can never re-enter it. The
 // top-of-loop System guard is kept anyway, matching the established idiom in this file.
 //
-// IMPORTANT E: `wanted` is no longer PM/TL-only — it is unioned with the space's own `owners` via
+// IMPORTANT E: `wanted` is no longer PM/TL-only - it is unioned with the space's own `owners` via
 // deriveApprovalsMembers, so this reconcile never evicts admins/break-glass access. See
 // deriveApprovalsMembers for why `owners` (not a generic role query) is the admin signal, and
 // OnApprovalsMembershipGuard (Critical A) for why that field can be trusted here.
@@ -723,8 +761,8 @@ export async function OnProjectApproversChange (txes: Tx[], control: TriggerCont
 }
 
 //
-// CRITICAL A: ygTimesheet.space.Approvals is a plain core.class.Space (not a TypedSpace), so — same
-// as ygTimesheet.space.HrData (see OnHrDataMembershipGuard below) — the security pipeline does NOT
+// CRITICAL A: ygTimesheet.space.Approvals is a plain core.class.Space (not a TypedSpace), so - same
+// as ygTimesheet.space.HrData (see OnHrDataMembershipGuard below) - the security pipeline does NOT
 // permission-check membership writes to it. Without this guard ANY workspace member could
 // `updateDoc(core.class.Space, ..., ygTimesheet.space.Approvals, { $push: { members: <self> } })`
 // and thereby freely create/inflate/delete TimesheetApproval rows (payroll data), including other
@@ -732,11 +770,11 @@ export async function OnProjectApproversChange (txes: Tx[], control: TriggerCont
 //
 // Modelled EXACTLY on OnHrDataMembershipGuard's shape (same async/POST-APPLY/System-attributed/
 // top-of-loop-guard idioms; same $push-collect + unconditional actor backstop for protecting
-// `owners`), with ONE deliberate difference: `members` is not precisely $pull-reverted — it is
+// `owners`), with ONE deliberate difference: `members` is not precisely $pull-reverted - it is
 // reconciled WHOLESALE to the server-derived set (deriveApprovalsMembers: PM/TL of every project,
 // unioned with the now-trustworthy `owners`). A precise revert-what-was-added-by-this-tx approach
 // would still trust whatever was already in `members` from BEFORE this guard existed (or from an
-// earlier bypass) — only a full reconcile actually closes the hole.
+// earlier bypass) - only a full reconcile actually closes the hole.
 //
 // Loop-safety: registered with a narrow txMatch on this single objectId (see
 // models/server-yg-timesheet/src/index.ts), matching the HrData guard's precedent. Its only writes
@@ -756,7 +794,7 @@ export async function OnApprovalsMembershipGuard (txes: Tx[], control: TriggerCo
     if (utx.objectClass !== core.class.Space) continue
     if (utx.objectId !== ygTimesheet.space.Approvals) continue
 
-    // Owner is authorized to curate this space — the only role allowed to (mirrors
+    // Owner is authorized to curate this space - the only role allowed to (mirrors
     // OnHrDataMembershipGuard). Anything else (undefined account included) is untrusted.
     const account = control.ctx.contextData.account
     if (account !== undefined && hasAccountRole(account, AccountRole.Owner)) continue
@@ -768,8 +806,8 @@ export async function OnApprovalsMembershipGuard (txes: Tx[], control: TriggerCo
 
     const ops = utx.operations as Record<string, any>
 
-    // Precisely collect what THIS tx added to `owners` via $push (both forms), so `owners` — our
-    // admin allowlist (see deriveApprovalsMembers) — can never be poisoned by an untrusted write.
+    // Precisely collect what THIS tx added to `owners` via $push (both forms), so `owners` - our
+    // admin allowlist (see deriveApprovalsMembers) - can never be poisoned by an untrusted write.
     // Same idiom as OnHrDataMembershipGuard's collectPush.
     const pullOwners = new Set<AccountUuid>()
     const v = ops.$push?.owners
@@ -787,7 +825,7 @@ export async function OnApprovalsMembershipGuard (txes: Tx[], control: TriggerCo
 
     const trustedOwners = (space.owners ?? []).filter((o) => !pullOwners.has(o))
 
-    // Do NOT trust anything this write did to `members` — reconcile it wholesale to the
+    // Do NOT trust anything this write did to `members` - reconcile it wholesale to the
     // server-derived set (Critical A), using only the now-trustworthy owners.
     const roles = await getApproverSet()
     const wantedMembers = await deriveApprovalsMembers(control, roles, trustedOwners)
@@ -800,7 +838,7 @@ export async function OnApprovalsMembershipGuard (txes: Tx[], control: TriggerCo
     const fix: Record<string, any> = { members: [...wantedMembers] }
     if (pullOwners.size > 0) fix.$pull = { owners: { $in: [...pullOwners] } }
 
-    // Compensating write — attributed to System (7th arg) so it doesn't re-trigger the guard.
+    // Compensating write - attributed to System (7th arg) so it doesn't re-trigger the guard.
     const t = control.txFactory.createTxUpdateDoc(
       utx.objectClass,
       utx.objectSpace,
@@ -818,21 +856,21 @@ export async function OnApprovalsMembershipGuard (txes: Tx[], control: TriggerCo
 //
 // CRITICAL B: any employee assigned PM or Team Lead on ANY project is a workspace-wide approver
 // (see approverRoleSet), so writing `ygTimesheet.mixin.ProjectApprovers.pm`/`teamLead` on a SINGLE
-// project is a privilege escalation — a member who sets `pm: <self>` gains approval power over
+// project is a privilege escalation - a member who sets `pm: <self>` gains approval power over
 // EVERYONE, and is auto-enrolled into the Approvals space by OnProjectApproversChange. Nothing
 // previously restricted writing this mixin server-side (a UI-level restriction is not a security
 // boundary).
 //
 // Reverts any TxMixin writing ygTimesheet.mixin.ProjectApprovers when the acting account is not an
 // admin (AccountRole.Maintainer+). Restores the PRE-tx pm/teamLead when determinable by replaying
-// the project's tx log excluding this tx (TxProcessor.buildDoc2Doc — the same technique
+// the project's tx log excluding this tx (TxProcessor.buildDoc2Doc - the same technique
 // server-plugins/tracker-resources uses to recover a TimeSpendReport's prior value for its own
 // compensating $inc); otherwise clears both fields and logs a warn either way.
 //
-// Loop-safety: registered with a narrow txMatch (`_class: TxMixin, mixin: ProjectApprovers` — see
+// Loop-safety: registered with a narrow txMatch (`_class: TxMixin, mixin: ProjectApprovers` - see
 // models/server-yg-timesheet/src/index.ts). Our only write is itself a System-attributed TxMixin on
-// this same mixin, so the top-of-loop System guard skips it on re-entry — it can never re-revert
-// itself. (It DOES re-enter OnProjectApproversChange, which matches any tx touching a Project —
+// this same mixin, so the top-of-loop System guard skips it on re-entry - it can never re-revert
+// itself. (It DOES re-enter OnProjectApproversChange, which matches any tx touching a Project -
 // that is intended: the Approvals space must re-sync to the restored pm/teamLead. That trigger's
 // own write is on Space, not Project, so the chain terminates after that one extra hop.)
 //
@@ -848,7 +886,7 @@ export async function OnProjectApproversMixinGuard (txes: Tx[], control: Trigger
     if (isAdmin) continue
 
     // Replay this project's tx log EXCLUDING this tx to recover the pre-tx mixin state (triggers
-    // otherwise only see post-apply state — see this file's top-of-file note).
+    // otherwise only see post-apply state - see this file's top-of-file note).
     const logTxes = Array.from(
       await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
     ).filter((it) => it._id !== mtx._id)
@@ -889,14 +927,14 @@ export async function OnProjectApproversMixinGuard (txes: Tx[], control: Trigger
 // in a different class/space so these writes never re-enter this trigger.
 //
 // Verify note (resolved against this codebase, not assumed): TimeSpendReport is an AttachedDoc on
-// Issue, but its CUD does NOT arrive wrapped in a TxCollectionCUD — that wrapper class was removed
+// Issue, but its CUD does NOT arrive wrapped in a TxCollectionCUD - that wrapper class was removed
 // from this schema version (see models/core/src/migration.ts, state "remove-collection-txes", and
-// core.class.TxCollectionCUD is not even registered — foundations/core/packages/core/src/component.ts).
+// core.class.TxCollectionCUD is not even registered - foundations/core/packages/core/src/component.ts).
 // TxCreateDoc/TxUpdateDoc/TxRemoveDoc for an AttachedDoc are flat CUD txes carrying attachedTo /
 // attachedToClass directly. This mirrors the real handling in
 // server-plugins/tracker-resources/src/index.ts (OnIssueUpdate / doTimeReportUpdate), which reads
 // `cud.attachedTo` straight off the CUD tx with no unwrapping step. There is also no
-// `TxProcessor.extractTx` in this version of @hcengineering/core — only `TxProcessor.createDoc2Doc`
+// `TxProcessor.extractTx` in this version of @hcengineering/core - only `TxProcessor.createDoc2Doc`
 // (and updateDoc2Doc/buildDoc2Doc), used below to materialize the created report.
 //
 // Approved-hours drift (payroll integrity, 2026-08-07): after a task is Approved, an employee could
@@ -1036,7 +1074,7 @@ async function deleteMirror (control: TriggerControl, source: Ref<TimeSpendRepor
 
 async function upsertMirror (control: TriggerControl, report: TimeSpendReport): Promise<void> {
   // No employee to attribute the hours to (shouldn't normally happen). If the report previously had
-  // an employee and was cleared on update, a stale mirror would otherwise linger — so delete any
+  // an employee and was cleared on update, a stale mirror would otherwise linger - so delete any
   // existing mirror to preserve the "one current mirror per report, or none" invariant, then bail.
   const employee = report.employee
   if (employee === null || employee === undefined) {
@@ -1059,7 +1097,7 @@ async function upsertMirror (control: TriggerControl, report: TimeSpendReport): 
     project: (issue?.space ?? '') as Ref<Project>,
     projectName: project?.name ?? '',
     issue: (issue?._id ?? report.attachedTo) as Ref<Issue>,
-    identifier: issue?.identifier ?? '—',
+    identifier: issue?.identifier ?? '-',
     title: issue?.title ?? '(unknown issue)',
     note: report.description ?? ''
   }
@@ -1095,7 +1133,7 @@ async function upsertMirror (control: TriggerControl, report: TimeSpendReport): 
 //
 // Privacy write-guard: only the workspace Owner may curate the HR roster (ygTimesheet.space.HrData
 // membership). HrData is a plain core.class.Space, NOT a TypedSpace, so Huly's security pipeline does
-// not permission-check writes to it — any workspace User could `$push` their own AccountUuid into
+// not permission-check writes to it - any workspace User could `$push` their own AccountUuid into
 // HrData.members via a direct API call and thereby read every employee's HrTimeEntry. This trigger
 // reverts any membership addition made by a non-Owner, server-side.
 //
@@ -1104,11 +1142,11 @@ async function upsertMirror (control: TriggerControl, report: TimeSpendReport): 
 // never re-enters and re-reverts.
 //
 // The revert is precise for `$push` (both the single-value `{ $push: { members: X } }` and the
-// `{ $push: { members: { $each: [...] } } }` forms — we pull exactly what was added, so legitimate
+// `{ $push: { members: { $each: [...] } } }` forms - we pull exactly what was added, so legitimate
 // pre-existing members are untouched). A raw `{ members: [...] }` set by a non-Owner cannot be
 // precisely reverted from post-apply state without destroying legitimate members, so for it the
 // load-bearing guarantee is the BACKSTOP: we always also $pull the acting account's own uuid from
-// members/owners — so no non-Owner code path can leave the actor (a non-Owner) inside HrData, which
+// members/owners - so no non-Owner code path can leave the actor (a non-Owner) inside HrData, which
 // is the property that actually protects read-privacy.
 //
 export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
@@ -1122,7 +1160,7 @@ export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerContr
     if (utx.objectClass !== core.class.Space) continue
     if (utx.objectId !== ygTimesheet.space.HrData) continue
 
-    // Owner is authorized to curate the roster — the only role allowed to. Anything else (undefined
+    // Owner is authorized to curate the roster - the only role allowed to. Anything else (undefined
     // account included) is treated as unauthorized and reverted (privacy-safe default).
     const account = control.ctx.contextData.account
     if (account !== undefined && hasAccountRole(account, AccountRole.Owner)) continue
@@ -1146,7 +1184,7 @@ export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerContr
     collectPush('members', pullMembers)
     collectPush('owners', pullOwners)
 
-    // Backstop: always pull the acting (non-Owner) account's own uuid too — covers a raw
+    // Backstop: always pull the acting (non-Owner) account's own uuid too - covers a raw
     // `{ members: [...] }` / `{ owners: [...] }` set, which we cannot precisely revert from
     // post-apply state, and guarantees the actor is never left inside the private HR space.
     const actorUuid = account?.uuid
@@ -1161,7 +1199,7 @@ export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerContr
     if (pullMembers.size > 0) pull.members = { $in: [...pullMembers] }
     if (pullOwners.size > 0) pull.owners = { $in: [...pullOwners] }
 
-    // Compensating write — attributed to System (7th arg) so it doesn't re-trigger the guard.
+    // Compensating write - attributed to System (7th arg) so it doesn't re-trigger the guard.
     const t = control.txFactory.createTxUpdateDoc(
       utx.objectClass,
       utx.objectSpace,
@@ -1180,20 +1218,20 @@ export async function OnHrDataMembershipGuard (txes: Tx[], control: TriggerContr
 // COSMETIC layer (best-effort): hide the "Human Resource" app icon from the left rail for every
 // account that is NOT a member of the private HR space (ygTimesheet.space.HrData). The HrTimeEntry
 // data is already server-private (PrivateMiddleware + OnHrDataMembershipGuard); this only removes the
-// icon so non-HR users don't even see the app. If any part of this fails it must NOT block anything —
+// icon so non-HR users don't even see the app. If any part of this fails it must NOT block anything -
 // worst case a non-member sees an icon that opens an empty/permission-denied view.
 //
-// MECHANISM (proven by the Task-7 spike, verified against this codebase — not assumed):
+// MECHANISM (proven by the Task-7 spike, verified against this codebase - not assumed):
 //  - The left rail (plugins/workbench-resources/src/components/Applications.svelte) hides any app whose
 //    _id appears as a `workbench.class.HiddenApplication` the CURRENT user can see. HiddenApplication is
-//    a `Preference` living in the SHARED `core.space.Workspace` — there is NO per-user space. Per-user
+//    a `Preference` living in the SHARED `core.space.Workspace` - there is NO per-user space. Per-user
 //    scoping is done by `createdBy`: the server's PrivateMiddleware (foundations/server/packages/
 //    middleware/src/private.ts) rewrites every preference-domain read from a non-System account to
 //    `createdBy: { $in: <that account's socialIds> }`. So a HiddenApplication only affects the user whose
 //    social id is its `createdBy`.
 //  - To hide the HR app for user X we therefore create a HiddenApplication whose `createdBy` is one of
 //    X's social ids. `TxFactory.createTxCreateDoc` sets the tx's `createdBy = modifiedBy` (its 6th arg),
-//    and `TxProcessor.createDoc2Doc` sets `doc.createdBy = tx.createdBy` — so passing X's social id as
+//    and `TxProcessor.createDoc2Doc` sets `doc.createdBy = tx.createdBy` - so passing X's social id as
 //    the `modifiedBy` arg lands `doc.createdBy = X's social id`. No middleware overrides it.
 //  - PrivateMiddleware's WRITE guard permits this: writing another user's preference is allowed when the
 //    acting account is System OR an Owner. HrData membership can only be curated by an Owner (enforced by
@@ -1221,7 +1259,7 @@ async function allWorkspaceAccounts (control: TriggerControl): Promise<AccountUu
 
 // Core reconcile: given the current HR members, ensure a HiddenApplication(HR) exists (createdBy = one
 // of their social ids) for every NON-member, and none exists for any member. Idempotent. All writes go
-// through control.apply. Shared by the trigger and the backfill. Never throws out — it best-effort logs.
+// through control.apply. Shared by the trigger and the backfill. Never throws out - it best-effort logs.
 async function reconcileHrHidden (control: TriggerControl, members: AccountUuid[]): Promise<void> {
   try {
     const memberSet = new Set(members)
@@ -1245,7 +1283,7 @@ async function reconcileHrHidden (control: TriggerControl, members: AccountUuid[
     // Seed a hide for each non-member that doesn't already have one under any of their social ids.
     for (const acc of nonMembers) {
       const socials = nonMemberSocial[acc] ?? []
-      if (socials.length === 0) continue // no social id to scope a pref to — cannot hide, skip (harmless)
+      if (socials.length === 0) continue // no social id to scope a pref to - cannot hide, skip (harmless)
       if (socials.some((s) => existingByCreator.has(s))) continue // already hidden for this account
       txes.push(
         control.txFactory.createTxCreateDoc(
@@ -1299,12 +1337,12 @@ export async function OnHrMembershipChange (txes: Tx[], control: TriggerControl)
 }
 
 // One-shot seeding for existing installs. Hides the HR app for all current non-members.
-// Idempotent — safe to run repeatedly.
+// Idempotent - safe to run repeatedly.
 //
 // NOTE (2026-07-22): this is NOT wired to a migration. Migrations run with a TxOperations client,
 // not a TriggerControl, so they cannot call it. On an existing workspace, seed the hides for
 // current accounts by making any one HrData membership edit (add a member and remove them again)
-// — OnHrMembershipChange then reconciles EVERY account in one pass.
+// - OnHrMembershipChange then reconciles EVERY account in one pass.
 export async function backfillHrHidden (control: TriggerControl): Promise<void> {
   const hr = (await control.findAll(control.ctx, core.class.Space, { _id: ygTimesheet.space.HrData }, { limit: 1 }))[0]
   await reconcileHrHidden(control, hr?.members ?? [])
@@ -1322,7 +1360,7 @@ export async function backfillHrHidden (control: TriggerControl): Promise<void> 
 // seeds the newcomer and repairs anyone previously missed.
 //
 // LOOP-SAFETY: this trigger's only writes are HiddenApplication creates/removes (preference class),
-// never Person/Employee mixins — so it cannot re-enter itself.
+// never Person/Employee mixins - so it cannot re-enter itself.
 //
 export async function OnHrEmployeeCreate (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   // The txMatch already narrows to "Person gained an active Employee mixin"; one reconcile pass
