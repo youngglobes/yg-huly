@@ -117,9 +117,9 @@
             </tr>
             {#if isOpen}
               {@const inside = sessionsOf(w.sess)}
+              {@const byProject = [...w.projects.entries()].sort((a, b) => b[1] - a[1])}
               <tr class="detail">
                 <td colspan="6">
-                  {@const byProject = [...w.projects.entries()].sort((a, b) => b[1] - a[1])}
                   <div class="byproj">
                     <span class="byproj__label">Tokens in this window by project:</span>
                     {#each byProject as [p, t] (p)}
