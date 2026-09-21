@@ -5,7 +5,7 @@
   // Deliberate difference from the reference: the 5-hour limit is per Anthropic account, so a
   // block table that merges accounts would not describe any real limit window. When more than
   // one account is in the report and none is singled out, this renders a sentence instead.
-  import { buildWindows, fmtH, fmtM, fmtPct, modelVar, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
+  import { buildWindows, fmtH, fmtM, fmtPct, modelVar, sessionList, usedOf5h, type Filters, type UsageReport, type filterReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let view: ReturnType<typeof filterReport>
@@ -32,13 +32,35 @@
 
   $: merged = report.accounts.length > 1 && filters.account === '*'
   $: windows = merged ? [] : buildWindows(view.tok, view.act, view.sess).slice().reverse().filter((w) => w.tok > 0)
+
+  // Per-window breakdown: the sessions alive in the window, biggest first, so "which session ate
+  // this window" has an answer. Toggled per window; collapsed by default to keep the table short.
+  const SURFACE: Record<string, string> = { terminal: 'Terminal', vscode: 'VS Code', sdk: 'SDK / scripted', cowork: 'Cowork (Desktop)' }
+  let open = new Set<number>()
+  function toggle (start: number): void {
+    if (open.has(start)) open.delete(start)
+    else open.add(start)
+    open = open
+  }
+  $: allSessions = sessionList(view.sess)
+  function sessionsOf (ids: Set<string>): ReturnType<typeof sessionList> {
+    return allSessions.filter((s) => ids.has(s.id)).sort((a, b) => b.tok - a.tok)
+  }
+  function dur (sec: number): string {
+    if (sec < 60) return `${sec}s`
+    const h = Math.floor(sec / 3600)
+    const m = Math.round((sec % 3600) / 60)
+    return h > 0 ? `${h}h ${D2(m)}m` : `${m}m`
+  }
 </script>
 
 <section class="blocks">
   <div class="head"><h2>5-hour session blocks</h2></div>
   <p class="note">Your Max limit resets on a rolling 5-hour window. Each row is one window, with
     the share each model took inside it. Windows are reconstructed from activity gaps, so they
-    approximate rather than mirror Anthropic's server-side reset clock.</p>
+    approximate rather than mirror Anthropic's server-side reset clock. <b>Used</b> is active time
+    against 5 h per machine that was active in the window (active time adds up across machines).
+    Click a window to see the sessions inside it, largest first.</p>
 
   {#if merged}
     <div class="scroll">
@@ -58,20 +80,24 @@
         </thead>
         <tbody>
           {#each windows as w (w.start)}
-            {@const pct = Math.min(w.sec / 18000 * 100, 100)}
+            {@const used = usedOf5h(w)}
+            {@const pct = Math.min(used, 100)}
             {@const cvar = pct >= 90 ? '--crit' : pct >= 70 ? '--warn' : '--good'}
             {@const ms = [...w.models.entries()].sort((a, b) => b[1] - a[1])}
             {@const mt = ms.reduce((a, b) => a + b[1], 0) || 1}
-            <tr>
+            {@const isOpen = open.has(w.start)}
+            <tr class="win" class:is-open={isOpen} on:click={() => toggle(w.start)}>
               <td>
+                <span class="chev" aria-hidden="true">{isOpen ? '▾' : '▸'}</span>
                 <span class="daylabel">{dayShort(w.start)}</span><br />
                 <span class="timelabel">{hhmm(w.start)}-{hhmm(w.last + 3600)}</span>
               </td>
               <td class="bar-cell">
                 <div class="barrow">
                   <div class="track"><i style="width: {pct.toFixed(2)}%; background: var({cvar})" /></div>
-                  <span class="pct">{fmtPct(w.sec / 18000 * 100)}</span>
+                  <span class="pct">{fmtPct(used)}</span>
                 </div>
+                {#if w.devs.size > 1}<span class="devs">of {w.devs.size} machines</span>{/if}
               </td>
               <td class="n">{fmtH(w.sec)}</td>
               <td class="n">{fmtM(w.tok)}</td>
@@ -89,6 +115,36 @@
               </td>
               <td class="n">{w.sess.size}</td>
             </tr>
+            {#if isOpen}
+              {@const inside = sessionsOf(w.sess)}
+              <tr class="detail">
+                <td colspan="6">
+                  {#if inside.length === 0}
+                    <div class="dempty">No session rows for this window.</div>
+                  {:else}
+                    <table class="inner">
+                      <thead>
+                        <tr><th>Project</th><th>Person</th><th>Device</th><th>Surface</th><th>Start</th><th class="n">Length</th><th class="n">Tokens</th><th class="n">Share</th></tr>
+                      </thead>
+                      <tbody>
+                        {#each inside as s (s.id + s.dev)}
+                          <tr>
+                            <td title={s.cwd}>{s.project}</td>
+                            <td>{s.person}</td>
+                            <td class="dim">{s.dev}</td>
+                            <td>{SURFACE[s.surface] ?? s.surface}</td>
+                            <td class="mono">{dayShort(s.first)} {hhmm(s.first)}</td>
+                            <td class="n">{dur(s.sec)}</td>
+                            <td class="n">{fmtM(s.tok)}</td>
+                            <td class="n">{fmtPct(s.tok / (w.tok || 1) * 100)}</td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  {/if}
+                </td>
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
@@ -121,6 +177,20 @@
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .daylabel { font-size: .75rem; }
   .timelabel { font-size: .6875rem; color: var(--theme-dark-color); font-variant-numeric: tabular-nums; }
+  tr.win { cursor: pointer; }
+  tr.win.is-open td { border-bottom: 0; }
+  .chev { display: inline-block; width: .9rem; font-size: .7rem; color: var(--theme-dark-color); }
+  .devs { display: block; font-size: .625rem; color: var(--theme-dark-color); margin-top: .125rem; }
+  tr.detail > td { padding: 0 .8125rem .75rem 2rem; background: var(--theme-bg-color); }
+  tr.detail:hover { background: transparent; }
+  .dempty { padding: .5rem 0; font-size: .75rem; color: var(--theme-dark-color); }
+  table.inner { min-width: 0; font-size: .75rem; background: var(--theme-comp-header-color);
+    border: 1px solid var(--theme-divider-color); border-radius: .5rem; overflow: hidden; }
+  table.inner th, table.inner td { padding: .375rem .625rem; }
+  table.inner thead th { position: static; font-size: .5625rem; }
+  table.inner tbody tr:last-child td { border-bottom: 0; }
+  td.dim { color: var(--theme-dark-color); }
+  td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
   .bar-cell { min-width: 10.5rem; }
   .barrow { display: flex; align-items: center; gap: .5625rem; }
   .barrow .track { flex: 1; min-width: 4rem; }

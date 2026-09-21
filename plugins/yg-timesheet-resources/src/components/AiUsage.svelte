@@ -1,13 +1,14 @@
 <script lang="ts">
   import { Scroller } from '@hcengineering/ui'
   import { usageGet } from '../utils/ai-usage-api'
-  import { filterReport, type Filters, type UsageReport } from '../utils/ai-usage'
+  import { filterReport, periodKey, reportPath, type Filters, type UsageReport } from '../utils/ai-usage'
   import FilterBar from './aiusage/FilterBar.svelte'
   import Tiles from './aiusage/Tiles.svelte'
   import ProjectLedger from './aiusage/ProjectLedger.svelte'
   import Blocks from './aiusage/Blocks.svelte'
   import Surfaces from './aiusage/Surfaces.svelte'
   import Models from './aiusage/Models.svelte'
+  import Sessions from './aiusage/Sessions.svelte'
 
   let filters: Filters = { account: '*', device: '*', project: '*', person: '*', model: '*', days: 14 }
   let report: UsageReport | undefined
@@ -17,21 +18,22 @@
   // treatment rather than the red error banner.
   let forbidden: string | undefined
   let loading = true
-  let loadedDays = -1
+  let loadedKey = ''
 
-  // Only `days` hits the network. Account, device, project, person and model are applied in
-  // filterReport over the rows already in hand, so changing a filter is instant.
-  $: if (filters.days !== loadedDays) { void load(filters.days) }
+  // Only the period (a preset `days` or a complete custom range) hits the network. Account,
+  // device, project, person and model are applied in filterReport over the rows already in
+  // hand, so changing a filter is instant.
+  $: if (periodKey(filters) !== loadedKey) { void load(filters) }
 
   // The sidecar attaches the real HTTP status to err.status (see ai-usage-api.ts). Branch on
   // that status, never on the error message text, since that prose can change.
-  async function load (days: number): Promise<void> {
-    loadedDays = days
+  async function load (f: Filters): Promise<void> {
+    loadedKey = periodKey(f)
     loading = true
     error = undefined
     forbidden = undefined
     try {
-      const r = await usageGet(`/report?days=${days}`)
+      const r = await usageGet(reportPath(f))
       // Loud on drift: a future sidecar change to the envelope shape must fail here, not render
       // silent undefined values further down the page.
       if (r?.report_schema !== 1) throw new Error(`Unsupported report schema: ${String(r?.report_schema)}`)
@@ -91,6 +93,7 @@
         <Blocks {report} {view} {filters} />
         <Surfaces {view} />
         <Models {report} {view} {filters} />
+        <Sessions {report} {view} />
       {/if}
 
       <p class="foot">

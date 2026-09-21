@@ -1,6 +1,6 @@
 import {
   weight, modelVar, filterReport, rollup, sumBy, buildWindows,
-  fmtM, fmtH, fmtPct, money,
+  fmtM, fmtH, fmtPct, money, periodKey, reportPath, sessionList, usedOf5h,
   type UsageReport, type TokenRow, type ActivityRow, type SessionRow
 } from '../utils/ai-usage'
 
@@ -97,6 +97,16 @@ describe('filtering', () => {
     expect(v.act[0][3]).toBe('Other')
   })
 
+  it('under a custom range trusts the report window instead of the newest-row anchor', () => {
+    // The sidecar already bounded the rows to the range; the client must not re-cut them by
+    // maxHour - days (which would drop everything older than `days` in a 90-day custom range).
+    const old: TokenRow = [H - 60 * 86400, 'a1', 'WSL', 'Portal', '~/p', 'terminal', 'opus-5', 1, 1, 1, 1, 1, 'Karthikeyan']
+    const r = report({ tokens: [...report().tokens, old], window: { from: H - 90 * 86400, to: H + 3600, days: 90, custom: true } })
+    const f = { ...ALL, days: 14, range: { from: '2026-06-01', to: '2026-08-31' } }
+    expect(filterReport(r, f).tok).toHaveLength(3)
+    expect(filterReport(r, f).cut).toBe(H - 90 * 86400)
+  })
+
   it('narrows the period relative to the newest row, not to wall clock', () => {
     const old: TokenRow = [H - 10 * 86400, 'a1', 'WSL', 'Portal', '~/p', 'terminal', 'opus-5', 1, 1, 1, 1, 1, 'Karthikeyan']
     const r = report({ tokens: [...report().tokens, old] })
@@ -147,6 +157,23 @@ describe('5-hour windows', () => {
     expect(w[0].models.get('sonnet-5')).toBe(1_000_000)
   })
 
+  it('counts the machines active in a window, so the 5h denominator can scale with them', () => {
+    // Two machines each active 3h inside one window: 6h of active time is 60% of 2 x 5h, not 120%.
+    const act: ActivityRow[] = [
+      [H, 'a1', 'WSL', 'Portal', '~/p', 'terminal', 10800, 'Karthikeyan'],
+      [H + 3600, 'a1', 'MAC', 'Other', '~/o', 'terminal', 10800, 'Priya']
+    ]
+    const w = buildWindows(report().tokens, act, [])
+    expect(w[0].devs.size).toBe(2)
+    expect(w[0].sec).toBe(21600)
+    expect(usedOf5h(w[0])).toBeCloseTo(60, 5)
+  })
+
+  it('a window with tokens but no activity rows still reads as one machine', () => {
+    const w = buildWindows(report().tokens, [], [])
+    expect(usedOf5h(w[0])).toBe(0)
+  })
+
   it('returns nothing for an empty period', () => {
     expect(buildWindows([], [], [])).toHaveLength(0)
   })
@@ -170,5 +197,45 @@ describe('formatters', () => {
 
   it('fmtH renders seconds as hours to two decimals', () => {
     expect(fmtH(3600)).toBe('1.00')
+  })
+})
+
+
+describe('period key and path', () => {
+  it('a preset period is keyed and fetched by days', () => {
+    expect(periodKey({ ...ALL, days: 7 })).toBe('days:7')
+    expect(reportPath({ ...ALL, days: 7 })).toBe('/report?days=7')
+  })
+
+  it('a custom range is keyed and fetched by its dates', () => {
+    const f = { ...ALL, days: 14, range: { from: '2026-06-01', to: '2026-08-31' } }
+    expect(periodKey(f)).toBe('range:2026-06-01..2026-08-31')
+    expect(reportPath(f)).toBe('/report?from=2026-06-01&to=2026-08-31')
+  })
+
+  it('an incomplete custom range falls back to the preset until both dates are set', () => {
+    const f = { ...ALL, days: 14, range: { from: '2026-06-01', to: '' } }
+    expect(periodKey(f)).toBe('days:14')
+    expect(reportPath(f)).toBe('/report?days=14')
+  })
+})
+
+describe('sessionList', () => {
+  const rows: SessionRow[] = [
+    ['s1', 'a1', 'WSL', 'Portal', '~/p', 'terminal', H, H + 600, 1000, 'Karthikeyan'],
+    ['s2', 'a1', 'WSL', 'Other', '~/o', 'cowork', H + 7200, H + 7200 + 90, 500, 'Priya'],
+    ['s3', 'a1', 'WSL', 'Portal', '~/p', 'vscode', H - 86400, H - 86400 + 30, 0, 'Karthikeyan']
+  ]
+
+  it('is newest first with a duration and the surface on each row', () => {
+    const l = sessionList(rows)
+    expect(l.map((x) => x.id)).toEqual(['s2', 's1', 's3'])
+    expect(l[0]).toMatchObject({ surface: 'cowork', person: 'Priya', project: 'Other', sec: 90, tok: 500 })
+    expect(l[1].sec).toBe(600)
+  })
+
+  it('never yields a negative duration', () => {
+    const l = sessionList([['s4', 'a1', 'WSL', 'P', '~/p', 'terminal', H, H - 5, 1, 'X']])
+    expect(l[0].sec).toBe(0)
   })
 })

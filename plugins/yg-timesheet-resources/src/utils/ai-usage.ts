@@ -25,7 +25,7 @@ export interface UsageReport {
   report_schema: number
   tz: string
   generated: number
-  window: { from: number, to: number, days: number }
+  window: { from: number, to: number, days: number, custom?: boolean }
   accounts: UsageAccount[]
   devices: UsageDevice[]
   idle_sec: number
@@ -34,9 +34,12 @@ export interface UsageReport {
   activity: ActivityRow[]
   sessions: SessionRow[]
 }
-export interface Filters { account: string, device: string, project: string, person: string, model: string, days: number }
+// `range` is the custom period (calendar dates in the report zone). While both dates are set it
+// wins over `days`; otherwise the preset `days` applies. See periodKey/reportPath.
+export interface DateRange { from: string, to: string }
+export interface Filters { account: string, device: string, project: string, person: string, model: string, days: number, range?: DateRange }
 export interface Agg { key: string, req: number, tok: number, wt: number }
-export interface UsageWindow { start: number, last: number, tok: number, sec: number, models: Map<string, number>, sess: Set<string> }
+export interface UsageWindow { start: number, last: number, tok: number, sec: number, models: Map<string, number>, sess: Set<string>, devs: Set<string> }
 
 // List price per 1M tokens: in, out, cache-write, cache-read. Order also drives the blue ramp,
 // darkest being most expensive.
@@ -90,10 +93,42 @@ function maxHour (r: UsageReport): number {
   return mx
 }
 
+/** True when the custom range is complete and therefore the period in force. */
+export function customActive (f: Filters): boolean {
+  return f.range !== undefined && f.range.from !== '' && f.range.to !== ''
+}
+
+/** Identity of the period that needs a fetch: a change here (and only here) hits the network. */
+export function periodKey (f: Filters): string {
+  return customActive(f) ? `range:${f.range!.from}..${f.range!.to}` : `days:${f.days}`
+}
+
+export function reportPath (f: Filters): string {
+  return customActive(f)
+    ? `/report?from=${encodeURIComponent(f.range!.from)}&to=${encodeURIComponent(f.range!.to)}`
+    : `/report?days=${f.days}`
+}
+
+export interface SessionItem {
+  id: string, first: number, sec: number, person: string, dev: string, project: string, surface: string, tok: number, cwd: string
+}
+
+/** The session table's rows: newest first, with a duration that is never negative. */
+export function sessionList (rows: SessionRow[]): SessionItem[] {
+  return rows
+    .map((x) => ({
+      id: x[S.id], first: x[S.first], sec: Math.max(0, x[S.last] - x[S.first]), person: x[S.person],
+      dev: x[S.dev], project: x[S.project], surface: x[S.surface], tok: x[S.tok], cwd: x[S.cwd]
+    }))
+    .sort((a, b) => b.first - a.first)
+}
+
 export function filterReport (r: UsageReport, f: Filters): {
   tok: TokenRow[], act: ActivityRow[], sess: SessionRow[], baseW: number, cut: number
 } {
-  const cut = maxHour(r) + 3600 - f.days * 86400
+  // A custom range was already bounded by the sidecar to exactly those days, so the window it
+  // reports is the truth; re-cutting by `days` from the newest row would drop the older part.
+  const cut = r.window.custom === true ? r.window.from : maxHour(r) + 3600 - f.days * 86400
   const inAcct = (a: string): boolean => f.account === '*' || a === f.account
   const inDev = (d: string): boolean => f.device === '*' || d === f.device
 
@@ -152,12 +187,19 @@ export function sumBy<R> (rows: R[], keyFn: (r: R) => string, valFn: (r: R) => n
 
 const FIVE_HOURS = 18000
 
+// Share of the window's capacity used, where capacity is 5h PER MACHINE that was active in it.
+// Active time is summed across machines, so under "All devices" a single 5h denominator reads
+// 196% for two people working in parallel (seen 2026-09-21); this is what that bar means.
+export function usedOf5h (w: UsageWindow): number {
+  return w.sec / (FIVE_HOURS * Math.max(1, w.devs.size)) * 100
+}
+
 export function buildWindows (tok: TokenRow[], act: ActivityRow[], sess: SessionRow[]): UsageWindow[] {
   const hours = [...new Set(tok.map((r) => r[T.hour]))].sort((a, b) => a - b)
   const wins: UsageWindow[] = []
   let end = -Infinity
   for (const h of hours) {
-    if (h >= end) { wins.push({ start: h, last: h, tok: 0, sec: 0, models: new Map(), sess: new Set() }); end = h + FIVE_HOURS }
+    if (h >= end) { wins.push({ start: h, last: h, tok: 0, sec: 0, models: new Map(), sess: new Set(), devs: new Set() }); end = h + FIVE_HOURS }
     wins[wins.length - 1].last = h
   }
   const find = (h: number): UsageWindow | null => {
@@ -171,7 +213,7 @@ export function buildWindows (tok: TokenRow[], act: ActivityRow[], sess: Session
     w.tok += t
     w.models.set(r[T.model], (w.models.get(r[T.model]) ?? 0) + t)
   }
-  for (const r of act) { const w = find(r[A.hour]); if (w != null) w.sec += r[A.sec] }
+  for (const r of act) { const w = find(r[A.hour]); if (w != null) { w.sec += r[A.sec]; w.devs.add(r[A.dev]) } }
   // A session counts in every window it was ALIVE for, not just the one it started in, or a
   // long session leaves later windows reading zero.
   for (const s of sess) {

@@ -5,8 +5,8 @@
 
   export let view: ReturnType<typeof filterReport>
 
-  const LABEL: Record<string, string> = { terminal: 'Terminal', vscode: 'VS Code', sdk: 'SDK / scripted' }
-  const CV: Record<string, string> = { terminal: '--s1', vscode: '--s3', sdk: '--s4' }
+  const LABEL: Record<string, string> = { terminal: 'Terminal', vscode: 'VS Code', sdk: 'SDK / scripted', cowork: 'Cowork (Desktop)' }
+  const CV: Record<string, string> = { terminal: '--s1', vscode: '--s3', sdk: '--s4', cowork: '--s5' }
 
   $: acts = sumBy(view.act, (r) => r[A.surface], (r) => r[A.sec])
   $: agg = rollup(view.tok, (r) => r[T.surface])
@@ -17,9 +17,9 @@
 </script>
 
 <section class="surfaces">
-  <div class="head"><h2>Terminal vs VS Code</h2></div>
+  <div class="head"><h2>Terminal vs VS Code vs Cowork</h2></div>
   <p class="note">Where the work happens, by surface. <code>sdk</code> covers scripted and
-    agent-driven runs.</p>
+    agent-driven runs; <code>Cowork</code> is the Claude Desktop app (collector 1.1 and later).</p>
 
   {#if rows.length === 0}
     <div class="scroll"><div class="empty">No activity in range.</div></div>
@@ -57,7 +57,7 @@
 
 <style lang="scss">
   .surfaces {
-    --s1: #2a78d6; --s3: #1baf7a; --s4: #eda100; --s8: #e34948;
+    --s1: #2a78d6; --s3: #1baf7a; --s4: #eda100; --s5: #8e5bd6; --s8: #e34948;
     margin-bottom: 2.125rem;
   }
   :global(.theme-dark) .surfaces {

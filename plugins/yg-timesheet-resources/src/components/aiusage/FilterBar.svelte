@@ -3,7 +3,7 @@
   // derived from the whole report (never the current filters), so a filter never narrows what
   // you can pick next. Only `days` triggers a refetch; the rest are applied client-side by the
   // parent.
-  import { T, TIER, weight, type Filters, type UsageReport } from '../../utils/ai-usage'
+  import { T, TIER, weight, customActive, type Filters, type UsageReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let filters: Filters
@@ -46,6 +46,23 @@
   $: modelOptions = [...new Set(report.tokens.map((r) => r[T.model]))]
     .sort((a, b) => TIER.indexOf(a) - TIER.indexOf(b))
 
+  // Custom period: two calendar dates in the report zone. The range only takes effect once
+  // both are set (customActive), so half-typed dates never fire a fetch; a preset click clears it.
+  $: custom = filters.range !== undefined
+  $: tzSec = (() => {
+    const m = /^([+-])(\d\d)(\d\d)$/.exec(report.tz || '+0000')
+    return m === null ? 0 : (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 3600 + Number(m[3]) * 60)
+  })()
+  function dayStr (ep: number): string { return new Date((ep + tzSec) * 1000).toISOString().slice(0, 10) }
+  function openCustom (): void {
+    if (filters.range !== undefined) return
+    // Start from the currently shown window so the page does not jump.
+    filters.range = { from: dayStr(report.window.from), to: dayStr(report.window.to - 1) }
+  }
+  function preset (d: number): void {
+    filters.days = d
+    filters.range = undefined
+  }
   function reset (): void {
     filters = { account: '*', device: '*', project: '*', person: '*', model: '*', days: 14 }
   }
@@ -103,14 +120,28 @@
       {#each PERIODS as p (p.d)}
         <button
           type="button"
-          aria-pressed={filters.days === p.d}
-          on:click={() => { filters.days = p.d }}
+          aria-pressed={!custom && filters.days === p.d}
+          on:click={() => preset(p.d)}
         >
           {p.label}
         </button>
       {/each}
+      <button type="button" aria-pressed={custom} on:click={openCustom}>Custom</button>
     </div>
   </div>
+  {#if custom && filters.range !== undefined}
+    <div class="fld">
+      <label for="ai-usage-f-from">From</label>
+      <input id="ai-usage-f-from" type="date" bind:value={filters.range.from} max={filters.range.to || undefined} />
+    </div>
+    <div class="fld">
+      <label for="ai-usage-f-to">To</label>
+      <input id="ai-usage-f-to" type="date" bind:value={filters.range.to} min={filters.range.from || undefined} />
+    </div>
+    {#if !customActive(filters)}
+      <span class="hint">pick both dates</span>
+    {/if}
+  {/if}
   <div class="spacer" />
   <button class="reset" type="button" on:click={reset}>Reset filters</button>
 </div>
@@ -133,7 +164,13 @@
     border-radius: .4375rem; padding: .375rem .5625rem; min-width: 8.25rem;
     appearance: none; cursor: pointer;
   }
-  select:focus-visible, button:focus-visible { outline: 2px solid var(--theme-link-color, #2a78d6); outline-offset: 2px; }
+  input[type="date"] {
+    font: inherit; font-size: .8125rem; color: var(--theme-content-color);
+    background: var(--theme-bg-color); border: 1px solid var(--theme-divider-color);
+    border-radius: .4375rem; padding: .3125rem .5625rem; min-width: 9.5rem;
+  }
+  .hint { font-size: .75rem; color: var(--theme-dark-color); align-self: center; padding-bottom: .4rem; }
+  select:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--theme-link-color, #2a78d6); outline-offset: 2px; }
   .seg { display: flex; border: 1px solid var(--theme-divider-color); border-radius: .4375rem; overflow: hidden; }
   .seg button {
     font-size: .75rem; border: 0; padding: .4375rem .75rem; background: var(--theme-bg-color);
