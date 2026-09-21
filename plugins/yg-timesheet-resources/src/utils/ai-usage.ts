@@ -39,7 +39,7 @@ export interface UsageReport {
 export interface DateRange { from: string, to: string }
 export interface Filters { account: string, device: string, project: string, person: string, model: string, days: number, range?: DateRange }
 export interface Agg { key: string, req: number, tok: number, wt: number }
-export interface UsageWindow { start: number, last: number, tok: number, sec: number, models: Map<string, number>, sess: Set<string>, devs: Set<string> }
+export interface UsageWindow { start: number, last: number, tok: number, sec: number, models: Map<string, number>, sess: Set<string>, devs: Set<string>, projects: Map<string, number> }
 
 // List price per 1M tokens: in, out, cache-write, cache-read. Order also drives the blue ramp,
 // darkest being most expensive.
@@ -199,7 +199,7 @@ export function buildWindows (tok: TokenRow[], act: ActivityRow[], sess: Session
   const wins: UsageWindow[] = []
   let end = -Infinity
   for (const h of hours) {
-    if (h >= end) { wins.push({ start: h, last: h, tok: 0, sec: 0, models: new Map(), sess: new Set(), devs: new Set() }); end = h + FIVE_HOURS }
+    if (h >= end) { wins.push({ start: h, last: h, tok: 0, sec: 0, models: new Map(), sess: new Set(), devs: new Set(), projects: new Map() }); end = h + FIVE_HOURS }
     wins[wins.length - 1].last = h
   }
   const find = (h: number): UsageWindow | null => {
@@ -212,6 +212,9 @@ export function buildWindows (tok: TokenRow[], act: ActivityRow[], sess: Session
     const t = r[T.in] + r[T.out] + r[T.cw] + r[T.cr]
     w.tok += t
     w.models.set(r[T.model], (w.models.get(r[T.model]) ?? 0) + t)
+    // Exact per-project split of the window: token facts are hour x project, unlike session
+    // facts, whose token count is the session's whole life and cannot be cut to a window.
+    w.projects.set(r[T.project], (w.projects.get(r[T.project]) ?? 0) + t)
   }
   for (const r of act) { const w = find(r[A.hour]); if (w != null) { w.sec += r[A.sec]; w.devs.add(r[A.dev]) } }
   // A session counts in every window it was ALIVE for, not just the one it started in, or a

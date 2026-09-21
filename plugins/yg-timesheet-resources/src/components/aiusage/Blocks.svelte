@@ -119,12 +119,19 @@
               {@const inside = sessionsOf(w.sess)}
               <tr class="detail">
                 <td colspan="6">
+                  {@const byProject = [...w.projects.entries()].sort((a, b) => b[1] - a[1])}
+                  <div class="byproj">
+                    <span class="byproj__label">Tokens in this window by project:</span>
+                    {#each byProject as [p, t] (p)}
+                      <span class="chip">{p} <b>{fmtM(t)}</b> {fmtPct(t / (w.tok || 1) * 100)}</span>
+                    {/each}
+                  </div>
                   {#if inside.length === 0}
                     <div class="dempty">No session rows for this window.</div>
                   {:else}
                     <table class="inner">
                       <thead>
-                        <tr><th>Project</th><th>Person</th><th>Device</th><th>Surface</th><th>Start</th><th class="n">Length</th><th class="n">Tokens</th><th class="n">Share</th></tr>
+                        <tr><th>Session project</th><th>Person</th><th>Device</th><th>Surface</th><th>Started</th><th class="n">Length</th><th class="n">Tokens, whole session</th></tr>
                       </thead>
                       <tbody>
                         {#each inside as s (s.id + s.dev)}
@@ -136,11 +143,12 @@
                             <td class="mono">{dayShort(s.first)} {hhmm(s.first)}</td>
                             <td class="n">{dur(s.sec)}</td>
                             <td class="n">{fmtM(s.tok)}</td>
-                            <td class="n">{fmtPct(s.tok / (w.tok || 1) * 100)}</td>
                           </tr>
                         {/each}
                       </tbody>
                     </table>
+                    <div class="dnote">A session can outlive the window (it runs from its first message to its last), so its
+                      token count is for its whole life; the by-project line above is exact for these five hours.</div>
                   {/if}
                 </td>
               </tr>
@@ -184,6 +192,10 @@
   tr.detail > td { padding: 0 .8125rem .75rem 2rem; background: var(--theme-bg-color); }
   tr.detail:hover { background: transparent; }
   .dempty { padding: .5rem 0; font-size: .75rem; color: var(--theme-dark-color); }
+  .byproj { display: flex; flex-wrap: wrap; gap: .375rem; align-items: center; padding: .625rem 0 .5rem; font-size: .75rem; }
+  .byproj__label { color: var(--theme-dark-color); margin-right: .25rem; }
+  .byproj .chip b { font-weight: 600; margin: 0 .2rem; }
+  .dnote { font-size: .6875rem; color: var(--theme-dark-color); padding: .5rem 0 0; max-width: 80ch; }
   table.inner { min-width: 0; font-size: .75rem; background: var(--theme-comp-header-color);
     border: 1px solid var(--theme-divider-color); border-radius: .5rem; overflow: hidden; }
   table.inner th, table.inner td { padding: .375rem .625rem; }

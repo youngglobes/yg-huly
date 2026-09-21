@@ -169,6 +169,13 @@ describe('5-hour windows', () => {
     expect(usedOf5h(w[0])).toBeCloseTo(60, 5)
   })
 
+  it('splits the window tokens by project exactly, from the hourly token facts', () => {
+    const w = buildWindows(report().tokens, [], [])
+    expect(w[0].projects.get('Portal')).toBe(1_000_000)
+    expect(w[0].projects.get('Other')).toBe(1_000_000)
+    expect([...w[0].projects.values()].reduce((a, b) => a + b, 0)).toBe(w[0].tok)
+  })
+
   it('a window with tokens but no activity rows still reads as one machine', () => {
     const w = buildWindows(report().tokens, [], [])
     expect(usedOf5h(w[0])).toBe(0)
