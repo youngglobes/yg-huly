@@ -23,6 +23,7 @@
   import ygTimesheet, { type Timesheet, type TimesheetDay, type TimesheetTask, type ProjectApprovers, type TimesheetRejectCycle } from '@hcengineering/yg-timesheet'
   import { formatHours } from '../utils/week'
   import { sortApprovalGroups } from '../utils/approval-order'
+  import { groupOpen, isMyTeamGroup, parseOverrides, type OpenOverrides } from '../utils/approval-collapse'
   import { approveTask, rejectTask } from '../utils/day'
   import { asRefArray } from '../utils/workflow'
   import { cycleKey, groupCycles, closedCycles } from '../utils/reject-cycle'
@@ -178,6 +179,29 @@
     return closedCycles(byKey.get(cycleKey(employee, task.issue, task.date)) ?? [])
   }
 
+  // Per-person collapse. Smart default: open when I'm an approver on any of the person's pending
+  // tasks (my team), folded otherwise. Manual toggles are explicit overrides kept per browser and
+  // per viewer; a person with no override keeps following the default. See approval-collapse.ts.
+  const OVERRIDES_KEY = `yg-approvals-open:${me}`
+  let overrides: OpenOverrides = parseOverrides(typeof localStorage !== 'undefined' ? localStorage.getItem(OVERRIDES_KEY) : null)
+  function saveOverrides (): void {
+    overrides = overrides
+    try { localStorage.setItem(OVERRIDES_KEY, JSON.stringify(overrides)) } catch { /* private mode etc.: stay in-memory */ }
+  }
+  function groupKey (g: ApprovalGroup): string { return g.employee ?? '__unknown__' }
+  function isOpen (g: ApprovalGroup, ov: OpenOverrides): boolean {
+    return groupOpen(groupKey(g), ov, isMyTeamGroup(g.tasks, me))
+  }
+  function toggleGroup (g: ApprovalGroup): void {
+    overrides[groupKey(g)] = !isOpen(g, overrides)
+    saveOverrides()
+  }
+  function setAll (open: boolean): void {
+    for (const g of groups) overrides[groupKey(g)] = open
+    saveOverrides()
+  }
+  $: openCount = groups.filter((g) => isOpen(g, overrides)).length
+
   // Which rows have their older rounds expanded. Component-local, nothing persisted.
   let expanded = new Set<string>()
   function toggle (id: string): void {
@@ -258,11 +282,25 @@
         <b>{totalTasks}</b> task{totalTasks === 1 ? '' : 's'} from <b>{totalPeople}</b>
         {totalPeople === 1 ? 'person' : 'people'} · <b>{formatHours(totalHours)}</b> awaiting your review
       </span>
+      <span class="spacer" />
+      <span class="ap-fold">
+        <button class="ap-fold__btn" on:click={() => setAll(true)} disabled={openCount === groups.length}>Expand all</button>
+        <button class="ap-fold__btn" on:click={() => setAll(false)} disabled={openCount === 0}>Collapse all</button>
+      </span>
     </div>
     <div class="groups">
       {#each groups as g, i (g.employee ?? i)}
-        <div class="group">
-          <div class="group__head">
+        {@const open = isOpen(g, overrides)}
+        <div class="group" class:group--closed={!open}>
+          <div
+            class="group__head"
+            role="button"
+            tabindex="0"
+            aria-expanded={open}
+            on:click={() => toggleGroup(g)}
+            on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(g) } }}
+          >
+            <span class="group__chev" aria-hidden="true">{open ? '▾' : '▸'}</span>
             <Avatar person={g.employee != null ? empById.get(g.employee) : undefined} name={g.name} size={'medium'} />
             <span class="group__who">
               <span class="group__name">{g.name}</span>
@@ -272,7 +310,7 @@
             <span class="group__count">{g.tasks.length} task{g.tasks.length === 1 ? '' : 's'}</span>
             <span class="group__hrs">{formatHours(g.hours)}</span>
           </div>
-          {#each g.tasks as task (task._id)}
+          {#each open ? g.tasks : [] as task (task._id)}
             {@const history = historyFor(task, cyclesByKey)}
             {@const latest = history[history.length - 1]}
             <div class="approw">
@@ -350,6 +388,26 @@
     padding: 13px 16px;
     border-bottom: 1px solid var(--yg-border);
     background: var(--yg-panel-soft);
+    cursor: pointer;
+    user-select: none;
+    &:hover { background: var(--yg-grey-bg); }
+    &:focus-visible { outline: 2px solid var(--yg-accent); outline-offset: -2px; }
+  }
+  .group--closed .group__head { border-bottom: none; }
+  .group__chev { width: 14px; font-size: 12px; color: var(--yg-text-faint); text-align: center; }
+  .ap-fold { display: flex; gap: 4px; }
+  .ap-fold__btn {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--yg-text-dim);
+    background: transparent;
+    border: 1px solid var(--yg-border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    cursor: pointer;
+    &:hover:not(:disabled) { background: var(--yg-grey-bg); }
+    &:disabled { opacity: 0.45; cursor: default; }
   }
   .group__who { display: flex; flex-direction: column; }
   .group__name { font-weight: 650; font-size: 14px; letter-spacing: -0.01em; }
