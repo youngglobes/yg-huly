@@ -81,7 +81,7 @@
   } from '@hcengineering/ui'
   import view from '@hcengineering/view'
   import { ObjectBox } from '@hcengineering/view-resources'
-  import { createEventDispatcher, onDestroy } from 'svelte'
+  import { createEventDispatcher, onDestroy, tick } from 'svelte'
 
   import { activeComponent, activeMilestone, generateIssueShortLink, updateIssueRelation } from '../issues'
   import tracker from '../plugin'
@@ -229,6 +229,8 @@
   let currentProject: Project | undefined
 
   let descriptionBox: AttachmentStyledBox | undefined
+  let titleBox: EditBox | undefined
+  let createMoreProcessing = false
 
   $: updateIssueStatusId(object, currentProject)
   $: updateAssigneeId(object, currentProject)
@@ -261,6 +263,45 @@
     template = undefined
     object = getDefaultObject(undefined, true)
     fillDefaults(hierarchy, object, tracker.class.Issue)
+  }
+
+  // Reset for the "create and new" flow: title, description, labels, sub-issues,
+  // attachments and estimation go; everything the user chose in the properties row stays.
+  function resetObjectKeepingProperties (): void {
+    const kept = {
+      space: object.space,
+      status: object.status,
+      priority: object.priority,
+      assignee: object.assignee,
+      component: object.component,
+      milestone: object.milestone,
+      dueDate: object.dueDate,
+      parentIssue: object.parentIssue
+    }
+    templateId = undefined
+    template = undefined
+    appliedTemplateId = undefined
+    attachments.clear()
+    attachments = attachments
+    object = getDefaultObject(undefined, true)
+    fillDefaults(hierarchy, object, tracker.class.Issue)
+    // Applied last so neither getDefaultObject nor fillDefaults can override the choices.
+    object = { ...object, ...kept }
+    void tick().then(() => {
+      titleBox?.focusInput()
+    })
+  }
+
+  async function createAndNew (): Promise<void> {
+    if (!canSave || createMoreProcessing) {
+      return
+    }
+    createMoreProcessing = true
+    try {
+      await createIssue(true)
+    } finally {
+      createMoreProcessing = false
+    }
   }
 
   $: if (templateId !== undefined) {
@@ -445,7 +486,7 @@
     void updateCurrentProjectPref(_space)
   }
 
-  async function createIssue (): Promise<void> {
+  async function createIssue (keepOpen: boolean = false): Promise<void> {
     const _id: Ref<Issue> = generateId()
     if (
       !canSave ||
@@ -578,7 +619,13 @@
 
       draftController.remove()
       descriptionBox?.removeDraft(false)
-      isAssigneeTouched = false
+      if (keepOpen) {
+        // The card is not closing, so clear what belongs to the issue we just filed and
+        // leave the properties the user picked in place for the next one.
+        resetObjectKeepingProperties()
+      } else {
+        isAssigneeTouched = false
+      }
       const d1 = Date.now()
       const analyticsProps = await docCreateManager.getAnalyticsProps(currentProject, value)
       Analytics.handleEvent(TrackerEvents.IssueCreated, {
@@ -769,6 +816,7 @@
 <Card
   label={tracker.string.NewIssue}
   okAction={createIssue}
+  okMoreAction={createAndNew}
   {canSave}
   okLabel={tracker.string.SaveIssue}
   on:close={() => dispatch('close')}
@@ -854,6 +902,7 @@
   </svelte:fragment>
   <div id="issue-name" class="m-3 clear-mins">
     <EditBox
+      bind:this={titleBox}
       focusIndex={1}
       bind:value={object.title}
       placeholder={tracker.string.IssueTitlePlaceholder}
@@ -1067,9 +1116,18 @@
       }}
     >
       <Button
+        loading={createMoreProcessing}
+        focusIndex={10000}
+        disabled={canSave !== true || okProcessing}
+        label={tracker.string.CreateAndNew}
+        kind={'regular'}
+        size={'large'}
+        on:click={createAndNew}
+      />
+      <Button
         loading={okProcessing}
         focusIndex={10001}
-        disabled={canSave !== true}
+        disabled={canSave !== true || createMoreProcessing}
         label={okLabel}
         kind={'primary'}
         size={'large'}

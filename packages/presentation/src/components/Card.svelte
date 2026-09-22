@@ -32,6 +32,9 @@
   export let label: IntlString
   export let labelProps: any | undefined = undefined
   export let okAction: () => Promise<void> | void
+  // Optional secondary action bound to Ctrl/Cmd+Shift+Enter. When set, the card runs it
+  // without closing, so a dialog can offer a 'create and keep the form open' flow.
+  export let okMoreAction: (() => Promise<void> | void) | undefined = undefined
   export let canSave: boolean = false
   export let okLabel: IntlString = presentation.string.Create
   export let onCancel: (() => void) | undefined = undefined
@@ -64,7 +67,11 @@
     if (target) {
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault()
-        handleOkClick()
+        if (event.shiftKey && okMoreAction !== undefined) {
+          okMoreAction()
+        } else {
+          handleOkClick()
+        }
       } else if (event.key === 'Enter') {
         // ignore customized editable divs to not interrupt multiline behavior
         if (!target.isContentEditable && target.nodeName !== 'TEXTAREA') {
