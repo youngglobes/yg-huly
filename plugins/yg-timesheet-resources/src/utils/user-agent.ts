@@ -31,3 +31,13 @@ export function parseUserAgent (ua: string): Parsed {
   if (ua == null || ua === '') return { device: 'Unknown', browser: 'Unknown' }
   return { device: osLabel(ua), browser: browserLabel(ua) }
 }
+
+// Phone or tablet, by user agent. Used to hide punch in/out on mobile (decided 2026-09-22: a
+// stale phone tab re-closing a session is how the overlap incident happened, and punching is
+// meant to be done at the desk). Same tokens osLabel uses for the "/ Mobile" device labels, so
+// what HR sees on a punch and what gets hidden can never disagree. A missing UA is a desktop:
+// hiding is the convenience, not the security boundary, so it must never lock a real laptop out.
+export function isMobileDevice (ua: string | undefined): boolean {
+  if (ua == null || ua === '') return false
+  return /Android|iPhone|iPad|iPod/i.test(ua)
+}

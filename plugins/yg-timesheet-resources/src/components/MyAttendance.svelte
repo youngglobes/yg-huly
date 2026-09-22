@@ -30,12 +30,17 @@
     formatDuration
   } from '../utils/attendance'
   import { createPunchIn, closePunchOut } from '../utils/attendance-write'
+  import { isMobileDevice } from '../utils/user-agent'
   import { isLate, minutesLateOf, dayLateStatus } from '../utils/late'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
   import HolidayCalendarView from './HolidayCalendarView.svelte'
   import LateReasonPopup from './LateReasonPopup.svelte'
 
   const me = getCurrentEmployee()
+  // Punching is desk-only (2026-09-22): on a phone or tablet the punch panel is replaced by a
+  // notice and the page stays read-only. Client-side only; the server does not enforce this yet
+  // (a future hard rule would check the `device` stamp in OnAttendancePunch).
+  const mobile = isMobileDevice(typeof navigator !== 'undefined' ? navigator.userAgent : undefined)
   const client = getClient()
 
   // Current employee's shift start (minutes since midnight), or undefined = exempt from late flow.
@@ -224,6 +229,29 @@
 
     <!-- Hero band: today's live punch action + at a glance. -->
     <section class="att-hero">
+      {#if mobile}
+        <div class="att-panel att-punch att-punch--mobile" class:is-on={punchedIn}>
+          <div class="att-punch__eyebrow">
+            {#if punchedIn && openSession !== undefined}
+              <span class="att-status att-status--on"><span class="att-status__dot" /><Label label={ygTimesheet.string.OnTheClock} /></span>
+              <span class="att-chip att-chip--lg" class:att-chip--wfh={openSession.mode === 'wfh'}>
+                <Label label={openSession.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} />
+              </span>
+            {:else}
+              <span class="att-status"><span class="att-status__dot" /><Label label={ygTimesheet.string.NotPunchedIn} /></span>
+            {/if}
+          </div>
+          {#if punchedIn && openSession !== undefined}
+            <div class="att-timer">{formatDuration(nowMs - openSession.punchIn)}</div>
+          {:else}
+            <div class="att-bigclock">{timeFmt.format(nowMs)}</div>
+          {/if}
+          <div class="att-mobile-note">
+            <b>Punch in and out from your laptop or desktop.</b>
+            Attendance is view-only on a phone or tablet.
+          </div>
+        </div>
+      {:else}
       <div class="att-panel att-punch" class:is-on={punchedIn} class:is-wfh={punchedIn && openSession?.mode === 'wfh'}>
         {#if punchedIn && openSession !== undefined}
           <div class="att-punch__eyebrow">
@@ -281,6 +309,7 @@
           </button>
         {/if}
       </div>
+      {/if}
 
       <div class="att-right">
         <HolidayCalendarView />
@@ -477,6 +506,12 @@
   .att-reminder-toggle:hover { color: var(--yg-text); border-color: var(--yg-border-strong); }
   .att-reminder-toggle__ico { flex: 0 0 auto; }
   .att-reminder-toggle--on { color: var(--att-wfh); border-color: var(--att-wfh); }
+  .att-punch--mobile { justify-content: flex-start; }
+  .att-mobile-note {
+    margin-top: 14px; padding: 12px 14px; border-radius: 10px; font-size: 13px; line-height: 1.45;
+    color: var(--yg-text-dim); background: var(--yg-grey-bg); border: 1px dashed var(--yg-border-strong);
+  }
+  .att-mobile-note b { display: block; color: var(--yg-text); font-weight: 650; margin-bottom: 2px; }
   .att-cta--in { background: var(--yg-ink); color: var(--yg-ink-fg); }
   .att-cta--in:hover:not(:disabled) { filter: brightness(1.15); }
   .att-cta--out { background: var(--att-wfh); color: #fff; }

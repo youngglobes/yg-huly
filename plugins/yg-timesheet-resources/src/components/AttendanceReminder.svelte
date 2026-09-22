@@ -18,6 +18,7 @@
   import ygTimesheet, { type AttendanceSession, type AttendanceReminderSettings } from '@hcengineering/yg-timesheet'
   import { evaluateReminder, DEFAULT_REMINDER_CONFIG, type ReminderConfig, type ReminderKind } from '../utils/reminder'
   import { findOpenSession } from '../utils/attendance'
+  import { isMobileDevice } from '../utils/user-agent'
 
   const OPT_IN_KEY = 'yg-punch-reminders-optin'
   const optedIn = (): boolean => typeof localStorage !== 'undefined' && localStorage.getItem(OPT_IN_KEY) === 'on'
@@ -130,8 +131,12 @@
     bannerKind = 'none'
   }
 
+  // Punching is desk-only (see MyAttendance.svelte): a reminder on a phone would only lead to a
+  // panel that is not there, so the controller is inert on mobile.
+  const mobile = isMobileDevice(typeof navigator !== 'undefined' ? navigator.userAgent : undefined)
+
   function evaluate (): void {
-    if (!optedIn()) {
+    if (mobile || !optedIn()) {
       bannerKind = 'none'
       return
     }
