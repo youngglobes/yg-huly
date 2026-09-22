@@ -1102,6 +1102,22 @@
     <DocCreateExtComponent manager={docCreateManager} kind={'buttons'} space={currentProject} props={extraProps} />
   </svelte:fragment>
   <svelte:fragment slot="after-buttons" let:handleOkClick let:okProcessing let:focusIndex let:canSave let:okLabel>
+    <!--
+      Deliberately OUTSIDE DocCreateExtComponent: that component renders its default slot ONLY when
+      no extension is registered for the kind, and the github plugin registers a `createButton`
+      extension for tracker.class.Issue (verified in the running model.json, 2026-09-22). Nested
+      here, this button silently never rendered on a workspace with github installed, which is
+      every one of ours.
+    -->
+    <Button
+      loading={createMoreProcessing}
+      focusIndex={10000}
+      disabled={canSave !== true || okProcessing}
+      label={tracker.string.CreateAndNew}
+      kind={'regular'}
+      size={'large'}
+      on:click={createAndNew}
+    />
     <DocCreateExtComponent
       manager={docCreateManager}
       kind={'createButton'}
@@ -1115,15 +1131,6 @@
         okLabel
       }}
     >
-      <Button
-        loading={createMoreProcessing}
-        focusIndex={10000}
-        disabled={canSave !== true || okProcessing}
-        label={tracker.string.CreateAndNew}
-        kind={'regular'}
-        size={'large'}
-        on:click={createAndNew}
-      />
       <Button
         loading={okProcessing}
         focusIndex={10001}
