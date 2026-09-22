@@ -56,13 +56,39 @@ const DEFAULT_PRICE: [number, number, number, number] = [3, 15, 3.75, 0.3]
 export const TIER = ['opus-5', 'opus-4-8', 'opus-4-7', 'sonnet-5', 'sonnet-4-6', 'haiku-4-5', 'fable-5']
 const MVAR = ['--m1', '--m2', '--m2', '--m3', '--m3', '--m4', '--m5']
 
+// A model id the collector never saw before is usually a point release of a family we do know:
+// the current Fable is `claude-fable-5-1`, which reaches here as `fable-5-1`. Exact match wins,
+// so `opus-4-8` stays its own entry; otherwise trailing `-N` segments are dropped one at a time
+// and the first key that exists is used, so `fable-5-1` prices as `fable-5`. A genuinely new
+// family (`quasar-9`) still finds nothing and takes the caller's default. Found 2026-09-22:
+// `fable-5-1` had been priced at the Sonnet default, roughly 3x its real rate.
+function familyKey (model: string, known: (k: string) => boolean): string | undefined {
+  if (known(model)) return model
+  const parts = model.split('-')
+  for (let n = parts.length - 1; n >= 2; n--) {
+    const k = parts.slice(0, n).join('-')
+    if (known(k)) return k
+  }
+  return undefined
+}
+
 export function weight (model: string, i: number, o: number, cw: number, cr: number): number {
-  const p = PRICE[model] ?? DEFAULT_PRICE
+  const k = familyKey(model, (x) => PRICE[x] !== undefined)
+  const p = k !== undefined ? PRICE[k] : DEFAULT_PRICE
   return (i * p[0] + o * p[1] + cw * p[2] + cr * p[3]) / 1e6
 }
 
+// Position in the expensive-to-cheap ramp, by family, so a point release sorts next to its own
+// family instead of ahead of everything (indexOf -1). Unknown families sort last.
+export function modelRank (model: string): number {
+  const k = familyKey(model, (x) => TIER.includes(x))
+  const i = k === undefined ? -1 : TIER.indexOf(k)
+  return i < 0 ? TIER.length : i
+}
+
 export function modelVar (model: string): string {
-  const i = TIER.indexOf(model)
+  const k = familyKey(model, (x) => TIER.includes(x))
+  const i = k === undefined ? -1 : TIER.indexOf(k)
   return i < 0 ? '--m5' : MVAR[i]
 }
 

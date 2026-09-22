@@ -3,7 +3,7 @@
   // derived from the whole report (never the current filters), so a filter never narrows what
   // you can pick next. Only `days` triggers a refetch; the rest are applied client-side by the
   // parent.
-  import { T, TIER, weight, customActive, type Filters, type UsageReport } from '../../utils/ai-usage'
+  import { T, modelRank, weight, customActive, type Filters, type UsageReport } from '../../utils/ai-usage'
 
   export let report: UsageReport
   export let filters: Filters
@@ -44,7 +44,7 @@
 
   // Models ordered by tier, most expensive first, matching the ramp used for their swatches.
   $: modelOptions = [...new Set(report.tokens.map((r) => r[T.model]))]
-    .sort((a, b) => TIER.indexOf(a) - TIER.indexOf(b))
+    .sort((a, b) => modelRank(a) - modelRank(b) || a.localeCompare(b))
 
   // Custom period: two calendar dates in the report zone. The range only takes effect once
   // both are set (customActive), so half-typed dates never fire a fetch; a preset click clears it.

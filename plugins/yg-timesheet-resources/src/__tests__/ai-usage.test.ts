@@ -1,6 +1,6 @@
 import {
   weight, modelVar, filterReport, rollup, sumBy, buildWindows,
-  fmtM, fmtH, fmtPct, money, periodKey, reportPath, sessionList, usedOf5h,
+  fmtM, fmtH, fmtPct, money, periodKey, reportPath, sessionList, usedOf5h, modelRank,
   type UsageReport, type TokenRow, type ActivityRow, type SessionRow
 } from '../utils/ai-usage'
 
@@ -33,6 +33,35 @@ function report (over: Partial<UsageReport> = {}): UsageReport {
 }
 
 const ALL = { account: '*', device: '*', project: '*', person: '*', model: '*', days: 14 }
+
+describe('model family pricing', () => {
+  it('prices a point release at its family rate (claude-fable-5-1 arrives as fable-5-1)', () => {
+    // Fable: 1/5/1.25/0.1 per 1M. Without the family fallback this fell to the sonnet default.
+    expect(weight('fable-5-1', 1_000_000, 0, 0, 0)).toBeCloseTo(1, 6)
+    expect(weight('fable-5', 1_000_000, 0, 0, 0)).toBeCloseTo(1, 6)
+    expect(weight('sonnet-5-1', 1_000_000, 0, 0, 0)).toBeCloseTo(3, 6)
+  })
+
+  it('prefers an exact match over the family fallback', () => {
+    // opus-4-8 is its own entry; it must not be read as an "opus-4" family.
+    expect(weight('opus-4-8', 1_000_000, 0, 0, 0)).toBeCloseTo(15, 6)
+  })
+
+  it('still falls back to the mid tier for a family it has never seen', () => {
+    expect(weight('quasar-9-2', 1_000_000, 0, 0, 0)).toBeCloseTo(3, 6)
+  })
+
+  it('ranks a point release next to its family and an unknown model last', () => {
+    const order = ['fable-5-1', 'opus-5', 'quasar-9', 'sonnet-5'].sort((a, b) => modelRank(a) - modelRank(b))
+    expect(order).toEqual(['opus-5', 'sonnet-5', 'fable-5-1', 'quasar-9'])
+  })
+
+  it('colours a point release like its family, not like an unknown model', () => {
+    expect(modelVar('fable-5-1')).toBe(modelVar('fable-5'))
+    expect(modelVar('sonnet-5-1')).toBe(modelVar('sonnet-5'))
+    expect(modelVar('quasar-9')).toBe('--m5')
+  })
+})
 
 describe('weighting', () => {
   it('prices a model at its list rate', () => {
