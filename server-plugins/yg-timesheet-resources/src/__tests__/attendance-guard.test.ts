@@ -20,6 +20,16 @@ describe('originalPunchOut', () => {
     expect(originalPunchOut(txes, cur)).toBe(945)
   })
 
+  it('restores the SERVER time the close arrived, never the browser time it carried', () => {
+    // Found on prod 2026-09-22: the tx log holds only client txes, so operations.punchOut is the
+    // device's clock. Here the device is an hour fast; the restore must still be 945.
+    const txes = [
+      { _id: 'tx-first-out', modifiedOn: 945, operations: { punchOut: 945 + 3_600_000 } },
+      { _id: cur, modifiedOn: 1116, operations: { punchOut: 1116 } }
+    ]
+    expect(originalPunchOut(txes, cur)).toBe(945)
+  })
+
   it('keeps the earliest close when several stale re-closes have already been recorded', () => {
     const txes = [
       { _id: cur, modifiedOn: 1200, operations: { punchOut: 1200 } },

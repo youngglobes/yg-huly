@@ -20,16 +20,24 @@ export interface PunchTxLike {
 }
 
 /**
- * The punchOut a session ALREADY had before `currentTxId` tried to close it again, or undefined
- * when this is the first punch-out (the legit case). Among earlier closes the earliest wins: with
- * this guard in place every stale re-close is reverted, so any later close recorded in the tx log
- * is itself a stale attempt, and the first one is the real punch-out.
+ * The time a session was ALREADY closed at before `currentTxId` tried to close it again, or
+ * undefined when this is the first punch-out (the legit case). Among earlier closes the earliest
+ * wins: with this guard in place every stale re-close is reverted, so any later close recorded in
+ * the tx log is itself a stale attempt, and the first one is the real punch-out.
+ *
+ * The value returned is the tx's `modifiedOn`, NOT the `punchOut` it carried. Only CLIENT txes
+ * reach the tx log (verified on prod 2026-09-22: the trigger's own System-authored stamp is not
+ * stored), so `operations.punchOut` is the browser's clock, which this whole trigger exists not to
+ * trust: a user whose device clock is wrong would otherwise have a reverted session restored to
+ * their bogus time. `modifiedOn` is overwritten server-side for every non-System tx by
+ * ModifiedMiddleware, so it is the moment the close ARRIVED, within milliseconds of what the
+ * trigger stamped, and a client cannot influence it.
  */
 export function originalPunchOut (txes: PunchTxLike[], currentTxId: string): Timestamp | undefined {
   const prior = txes
     .filter((t) => t._id !== currentTxId && t.operations.punchOut !== undefined)
     .sort((a, b) => a.modifiedOn - b.modifiedOn)
-  return prior[0]?.operations.punchOut
+  return prior[0]?.modifiedOn
 }
 
 /** True when a session other than `selfId` is still open: the punch-in that created `selfId` is a duplicate. */
