@@ -1,5 +1,9 @@
 {
   "string": {
+    "ShiftNameRequired": "Enter a name",
+    "ShiftNameTaken": "A shift with this name already exists",
+    "ShiftDayStartRequired": "Set the time the day starts",
+    "ShiftAdded": "Shift added",
     "Timesheet": "Timesheet",
     "MyTimesheet": "My Timesheet",
     "Week": "Week",

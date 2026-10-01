@@ -359,7 +359,6 @@ export default plugin(ygTimesheetId, {
     AiUsage: '' as AnyComponent,
     AiUsageConfig: '' as AnyComponent,
     AiUsageGuard: '' as AnyComponent,
-    ShiftTypesSettings: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -573,7 +572,11 @@ export default plugin(ygTimesheetId, {
     DayStartInsideHours: '' as IntlString,
     DayStartAppliesToNew: '' as IntlString,
     ShiftArchivedHasEmployees: '' as IntlString,
-    NextDay: '' as IntlString
+    NextDay: '' as IntlString,
+    ShiftNameRequired: '' as IntlString,
+    ShiftNameTaken: '' as IntlString,
+    ShiftDayStartRequired: '' as IntlString,
+    ShiftAdded: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

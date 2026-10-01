@@ -300,14 +300,6 @@ export function createModel (builder: Builder): void {
             component: ygTimesheet.component.AttendanceReminderSettings,
             accessLevel: AccountRole.Maintainer,
             position: 'bottom'
-          },
-          {
-            id: 'shifts',
-            label: ygTimesheet.string.Shifts,
-            icon: setting.icon.Setting,
-            component: ygTimesheet.component.ShiftTypesSettings,
-            accessLevel: AccountRole.Maintainer,
-            position: 'bottom'
           }
         ]
       }

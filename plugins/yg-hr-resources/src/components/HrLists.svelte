@@ -32,6 +32,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { IconAdd, IconDelete, Label } from '@hcengineering/ui'
   import ygTimesheet from '@hcengineering/yg-timesheet'
+  import ShiftTypesSection from './ShiftTypesSection.svelte'
   import ygHr, {
     isSystemDesignation,
     type Department,
@@ -466,6 +467,11 @@
           </form>
         </div>
       </div>
+
+      <div class="hs-card hs-card--wide">
+        <div class="hs-card__title"><Label label={ygTimesheet.string.Shifts} /></div>
+        <ShiftTypesSection />
+      </div>
     {:else}
       <div class="hs-restricted">
         <Label label={ygHr.string.HrSettingsRestricted} />
@@ -523,6 +529,7 @@
     padding: 22px 26px;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
+  .hs-card--wide { margin-top: 16px; }
   .hs-card__title {
     font-size: 16px;
     font-weight: 600;

@@ -59,8 +59,12 @@ behaviour: it selects records by `punchInUserTime` between `<date> 00:00:00` and
 
 ## Config page
 
-A "Shifts" entry in the Timesheet app's settings navigation, next to "Reminder settings",
-Maintainer access (same as the existing entries in `models/yg-timesheet/src/index.ts:270-292`).
+A "Shifts" section at the bottom of **HR Settings** (HR app, `HrLists.svelte`, component
+`plugins/yg-hr-resources/src/components/ShiftTypesSection.svelte`), visible to HR members and
+admins like the other HR lists. (Amended 2026-10-01 after beta review: it first shipped as a
+separate Timesheet settings page; moved so shifts sit with the other HR configuration. Clicking
+"Add shift type" with missing fields shows "Enter a name" / "A shift with this name already
+exists" / "Set the time the day starts"; the inside-hours warning also shows on the add row.)
 
 - One row per shift type: name, description, day start, usual hours, number of employees
   assigned, archive toggle. Add / edit in place.
