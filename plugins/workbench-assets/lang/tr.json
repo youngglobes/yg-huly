@@ -1,5 +1,7 @@
 {
   "string": {
+    "ServerNotResponding": "YG Portal isn't responding right now.",
+    "ServerNotRespondingHint": "Please don't refresh: keep this tab open, and changes you just made will be sent when it's back.",
     "More": "Daha fazla...",
     "Delete": "Sil",
     "ShowMenu": "Menüyü göster",

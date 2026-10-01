@@ -39,6 +39,7 @@ import core, {
   readOnlyGuestAccountUuid,
   SocialIdType,
   systemAccountUuid,
+  trackOpenSpans,
   type Tx,
   TxFactory,
   type TxWorkspaceEvent,
@@ -87,6 +88,7 @@ import {
 } from '@hcengineering/server-core'
 import { generateToken, type Token } from '@hcengineering/server-token'
 import { ClientSession } from './client'
+import { describeHang, setStage } from './hangInfo'
 import { sendResponse } from './utils'
 import { Workspace } from './workspace'
 
@@ -402,7 +404,8 @@ export class TSessionManager implements SessionManager {
               wsId,
               total: s.session.requests.size,
               user: s.session.getUser(),
-              params: cutObjectArray(r.params)
+              params: cutObjectArray(r.params),
+              ...describeHang(r, now)
             })
           }
         }
@@ -1476,14 +1479,18 @@ export class TSessionManager implements SessionManager {
       service.requests.set(reqId, {
         id: reqId,
         params: request,
-        start: st
+        start: st,
+        stage: 'queued',
+        stageAt: st
       })
+      const req = service.requests.get(reqId)
 
       const f = (service as any)[request.method]
       try {
         const params = [...request.params]
 
         if (ws.isBackpressure()) {
+          setStage(req, 'backpressure')
           await ws.backpressure(requestCtx)
         }
 
@@ -1492,16 +1499,20 @@ export class TSessionManager implements SessionManager {
           ws.sendPong()
           return
         }
+        setStage(req, 'workspace')
         await this.counters.withCounter('request', 1, () =>
           workspace.with(async (pipeline) => {
+            setStage(req, 'pipeline')
             await requestCtx.with(
               '🧨' + request.method,
               { source, mode: 'websocket' },
-              (callTx) =>
-                f.apply(service, [
+              (callTx) => {
+                if (req !== undefined) req.openSpans = trackOpenSpans(callTx)
+                return f.apply(service, [
                   this.createOpContext(callTx, requestCtx, pipeline, request.id, service, ws, rateLimit),
                   ...params
-                ]),
+                ])
+              },
               {
                 user: service.getUser(),
                 socialId: service.getRawAccount().primarySocialId,
@@ -1560,20 +1571,27 @@ export class TSessionManager implements SessionManager {
       service.requests.set(reqId, {
         id: reqId,
         params: {},
-        start: st
+        start: st,
+        stage: 'queued',
+        stageAt: st
       })
+      const req = service.requests.get(reqId)
 
       try {
+        setStage(req, 'workspace')
         await this.counters.withCounter('request', 1, () =>
           workspace.with(async (pipeline) => {
+            setStage(req, 'pipeline')
             await requestCtx.with(
               '🧨 ' + method,
               { source, mode: 'rpc' },
-              (callTx) =>
-                operation(
+              (callTx) => {
+                if (req !== undefined) req.openSpans = trackOpenSpans(callTx)
+                return operation(
                   this.createOpContext(callTx, requestCtx, pipeline, reqId, service, ws, rateLimitStatus),
                   rateLimitStatus
-                ),
+                )
+              },
               {
                 user: service.getUser(),
                 socialId: service.getRawAccount().primarySocialId,

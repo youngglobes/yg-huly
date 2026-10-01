@@ -32,6 +32,7 @@ import {
   type MeasureContext,
   type ModelDb,
   type Obj,
+  type OpenSpan,
   type OperationDomain,
   type PersonId,
   type Ref,
@@ -552,6 +553,10 @@ export interface SessionRequest {
   id: string
   params: any
   start: number
+  // Hang diagnostics: where the request is now (see server/src/hangInfo.ts) and which steps are open.
+  stage?: string
+  stageAt?: number
+  openSpans?: OpenSpan[]
 }
 
 export interface ClientSessionCtx {

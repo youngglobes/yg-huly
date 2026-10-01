@@ -7,7 +7,10 @@ import {
   setOperationLogProfiling,
   registerOperationLog,
   updateOperationLog,
-  addOperation
+  addOperation,
+  trackOpenSpans,
+  MAX_OPEN_SPANS,
+  type OpenSpan
 } from '../context'
 import { newMetrics } from '../metrics'
 import type { MeasureLogger, MeasureContext } from '../types'
@@ -462,6 +465,76 @@ describe('context', () => {
         expect.any(Number),
         expect.objectContaining({ op: 'test' })
       )
+    })
+  })
+
+  describe('open span tracking', () => {
+    it('records nothing unless tracking was started', async () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      await ctx.with('a', {}, async () => {})
+      expect((ctx as any).openSpans).toBeUndefined()
+    })
+
+    it('lists running spans, children included, and clears them when done', async () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      const spans = trackOpenSpans(ctx) as OpenSpan[]
+      let seen: string[] = []
+      await ctx.with('outer', {}, async (c) => {
+        await c.with('inner', {}, async () => {
+          seen = spans.map((s) => s.name)
+        })
+      })
+      expect(seen).toEqual(['outer', 'inner'])
+      expect(spans).toEqual([])
+    })
+
+    it('clears a span when the operation rejects', async () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      const spans = trackOpenSpans(ctx) as OpenSpan[]
+      await expect(ctx.with('bad', {}, async () => { throw new Error('x') })).rejects.toThrow('x')
+      expect(spans).toEqual([])
+    })
+
+    it('clears a span when a sync operation throws', () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      const spans = trackOpenSpans(ctx) as OpenSpan[]
+      expect(() => ctx.with('bad', {}, () => { throw new Error('x') })).toThrow('x')
+      expect(spans).toEqual([])
+    })
+
+    it('keeps a hung span listed with its start time', () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      const spans = trackOpenSpans(ctx) as OpenSpan[]
+      const before = Date.now()
+      void ctx.with('stuck', {}, async () => await new Promise(() => {}))
+      expect(spans.map((s) => s.name)).toEqual(['stuck'])
+      expect(spans[0].start).toBeGreaterThanOrEqual(before)
+    })
+
+    it('removes only the finished span when parallel spans end out of order', async () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      const spans = trackOpenSpans(ctx) as OpenSpan[]
+      let releaseA: () => void = () => {}
+      const a = ctx.with('a', {}, async () => { await new Promise<void>((resolve) => { releaseA = resolve }) })
+      const b = ctx.with('b', {}, async () => {})
+      await b
+      expect(spans.map((s) => s.name)).toEqual(['a'])
+      releaseA()
+      await a
+      expect(spans).toEqual([])
+    })
+
+    it(`never grows past ${MAX_OPEN_SPANS} entries`, () => {
+      const ctx = new MeasureMetricsContext('t', {})
+      const spans = trackOpenSpans(ctx) as OpenSpan[]
+      for (let i = 0; i < MAX_OPEN_SPANS + 10; i++) {
+        void ctx.with(`s${i}`, {}, async () => await new Promise(() => {}))
+      }
+      expect(spans.length).toBe(MAX_OPEN_SPANS)
+    })
+
+    it('returns undefined for contexts that cannot track', () => {
+      expect(trackOpenSpans(new NoMetricsContext())).toBeUndefined()
     })
   })
 })

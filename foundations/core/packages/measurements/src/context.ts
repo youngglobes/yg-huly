@@ -18,6 +18,12 @@ const errorPrinter = ({ message, stack, ...rest }: Error): object => ({
   stack,
   ...rest
 })
+function removeSpan (spans: OpenSpan[] | undefined, span: OpenSpan): void {
+  if (spans === undefined) return
+  const i = spans.indexOf(span)
+  if (i >= 0) spans.splice(i, 1)
+}
+
 function replacer (value: any): any {
   return value instanceof Error ? errorPrinter(value) : value
 }
@@ -64,6 +70,9 @@ export class MeasureMetricsContext implements MeasureContext {
 
   st = platformNow()
   contextData: object = {}
+  // Open-span tracking for hang diagnostics. Undefined (off) unless trackOpenSpans() started it;
+  // shared by reference with every child so one list covers a whole request.
+  openSpans?: OpenSpan[]
   private done (value?: number, override?: boolean): void {
     updateMeasure(this.metrics, this.st, this.params, this.fullParams, (spend) => {}, value, override)
   }
@@ -119,6 +128,7 @@ export class MeasureMetricsContext implements MeasureContext {
     )
     result.id = this.id
     result.contextData = this.contextData
+    result.openSpans = this.openSpans
     return result
   }
 
@@ -130,6 +140,10 @@ export class MeasureMetricsContext implements MeasureContext {
     opt?: WithOptions
   ): Promise<T> {
     const c = this.newChild(name, params, { fullParams, logger: this.logger })
+    const spans = this.openSpans
+    const span: OpenSpan | undefined =
+      spans !== undefined && spans.length < MAX_OPEN_SPANS ? { name, start: Date.now() } : undefined
+    if (span !== undefined) spans?.push(span)
     let needFinally = true
     try {
       const value = op(c)
@@ -137,6 +151,7 @@ export class MeasureMetricsContext implements MeasureContext {
         needFinally = false
         return value.finally(() => {
           c.end()
+          if (span !== undefined) removeSpan(spans, span)
           if (opt?.log === true) {
             this.logger.logOperation(name, platformNowDiff((c as MeasureMetricsContext).st), {
               ...params,
@@ -153,6 +168,7 @@ export class MeasureMetricsContext implements MeasureContext {
     } finally {
       if (needFinally) {
         c.end()
+        if (span !== undefined) removeSpan(spans, span)
       }
     }
   }
@@ -194,6 +210,26 @@ export class MeasureMetricsContext implements MeasureContext {
   getParams (): ParamsType {
     return this.params
   }
+}
+
+/** A step that started and has not finished yet (hang diagnostics). `start` is Date.now() ms. */
+export interface OpenSpan {
+  name: string
+  start: number
+}
+
+/** Cap so an async fan-out can never grow a request's open-span list without limit. */
+export const MAX_OPEN_SPANS = 64
+
+/**
+ * Start recording open spans on `ctx` and every context derived from it afterwards. Returns the
+ * live list (entries disappear as their steps finish), or undefined when `ctx` cannot track.
+ * The transactor uses it to report where a hung request is stuck.
+ */
+export function trackOpenSpans (ctx: MeasureContext): OpenSpan[] | undefined {
+  if (!(ctx instanceof MeasureMetricsContext)) return undefined
+  ctx.openSpans = ctx.openSpans ?? []
+  return ctx.openSpans
 }
 
 export class NoMetricsContext implements MeasureContext {

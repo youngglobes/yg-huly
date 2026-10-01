@@ -37,6 +37,8 @@ export default mergeIds(workbenchId, workbench, {
     NewVersionAvailable: '' as IntlString,
     PleaseUpdate: '' as IntlString,
     WorkspaceCreating: '' as IntlString,
+    ServerNotResponding: '' as IntlString,
+    ServerNotRespondingHint: '' as IntlString,
     AccessDenied: '' as IntlString,
     Widget: '' as IntlString,
     WidgetPreference: '' as IntlString,

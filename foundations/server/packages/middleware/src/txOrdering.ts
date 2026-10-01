@@ -22,14 +22,49 @@ import {
   type Tx,
   type TxCUD
 } from '@hcengineering/core'
+import { PlatformError, unknownError } from '@hcengineering/platform'
 import { BaseMiddleware } from '@hcengineering/server-core'
-import type { Middleware, MiddlewareCreator, TxMiddlewareResult } from '@hcengineering/server-core'
+import type {
+  Middleware,
+  MiddlewareCreator,
+  PipelineContext,
+  TxMiddlewareResult
+} from '@hcengineering/server-core'
 
 interface TxOrderEntry {
   txIds: string[] // All transaction IDs in this batch
   modifiedOn: number
+  enqueuedAt: number // server clock, for diagnostics (modifiedOn is client-set)
   completionPromise: Promise<void>
   completionResolve: () => void
+}
+
+/**
+ * Longest wait (ms) for an earlier save to the same document before this save fails. 0 = wait
+ * forever (the upstream behaviour). A save that never finishes used to make every later save to
+ * that document wait forever too (2026-09-30 wedge).
+ */
+export function txOrderWaitMs (env: Record<string, string | undefined> = process.env): number {
+  const raw = (env.TX_ORDER_WAIT_MS ?? '').trim()
+  if (raw === '') return 30000
+  const v = Number(raw)
+  return Number.isInteger(v) && v >= 0 ? v : 30000
+}
+
+async function waitAtMost (p: Promise<unknown>, ms: number): Promise<boolean> {
+  if (ms <= 0) {
+    await p
+    return true
+  }
+  let timer: any
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => { resolve(false) }, ms)
+  })
+  try {
+    return await Promise.race([p.then(() => true), timeout])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /**
@@ -52,8 +87,12 @@ export class TxOrderingMiddleware extends BaseMiddleware implements Middleware {
   // Only stores the last pending transaction per document
   private readonly docTxQueue = new Map<Ref<Doc>, TxOrderEntry>()
 
-  static create (): MiddlewareCreator {
-    return async (ctx, context, next) => new TxOrderingMiddleware(context, next)
+  constructor (context: PipelineContext, next: Middleware | undefined, private readonly waitMs: number) {
+    super(context, next)
+  }
+
+  static create (waitMs: number = txOrderWaitMs()): MiddlewareCreator {
+    return async (ctx, context, next) => new TxOrderingMiddleware(context, next, waitMs)
   }
 
   override async tx (ctx: MeasureContext<SessionData>, txes: Tx[]): Promise<TxMiddlewareResult> {
@@ -74,6 +113,7 @@ export class TxOrderingMiddleware extends BaseMiddleware implements Middleware {
 
     // For each document, wait for previous transaction to complete
     const waitPromises: Promise<void>[] = []
+    const blockers: TxOrderEntry[] = []
     const currentEntries = new Map<Ref<Doc>, TxOrderEntry>()
 
     for (const [docId, docTxes] of txesByDoc) {
@@ -82,6 +122,7 @@ export class TxOrderingMiddleware extends BaseMiddleware implements Middleware {
       if (prevEntry !== undefined) {
         // Wait for the previous transaction to complete
         waitPromises.push(prevEntry.completionPromise)
+        blockers.push(prevEntry)
       }
 
       // Create a new entry for this batch
@@ -95,6 +136,7 @@ export class TxOrderingMiddleware extends BaseMiddleware implements Middleware {
       const entry: TxOrderEntry = {
         txIds: docTxes.map((tx) => tx._id),
         modifiedOn: minModifiedOn,
+        enqueuedAt: Date.now(),
         completionPromise,
         completionResolve
       }
@@ -103,28 +145,44 @@ export class TxOrderingMiddleware extends BaseMiddleware implements Middleware {
       this.docTxQueue.set(docId, entry)
     }
 
-    // Wait for all previous transactions to complete
+    // Wait for all previous transactions to complete, but not forever
     if (waitPromises.length > 0) {
-      await Promise.all(waitPromises)
+      const done = await ctx.with('tx-ordering-wait', {}, () => waitAtMost(Promise.all(waitPromises), this.waitMs))
+      if (!done) {
+        ctx.warn('tx-order wait timeout', {
+          waitMs: this.waitMs,
+          docs: [...currentEntries.keys()],
+          txIds: txes.map((tx) => tx._id),
+          blockedBy: blockers.map((b) => ({ txIds: b.txIds, ageSec: Math.round((Date.now() - b.enqueuedAt) / 1000) }))
+        })
+        // Do not release yet: the blockers may only be slow, and saves queued behind this one must
+        // not run before them. Release once every blocker has settled. Followers each have their own
+        // bounded wait, so they fail on their own limit rather than hang.
+        void Promise.all(waitPromises).then(() => {
+          this.release(currentEntries)
+        })
+        throw new PlatformError(unknownError('Previous change to this document is still being processed'))
+      }
     }
 
     try {
       // Process the transactions
-      const result = await this.provideTx(ctx, txes)
-      return result
+      return await this.provideTx(ctx, txes)
     } finally {
       // Always mark entries as complete and clean up, even if there's an exception
       // This ensures waiting transactions don't get stuck
-      for (const entry of currentEntries.values()) {
-        entry.completionResolve()
-      }
+      this.release(currentEntries)
+    }
+  }
 
-      // Clean up completed entries
-      for (const [docId, entry] of currentEntries) {
-        // Remove from queue if this is still the current entry
-        if (this.docTxQueue.get(docId) === entry) {
-          this.docTxQueue.delete(docId)
-        }
+  // Wake whoever waits on these entries and drop them from the queue if still current.
+  private release (entries: Map<Ref<Doc>, TxOrderEntry>): void {
+    for (const entry of entries.values()) {
+      entry.completionResolve()
+    }
+    for (const [docId, entry] of entries) {
+      if (this.docTxQueue.get(docId) === entry) {
+        this.docTxQueue.delete(docId)
       }
     }
   }

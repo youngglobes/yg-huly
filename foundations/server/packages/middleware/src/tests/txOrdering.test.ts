@@ -34,7 +34,8 @@ import core, {
   TxFactory
 } from '@hcengineering/core'
 import type { PipelineContext, TxMiddlewareResult } from '@hcengineering/server-core'
-import { TxOrderingMiddleware } from '../txOrdering'
+import { PlatformError } from '@hcengineering/platform'
+import { TxOrderingMiddleware, txOrderWaitMs } from '../txOrdering'
 
 interface TestDoc extends Doc {
   name: string
@@ -404,5 +405,127 @@ describe('TxOrderingMiddleware Integration', () => {
     // Verify both transactions were processed
     expect(processedOrder.length).toBe(2)
     expect(new Set(processedOrder)).toEqual(new Set([101, 102]))
+  })
+})
+
+describe('TxOrderingMiddleware wait limit', () => {
+  const sleep = async (ms: number): Promise<void> => { await new Promise((resolve) => setTimeout(resolve, ms)) }
+  const pending = Symbol('pending')
+  const settleWithin = async <T>(p: Promise<T>, ms: number): Promise<T | typeof pending> =>
+    await Promise.race([p, sleep(ms).then((): typeof pending => pending)])
+
+  let ctx: MeasureContext
+  let processed: string[]
+  let hang: Set<string>
+  let gates: Map<string, Promise<void>>
+  const f = new TxFactory(core.account.System)
+  const docA = generateId<TestDoc>()
+  const docB = generateId<TestDoc>()
+  const upd = (doc: Ref<TestDoc>): Tx => f.createTxUpdateDoc(testDocClass, 'test:space' as Ref<Space>, doc, { counter: 1 })
+
+  const make = (waitMs: number): TxOrderingMiddleware => {
+    const next = {
+      tx: async (_ctx: MeasureContext, txes: Tx[]): Promise<TxMiddlewareResult> => {
+        if (txes.some((t) => hang.has(t._id))) await new Promise(() => {})
+        for (const t of txes) await gates.get(t._id)
+        processed.push(...txes.map((t) => t._id))
+        return {}
+      }
+    }
+    return new TxOrderingMiddleware({} as any, next as any, waitMs)
+  }
+
+  beforeEach(() => {
+    ctx = new MeasureMetricsContext('test', {})
+    processed = []
+    hang = new Set()
+    gates = new Map()
+  })
+
+  it('fails a save stuck behind a hung save once the limit passes', async () => {
+    const mw = make(50)
+    const t1 = upd(docA)
+    hang.add(t1._id)
+    void mw.tx(ctx as any, [t1])
+    const err = await mw.tx(ctx as any, [upd(docA)]).catch((e) => e)
+    expect(err).toBeInstanceOf(PlatformError)
+    expect(String(err.message)).toContain('still being processed')
+  })
+
+  it('a save queued behind a timed-out save fails on its own limit instead of jumping the queue', async () => {
+    const mw = make(50)
+    const t1 = upd(docA)
+    hang.add(t1._id)
+    void mw.tx(ctx as any, [t1])
+    const t2 = mw.tx(ctx as any, [upd(docA)]).catch(() => 'failed')
+    await sleep(30)
+    const t3tx = upd(docA)
+    const t3 = mw.tx(ctx as any, [t3tx]).catch((e) => e)
+    expect(await t2).toBe('failed')
+    expect(await t3).toBeInstanceOf(PlatformError)
+    expect(processed).not.toContain(t3tx._id)
+  })
+
+  it('keeps write order when the blocker is slow, not dead', async () => {
+    const mw = make(100)
+    const t1 = upd(docA)
+    let finish: () => void = () => {}
+    gates.set(t1._id, new Promise<void>((resolve) => { finish = resolve }))
+    void mw.tx(ctx as any, [t1])
+    const t2 = mw.tx(ctx as any, [upd(docA)]).catch((e) => e)
+    await sleep(120)
+    // t2 timed out at ~100ms. t3 queues behind t2's entry, which is released only when t1 settles.
+    const t3tx = upd(docA)
+    const t3 = mw.tx(ctx as any, [t3tx])
+    await sleep(30)
+    expect(processed).not.toContain(t3tx._id)
+    finish() // t1 done at ~150ms, well inside t3's own 100ms limit (ends ~220ms)
+    expect(await t2).toBeInstanceOf(PlatformError)
+    await t3
+    expect(processed).toEqual([t1._id, t3tx._id])
+  })
+
+  it('fails a multi-document batch as a whole and keeps its documents queued behind the blocker', async () => {
+    const mw = make(50)
+    const t1 = upd(docA)
+    hang.add(t1._id)
+    void mw.tx(ctx as any, [t1])
+    const batch = mw.tx(ctx as any, [upd(docA), upd(docB)]).catch(() => 'failed')
+    expect(await batch).toBe('failed')
+    // docB's entry from the failed batch is released only after t1 settles (never here), so a
+    // later save on docB fails on its own limit rather than jumping ahead.
+    const onB = upd(docB)
+    const err = await mw.tx(ctx as any, [onB]).catch((e) => e)
+    expect(err).toBeInstanceOf(PlatformError)
+    expect(processed).not.toContain(onB._id)
+  })
+
+  it('leaves other documents alone while one is stuck', async () => {
+    const mw = make(50)
+    const t1 = upd(docA)
+    hang.add(t1._id)
+    void mw.tx(ctx as any, [t1])
+    const onB = upd(docB)
+    expect(await settleWithin(mw.tx(ctx as any, [onB]), 20)).not.toBe(pending)
+  })
+
+  it('waitMs 0 keeps the old unlimited wait', async () => {
+    const mw = make(0)
+    const t1 = upd(docA)
+    hang.add(t1._id)
+    void mw.tx(ctx as any, [t1])
+    expect(await settleWithin(mw.tx(ctx as any, [upd(docA)]), 150)).toBe(pending)
+  })
+
+  it('reads TX_ORDER_WAIT_MS with a safe default', () => {
+    expect(txOrderWaitMs({})).toBe(30000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: '0' })).toBe(0)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: '5000' })).toBe(5000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: 'abc' })).toBe(30000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: '-5' })).toBe(30000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: '30s' })).toBe(30000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: '1.5' })).toBe(30000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: ' 5000 ' })).toBe(5000)
+    expect(txOrderWaitMs({ TX_ORDER_WAIT_MS: '' })).toBe(30000)
   })
 })

@@ -58,6 +58,7 @@ import core, {
 import platform, { getMetadata, PlatformError, Severity, Status } from '@hcengineering/platform'
 import { HelloRequest, HelloResponse, type RateLimitInfo, ReqId, type Response, RPCHandler } from '@hcengineering/rpc'
 import { uncompress } from 'snappyjs'
+import { StallMonitor } from './stall'
 
 const SECOND = 1000
 const pingTimeout = 10 * SECOND
@@ -105,6 +106,11 @@ class Connection implements ClientConnection {
   private lastId = 0
   private interval: number | undefined
   private dialTimer: number | undefined
+
+  // Banner when the server stops answering (stall.ts). Own timer: keeps checking while the socket
+  // reconnects, which the ping interval does not.
+  private readonly stall = new StallMonitor(pingConst)
+  private stallTimer: ReturnType<typeof setInterval> | undefined
 
   private sockets = 0
   private openAction: any
@@ -158,6 +164,9 @@ class Connection implements ClientConnection {
     this.pushHandler(handler)
     this.onConnect = opt?.onConnect
 
+    this.stallTimer = setInterval(() => {
+      this.stall.check(this.requests.values())
+    }, 5 * SECOND)
     this.scheduleOpen(this.ctx, false)
   }
 
@@ -216,6 +225,8 @@ class Connection implements ClientConnection {
     clearTimeout(this.openAction)
     clearTimeout(this.dialTimer)
     clearInterval(this.interval)
+    clearInterval(this.stallTimer)
+    this.stall.stop()
     for (const handler of this.onConnectHandlers) {
       handler.reject(new Error('Connection closed'))
     }
@@ -407,6 +418,7 @@ class Connection implements ClientConnection {
     }
     if (resp.id !== undefined) {
       const promise = this.requests.get(resp.id)
+      if (promise !== undefined) this.stall.answered(promise.method)
 
       if (promise === undefined) {
         console.error(

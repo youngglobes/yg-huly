@@ -22,6 +22,7 @@
   import { onDestroy } from 'svelte'
   import workbenchRes from '../plugin'
   import { workspaceCreating } from '../utils'
+  import ServerStallBanner from './ServerStallBanner.svelte'
 
   const isNeedUpgrade = window.location.host === ''
 
@@ -29,6 +30,7 @@
 </script>
 
 {#if $location.path[0] === workbenchId || $location.path[0] === workbenchRes.component.WorkbenchApp}
+  <ServerStallBanner />
   {#key $location.path[1]}
     {#await connect(getMetadata(workbenchRes.metadata.PlatformTitle) ?? 'Platform')}
       <AppLoading>
