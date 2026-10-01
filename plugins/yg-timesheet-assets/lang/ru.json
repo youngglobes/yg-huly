@@ -1,5 +1,10 @@
 {
   "string": {
+    "HrReason": "HR reason",
+    "HrReasonPlaceholder": "Optional note for the employee",
+    "Partial": "Partial",
+    "Reapprove": "Reapprove",
+    "Resubmit": "Resubmit",
     "Timesheet": "Табель",
     "MyTimesheet": "Мой табель",
     "Week": "Неделя",
