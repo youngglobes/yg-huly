@@ -25,7 +25,7 @@
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
-  import ygTimesheet, { type AttendanceSession } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { isAfterWorkDayDate, type AttendanceSession } from '@hcengineering/yg-timesheet'
   import {
     todayBoard,
     attendanceSummary,
@@ -309,8 +309,8 @@
               {#each day.sessions as s, i (s.punchIn)}
                 <tr class="yg-row">
                   <td class="left">{i === 0 ? dateFmt.format(day.date) : ''}</td>
-                  <td>{timeFmt.format(s.punchIn)}{#if s.punchInNote}<span class="att-note"> · {s.punchInNote}</span>{/if}</td>
-                  <td>{#if s.punchOut !== undefined}{timeFmt.format(s.punchOut)}{#if s.punchOutNote}<span class="att-note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}</td>
+                  <td>{timeFmt.format(s.punchIn)}{#if isAfterWorkDayDate(s.punchIn, s.date)}<span class="att-nextday"><Label label={ygTimesheet.string.NextDay} /></span>{/if}{#if s.punchInNote}<span class="att-note"> · {s.punchInNote}</span>{/if}</td>
+                  <td>{#if s.punchOut !== undefined}{timeFmt.format(s.punchOut)}{#if isAfterWorkDayDate(s.punchOut, s.date)}<span class="att-nextday"><Label label={ygTimesheet.string.NextDay} /></span>{/if}{#if s.punchOutNote}<span class="att-note"> · {s.punchOutNote}</span>{/if}{:else}-{/if}</td>
                   <td><Label label={s.mode === 'wfh' ? ygTimesheet.string.WFH : ygTimesheet.string.Office} /></td>
                   <td>{s.punchOut !== undefined ? formatHours((s.punchOut - s.punchIn) / 3600000) : '-'}</td>
                   <td class="att-audit">
@@ -352,6 +352,7 @@
   .att-live { display: inline-flex; align-items: center; gap: 6px; color: var(--yg-green); font-weight: 600; }
   .att-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--yg-green); }
   .att-note { color: var(--yg-text-faint); }
+  .att-nextday { margin-left: 0.375rem; font-size: 0.6875rem; color: var(--theme-dark-color); }
 
   .att-summary { display: flex; flex-wrap: wrap; gap: 18px; padding: 4px 2px 14px; font-size: 13px; color: var(--yg-text-dim); }
   .att-summary__k b { color: var(--yg-text); font-variant-numeric: tabular-nums; }

@@ -19,8 +19,8 @@
 -->
 <script lang="ts">
   import { Label } from '@hcengineering/ui'
-  import ygTimesheet, { type AttendanceMode, type AttendanceSession } from '@hcengineering/yg-timesheet'
-  import { buildDayTimeline, formatDuration, localMidnight } from '../../utils/attendance'
+  import ygTimesheet, { type AttendanceMode, type AttendanceSession, istWorkDayStart } from '@hcengineering/yg-timesheet'
+  import { buildDayTimeline, formatDuration } from '../../utils/attendance'
 
   export let open: boolean
   export let mode: AttendanceMode | undefined
@@ -30,13 +30,15 @@
   // Today's raw sessions + a live clock, for the punch-in/out timeline.
   export let todaySessions: AttendanceSession[] = []
   export let now: number = Date.now()
+  // Minutes after IST midnight at which this employee's work day starts (0 = calendar day).
+  export let dayStartMin: number = 0
 
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
 
   // Timeline of today's sessions. Window is driven purely by the punches (startHour=24/endHour=0
   // disables the default padding), so it fits ANY shift with no special-casing: first punch to
   // now/last punch. A 9-6 day and a 3pm-1am night shift each get their own tight axis.
-  $: timeline = buildDayTimeline(todaySessions, localMidnight(now), now, 24, 0)
+  $: timeline = buildDayTimeline(todaySessions, istWorkDayStart(now, dayStartMin), now, 24, 0)
 </script>
 
 <div class="mac">

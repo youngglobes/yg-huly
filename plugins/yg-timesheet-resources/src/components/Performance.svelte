@@ -27,7 +27,7 @@
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
   import ygTimesheet, {
-    type AttendanceSession, type HrTimeEntry, type LatePermission, type WorkProfile
+    isAfterWorkDayDate, type AttendanceSession, type HrTimeEntry, type LatePermission, type WorkProfile
   } from '@hcengineering/yg-timesheet'
   import { performanceRows, type PerfAtt, type PerfEmp, type PerfHours, type PerfLate, type PerfRow } from '../utils/performance'
   import SortableTh from './SortableTh.svelte'
@@ -80,7 +80,7 @@
     { date: { $gte: fromMid, $lt: toExcl } },
     (res: AttendanceSession[]) => { attDocs = res }
   )
-  $: atts = attDocs.map((d): PerfAtt => ({ employee: d.employee, punchIn: d.punchIn, punchOut: d.punchOut }))
+  $: atts = attDocs.map((d): PerfAtt => ({ employee: d.employee, punchIn: d.punchIn, punchOut: d.punchOut, date: d.date }))
 
   // Holidays - no date filter, load all holidays to apply to any date range.
   const holQuery = createQuery()
@@ -136,10 +136,6 @@
 
   const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' })
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
-  function fmtPunch (inMs: number | undefined, outMs: number | undefined): string {
-    if (inMs === undefined) return ''
-    return outMs === undefined ? `${timeFmt.format(inMs)} -> ...` : `${timeFmt.format(inMs)} -> ${timeFmt.format(outMs)}`
-  }
 
   let exporting = false
   async function doExport (): Promise<void> {
@@ -252,7 +248,13 @@
               </div>
               <div class="perf-day__meta">
                 {#if d.workedHours > 0}<span class="perf-day__hrs">{formatHours(d.workedHours)}</span>{/if}
-                {#if d.punchIn !== undefined}<span class="perf-day__punch">{fmtPunch(d.punchIn, d.punchOut)}</span>{/if}
+                {#if d.punchIn !== undefined}<span class="perf-day__punch"
+                  >{timeFmt.format(d.punchIn)}{#if isAfterWorkDayDate(d.punchIn, d.date)}<span class="perf-day__nextday"
+                      ><Label label={ygTimesheet.string.NextDay} /></span
+                    >{/if} -> {#if d.punchOut !== undefined}{timeFmt.format(d.punchOut)}{#if isAfterWorkDayDate(d.punchOut, d.date)}<span
+                        class="perf-day__nextday"><Label label={ygTimesheet.string.NextDay} /></span
+                      >{/if}{:else}...{/if}</span
+                >{/if}
               </div>
             </div>
           {/each}
@@ -306,4 +308,5 @@
   .perf-chip--ot { background: var(--yg-panel-soft); }
   .perf-chip--late { background: var(--yg-red-bg, transparent); color: var(--yg-text); }
   .perf-day__meta { display: flex; gap: 12px; font-size: 12px; color: var(--yg-text-dim); font-variant-numeric: tabular-nums; }
+  .perf-day__nextday { margin-left: 0.375rem; font-size: 0.6875rem; color: var(--theme-dark-color); }
 </style>

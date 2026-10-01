@@ -26,6 +26,7 @@ import DashboardHome from './components/DashboardHome.svelte'
 import MyAttendance from './components/MyAttendance.svelte'
 import HrAttendance from './components/HrAttendance.svelte'
 import AttendanceReminderSettings from './components/AttendanceReminderSettings.svelte'
+import ShiftTypesSettings from './components/ShiftTypesSettings.svelte'
 import AttendanceReminder from './components/AttendanceReminder.svelte'
 import LocationPermissionBanner from './components/LocationPermissionBanner.svelte'
 import WorkProfileEditor from './components/WorkProfileEditor.svelte'
@@ -145,6 +146,7 @@ export default async (): Promise<Resources> => ({
     MyAttendance,
     HrAttendance,
     AttendanceReminderSettings,
+    ShiftTypesSettings,
     AttendanceReminder,
     LocationPermissionBanner,
     WorkProfileEditor,

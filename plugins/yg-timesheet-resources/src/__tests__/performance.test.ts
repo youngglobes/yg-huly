@@ -177,3 +177,26 @@ describe('performanceRows', () => {
     expect(r.lateArrivals).toBe(2)
   })
 })
+
+describe('performanceRows uses the stored work day', () => {
+  it('a UK shift with an after-midnight session is one 9.67h day, nothing on the next date', () => {
+    const day1 = new Date(2026, 8, 30).getTime() // Wed 30 Sep (a working day)
+    const in1 = new Date(2026, 8, 30, 15, 0).getTime()
+    const out1 = new Date(2026, 8, 30, 23, 50).getTime()
+    const in2 = new Date(2026, 9, 1, 0, 10).getTime()
+    const out2 = new Date(2026, 9, 1, 1, 0).getTime()
+    const rows = performanceRows(
+      [emps[0]],
+      [],
+      [
+        { employee: emps[0].id, punchIn: in1, punchOut: out1, date: day1 },
+        { employee: emps[0].id, punchIn: in2, punchOut: out2, date: day1 }
+      ],
+      new Date(2026, 9, 5, 12).getTime()
+    )
+    const days = rows[0].days
+    const sep30 = days.find((d) => d.date === day1)
+    expect(sep30?.workedHours).toBeCloseTo(9.67, 1) // flagged as overtime (> 8h)
+    expect(days.some((d) => d.date === new Date(2026, 9, 1).getTime())).toBe(false)
+  })
+})

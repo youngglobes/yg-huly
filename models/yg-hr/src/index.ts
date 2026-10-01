@@ -13,7 +13,7 @@
 // by employee id, sidestepping that blast radius entirely. Revisit registering it here only after
 // confirming every _class-passing call site that can reach an Employee panel.
 //
-import { type Domain, type Ref, type Timestamp } from '@hcengineering/core'
+import { type Doc, type Domain, type Ref, type Timestamp } from '@hcengineering/core'
 import {
   type Builder,
   Collection,
@@ -58,6 +58,7 @@ import type {
   WorkExperience
 } from '@hcengineering/yg-hr'
 import ygHr from './plugin'
+import ygTimesheet from '@hcengineering/yg-timesheet'
 
 export { ygHrId } from '@hcengineering/yg-hr'
 export { ygHrOperation } from './migration'
@@ -150,6 +151,7 @@ export class TEmployeeJob extends TEmployee implements EmployeeJob {
   @Prop(TypeDate(), ygHr.string.JoinedDate) joinedDate?: Timestamp
   @Prop(TypeRef(ygHr.class.Location), ygHr.string.Location) location?: Ref<Location>
   @Prop(TypeNumber(), ygHr.string.ShiftStart) shiftStart?: number
+  @Prop(TypeRef(ygTimesheet.class.ShiftType), ygHr.string.ShiftType) shiftType?: Ref<Doc>
   @Prop(TypeDate(), ygHr.string.ContractStart) contractStart?: Timestamp
   @Prop(TypeDate(), ygHr.string.ContractEnd) contractEnd?: Timestamp
   @Prop(TypeDate(), ygHr.string.TerminationDate) terminationDate?: Timestamp

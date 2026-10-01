@@ -52,8 +52,9 @@ import {
 import { jsonToMarkup, nodeDoc, nodeParagraph, nodeText } from '@hcengineering/text-core'
 import ygTimesheet, {
   isHrDesignation,
-  istDayStart,
-  istMinutesOfDay,
+  dayStartFor,
+  istWorkDayStart,
+  minutesLateInWorkDay,
   type AttendanceSession,
   type DayStatus,
   type HrTimeEntry,
@@ -619,10 +620,10 @@ export async function OnLatePermissionUpdate (txes: Tx[], control: TriggerContro
 //
 // Server authority for punch time + late detection. A browser's Date.now() cannot be trusted (a user
 // can change their device clock), so on every punch the server overwrites punchIn/punchOut with its
-// OWN clock and keys the day + late math off IST via istDayStart/istMinutesOfDay - correct regardless
-// of the container timezone (which is UTC). It is the SOLE creator of the LatePermission: the client's
+// OWN clock and keys the day + late math off the employee's work day via istWorkDayStart - correct
+// regardless of the container timezone (which is UTC). It is the SOLE creator of the LatePermission: the client's
 // inline reason rides on the session (lateReason) and is consumed here only when the SERVER decides
-// the first punch of the IST day is late. Loop-safe: registered on AttendanceSession, and every write
+// the first punch of the IST work day is late. Loop-safe: registered on AttendanceSession, and every write
 // it emits is System-authored, skipped at the top of the loop.
 //
 export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
@@ -667,8 +668,17 @@ export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): P
     if (ctx.objectClass !== ygTimesheet.class.AttendanceSession) continue
 
     const now = Date.now()
-    const date = istDayStart(now)
     const employee = ctx.attributes.employee
+    // The work day comes from the employee's shift type: a punch before its day start belongs to the
+    // previous work day (UK 00:10 return from a break stays on the shift's day). No type = calendar day.
+    const profile = (
+      await control.findAll(control.ctx, ygTimesheet.mixin.WorkProfile, { _id: employee }, { limit: 1 })
+    )[0]
+    const types = profile?.shiftType == null
+      ? []
+      : await control.findAll(control.ctx, ygTimesheet.class.ShiftType, { _id: profile.shiftType }, { limit: 1 })
+    const dayStartMin = dayStartFor(profile?.shiftType, types)
+    const date = istWorkDayStart(now, dayStartMin)
 
     // Single-open-session guard, server side. The client checks too, but its findAll can be served
     // from the LiveQuery cache of a stale tab, so it is not authoritative. A punch-in while another
@@ -686,24 +696,21 @@ export async function OnAttendancePunch (txes: Tx[], control: TriggerControl): P
       continue
     }
 
-    // Authoritative punch-in time + IST day key, discarding whatever the browser sent.
+    // Authoritative punch-in time + IST work day key, discarding whatever the browser sent.
     res.push(control.txFactory.createTxUpdateDoc(
       ctx.objectClass, ctx.objectSpace, ctx.objectId, { punchIn: now, date }, false, now, core.account.System
     ))
 
-    // Late detection: only the FIRST punch of the IST day (earlier sessions carry the server-set date).
+    // Late detection: only the FIRST punch of the IST work day (earlier sessions carry the server-set date).
     const sameDay = (
       await control.findAll(control.ctx, ygTimesheet.class.AttendanceSession, { employee, date }, {})
     ).filter((s) => s._id !== ctx.objectId)
     if (sameDay.length > 0) continue
 
-    const profile = (
-      await control.findAll(control.ctx, ygTimesheet.mixin.WorkProfile, { _id: employee }, { limit: 1 })
-    )[0]
-    const shiftStart = profile?.shiftStart
+    const shiftStart = profile?.shiftStart ?? undefined
     if (shiftStart === undefined) continue
 
-    const minutesLate = istMinutesOfDay(now) - shiftStart
+    const minutesLate = minutesLateInWorkDay(now, date, shiftStart, dayStartMin)
     if (minutesLate <= 0) continue // on time or early
 
     const exists = await control.findAll(

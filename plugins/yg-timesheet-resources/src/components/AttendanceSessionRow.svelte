@@ -15,7 +15,7 @@
 <!-- One attendance session as a table row: in -> out, type, duration. `now` drives an open
      session's live-ticking duration; a closed session ignores it. -->
 <script lang="ts">
-  import ygTimesheet, { type AttendanceSession } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, { isAfterWorkDayDate, type AttendanceSession } from '@hcengineering/yg-timesheet'
   import { Label } from '@hcengineering/ui'
   import { formatDuration } from '../utils/attendance'
 
@@ -24,17 +24,21 @@
 
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
   $: open = session.punchOut === undefined
+  $: inNextDay = isAfterWorkDayDate(session.punchIn, session.date)
+  $: outNextDay = session.punchOut !== undefined && isAfterWorkDayDate(session.punchOut, session.date)
   $: durationMs = (session.punchOut ?? now) - session.punchIn
 </script>
 
 <tr class="att-tr" class:is-open={open}>
   <td class="att-td">
     <span class="att-td__time">{timeFmt.format(session.punchIn)}</span>
+    {#if inNextDay}<span class="att-td__nextday"><Label label={ygTimesheet.string.NextDay} /></span>{/if}
     {#if session.punchInNote}<span class="att-td__note">{session.punchInNote}</span>{/if}
   </td>
   <td class="att-td">
     {#if session.punchOut}
       <span class="att-td__time">{timeFmt.format(session.punchOut)}</span>
+      {#if outNextDay}<span class="att-td__nextday"><Label label={ygTimesheet.string.NextDay} /></span>{/if}
       {#if session.punchOutNote}<span class="att-td__note">{session.punchOutNote}</span>{/if}
     {:else}
       <span class="att-td__live"><span class="att-dot" /><Label label={ygTimesheet.string.OnTheClock} /></span>
@@ -54,6 +58,7 @@
   .att-td { padding: 13px 18px; border-top: 1px solid var(--yg-border); vertical-align: middle; }
   .att-td__time { font-variant-numeric: tabular-nums; font-weight: 640; color: var(--yg-text); letter-spacing: -0.01em; }
   .att-td__note { color: var(--yg-text-faint); font-size: 13px; margin-left: 8px; }
+  .att-td__nextday { margin-left: 0.375rem; font-size: 0.6875rem; color: var(--theme-dark-color); }
   .att-td__live { display: inline-flex; align-items: center; gap: 6px; color: var(--att-wfh); font-weight: 600; font-size: 13px; }
   .att-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--att-wfh); box-shadow: 0 0 0 0 var(--att-wfh-line); animation: att-pulse 1.8s ease-out infinite; }
 

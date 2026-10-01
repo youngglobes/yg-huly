@@ -32,6 +32,7 @@
     "JoinedDate": "Joined date",
     "Location": "Location",
     "ShiftStart": "Shift start",
+    "ShiftType": "Shift type",
     "ContractStart": "Contract start",
     "ContractEnd": "Contract end",
     "Termination": "Termination",

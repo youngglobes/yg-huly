@@ -37,6 +37,7 @@ import ygTimesheet, {
   type LatePermission,
   type LatePermissionStatus,
   type ProjectApprovers,
+  type ShiftType,
   type TaskStatus,
   type Timesheet,
   type TimesheetApproval,
@@ -147,6 +148,7 @@ export class TWorkProfile extends TEmployee implements WorkProfile {
   @Prop(TypeString(), ygTimesheet.string.Department) department?: WorkDepartment
   @Prop(TypeString(), ygTimesheet.string.EmployeeId) employeeId?: string
   @Prop(TypeNumber(), ygTimesheet.string.ShiftStart) shiftStart?: number
+  @Prop(TypeRef(ygTimesheet.class.ShiftType), ygTimesheet.string.ShiftType) shiftType?: Ref<ShiftType>
 }
 
 @Model(ygTimesheet.class.HrTimeEntry, core.class.Doc, DOMAIN_YG_TIMESHEET)
@@ -183,6 +185,16 @@ export class TAttendanceSession extends TDoc implements AttendanceSession {
   @Prop(TypeString(), core.string.Object) lateReason?: string
 }
 
+@Model(ygTimesheet.class.ShiftType, core.class.Doc, DOMAIN_YG_TIMESHEET)
+export class TShiftType extends TDoc implements ShiftType {
+  @Prop(TypeString(), ygTimesheet.string.ShiftName) name!: string
+  @Prop(TypeString(), ygTimesheet.string.ShiftDescription) description!: string
+  @Prop(TypeNumber(), ygTimesheet.string.DayStartsAt) dayStartMin!: number
+  @Prop(TypeNumber(), ygTimesheet.string.UsualHours) hoursFromMin?: number
+  @Prop(TypeNumber(), ygTimesheet.string.UsualHours) hoursToMin?: number
+  @Prop(TypeBoolean(), ygTimesheet.string.Archived) archived?: boolean
+}
+
 @Model(ygTimesheet.class.AttendanceReminderSettings, core.class.Doc, DOMAIN_YG_TIMESHEET)
 export class TAttendanceReminderSettings extends TDoc implements AttendanceReminderSettings {
   @Prop(TypeBoolean(), core.string.Object) enabled!: boolean
@@ -216,7 +228,7 @@ export class TLatePermission extends TDoc implements LatePermission {
 }
 
 export function createModel (builder: Builder): void {
-  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TTimesheetRejectCycle, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, THoliday, TLatePermission)
+  builder.createModel(TTimesheet, TTimesheetDay, TTimesheetTask, TTimesheetApproval, TTimesheetRejectCycle, TProjectApprovers, TWorkProfile, THrTimeEntry, TAttendanceSession, TAttendanceReminderSettings, TShiftType, THoliday, TLatePermission)
 
   // Shared space that holds all Timesheet / TimesheetDay docs. Not private, so approvers
   // can read others' submitted days; autoJoin so every workspace user can write their own.
@@ -286,6 +298,14 @@ export function createModel (builder: Builder): void {
             label: ygTimesheet.string.ReminderSettings,
             icon: setting.icon.Setting,
             component: ygTimesheet.component.AttendanceReminderSettings,
+            accessLevel: AccountRole.Maintainer,
+            position: 'bottom'
+          },
+          {
+            id: 'shifts',
+            label: ygTimesheet.string.Shifts,
+            icon: setting.icon.Setting,
+            component: ygTimesheet.component.ShiftTypesSettings,
             accessLevel: AccountRole.Maintainer,
             position: 'bottom'
           }

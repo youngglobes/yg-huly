@@ -6,7 +6,7 @@ import { countUnexcusedLate } from './late'
 
 export interface PerfEmp { id: string; name: string; designation?: WorkDesignation }
 export interface PerfHours { employee: string; hours: number; date: number }
-export interface PerfAtt { employee: string; punchIn: number; punchOut?: number }
+export interface PerfAtt { employee: string; punchIn: number; punchOut?: number; date?: number }
 export interface PerfLate { employee: string, date: number, status: LatePermissionStatus }
 
 /** One flagged day in an employee's drill-down (only days that fired a signal are kept). */
@@ -67,7 +67,7 @@ export function performanceRows (emps: PerfEmp[], hours: PerfHours[], atts: Perf
 
   for (const a of atts) {
     if (!ids.has(a.employee)) continue
-    const day = localMidnight(a.punchIn)
+    const day = a.date ?? localMidnight(a.punchIn)
     const d = acc(a.employee, day)
     d.hasSession = true
     d.punchIn = d.punchIn === undefined ? a.punchIn : Math.min(d.punchIn, a.punchIn)

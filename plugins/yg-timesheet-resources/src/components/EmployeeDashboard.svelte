@@ -24,8 +24,13 @@
   import { createQuery } from '@hcengineering/presentation'
   import task from '@hcengineering/task'
   import tracker, { type Issue, type IssueStatus, type TimeSpendReport } from '@hcengineering/tracker'
-  import ygTimesheet, { type AttendanceSession } from '@hcengineering/yg-timesheet'
-  import { dayStats, findOpenSession, localMidnight } from '../utils/attendance'
+  import ygTimesheet, {
+    type AttendanceSession,
+    type ShiftType,
+    istWorkDayStart,
+    dayStartFor
+  } from '@hcengineering/yg-timesheet'
+  import { dayStats, findOpenSession } from '../utils/attendance'
   import {
     assignedTo, dueSoonIssues, isOpen, openStatusNames, overdueIssues, priorityWatch, type Cat, type DashIssue
   } from '../utils/dashboard'
@@ -111,7 +116,15 @@
   $: now = Date.now()
 
   // --- Today's attendance ----------------------------------------------------
-  $: today = localMidnight(now)
+  // The employee's shift type decides where their work day starts (0 = calendar day).
+  const profQuery = createQuery()
+  let shiftType: Ref<ShiftType> | undefined = undefined
+  profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => { shiftType = res[0]?.shiftType ?? undefined })
+  const shiftTypesQuery = createQuery()
+  let shiftTypes: ShiftType[] = []
+  shiftTypesQuery.query(ygTimesheet.class.ShiftType, {}, (res) => { shiftTypes = res })
+  $: dayStartMin = dayStartFor(shiftType, shiftTypes)
+  $: today = istWorkDayStart(now, dayStartMin)
   const attendanceQuery = createQuery()
   let attendanceDocs: AttendanceSession[] = []
   $: attendanceQuery.query(
@@ -156,6 +169,7 @@
     <!-- Attention band: the "act now" items, at the top. -->
     <div class="dash-attention">
       <MyAttendanceCard
+        dayStartMin={dayStartMin}
         open={openSession !== undefined}
         mode={openSession?.mode}
         todayMs={todayStats.totalMs}

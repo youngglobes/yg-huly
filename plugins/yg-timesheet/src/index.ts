@@ -119,6 +119,21 @@ export type WorkDesignation =
   | 'Business Development Manager' | 'Salesforce Developer' | 'Senior Salesforce Developer'
   | 'Lead Generation Executive' | 'CEO' | 'CTO' | 'COO' | 'HR Executive' | 'Intern'
 export type WorkDepartment = 'Development' | 'Testing' | 'SEO' | 'Sales' | 'HR'
+
+/**
+ * A shift HR can configure. `dayStartMin` is when one work day ends and the next begins (IST
+ * minutes since midnight): a punch-in between it today and it tomorrow counts on today. The usual
+ * hours are informational; the settings page warns when the day start falls inside them.
+ */
+export interface ShiftType extends Doc {
+  name: string
+  description: string
+  dayStartMin: number
+  hoursFromMin?: number
+  hoursToMin?: number
+  archived?: boolean
+}
+
 export interface WorkProfile extends Employee {
   designation?: WorkDesignation
   department?: WorkDepartment
@@ -126,6 +141,9 @@ export interface WorkProfile extends Employee {
   employeeId?: string
   // Local time-of-day the employee is expected to start, in minutes since midnight (540 = 09:00).
   shiftStart?: number
+  // Shift type (Day / UK / US / Aus ...). Decides which work day a punch belongs to; mirrored from
+  // the yg-hr EmployeeJob by the server sync, like shiftStart.
+  shiftType?: Ref<ShiftType>
 }
 
 // The designation that identifies HR staff. Late-punch permissions may be approved/rejected by an
@@ -161,6 +179,48 @@ export function istDayStart (ms: number): number {
 /** Minutes since IST midnight for the instant `ms` (0..1439). */
 export function istMinutesOfDay (ms: number): number {
   return Math.floor(((ms + IST_OFFSET_MS) % DAY_MS) / 60000)
+}
+
+/** UTC-ms of IST 00:00 of the WORK day containing `ms`, for a shift whose day starts at dayStartMin IST. */
+export function istWorkDayStart (ms: number, dayStartMin: number): number {
+  return istDayStart(ms - dayStartMin * 60000)
+}
+
+/**
+ * Minutes between the expected start and a punch-in, on the work day starting at workDayMs (IST
+ * midnight). A personal start earlier than the day start falls on the next calendar date of that
+ * work day. Negative = early.
+ */
+export function minutesLateInWorkDay (
+  punchInMs: number,
+  workDayMs: number,
+  shiftStartMin: number,
+  dayStartMin: number
+): number {
+  const startMs = workDayMs + (shiftStartMin < dayStartMin ? DAY_MS : 0) + shiftStartMin * 60000
+  return Math.floor((punchInMs - startMs) / 60000)
+}
+
+/** True when `ms` is on a later IST calendar date than its work day (shown as "+1 day"). */
+export function isAfterWorkDayDate (ms: number, workDayMs: number): boolean {
+  return istDayStart(ms) > workDayMs
+}
+
+/** True when the day start falls strictly inside the usual hours (which may cross midnight). */
+export function dayStartInsideHours (dayStartMin: number, fromMin?: number, toMin?: number): boolean {
+  if (fromMin === undefined || toMin === undefined || fromMin === toMin) return false
+  return fromMin < toMin
+    ? dayStartMin > fromMin && dayStartMin < toMin
+    : dayStartMin > fromMin || dayStartMin < toMin
+}
+
+/** An employee's day start: their shift type's, or 0 (calendar day) when unassigned or unknown. */
+export function dayStartFor (
+  shiftType: Ref<ShiftType> | undefined,
+  types: Array<Pick<ShiftType, '_id' | 'dayStartMin'>>
+): number {
+  if (shiftType === undefined) return 0
+  return types.find((t) => t._id === shiftType)?.dayStartMin ?? 0
 }
 
 /** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
@@ -218,10 +278,10 @@ export type LatePermissionStatus = 'Pending' | 'Approved' | 'Rejected'
 /** One per late day: a punch-in after the employee's shiftStart, with a reason HR approves/rejects. */
 export interface LatePermission extends Doc {
   employee: Ref<Employee>
-  date: Timestamp            // local midnight of the late day (same key as AttendanceSession.date)
+  date: Timestamp            // IST work day of the late punch (same key as AttendanceSession.date)
   punchIn: Timestamp         // full ms of the triggering first punch-in
   shiftStartSnapshot: number // minutes since midnight, snapshot at creation
-  minutesLate: number        // snapshot: punch-in time-of-day minus shiftStartSnapshot
+  minutesLate: number        // snapshot: punch-in minus the shift start anchored to the work day (minutesLateInWorkDay)
   reason: string
   status: LatePermissionStatus
   approvedBy?: Ref<Employee>
@@ -254,7 +314,8 @@ export default plugin(ygTimesheetId, {
     AttendanceSession: '' as Ref<Class<AttendanceSession>>,
     AttendanceReminderSettings: '' as Ref<Class<AttendanceReminderSettings>>,
     Holiday: '' as Ref<Class<Holiday>>,
-    LatePermission: '' as Ref<Class<LatePermission>>
+    LatePermission: '' as Ref<Class<LatePermission>>,
+    ShiftType: '' as Ref<Class<ShiftType>>
   },
   mixin: {
     ProjectApprovers: '' as Ref<Mixin<ProjectApprovers>>,
@@ -297,7 +358,8 @@ export default plugin(ygTimesheetId, {
     HrLatePermissions: '' as AnyComponent,
     AiUsage: '' as AnyComponent,
     AiUsageConfig: '' as AnyComponent,
-    AiUsageGuard: '' as AnyComponent
+    AiUsageGuard: '' as AnyComponent,
+    ShiftTypesSettings: '' as AnyComponent
   },
   icon: {
     Timesheet: '' as Asset
@@ -496,7 +558,22 @@ export default plugin(ygTimesheetId, {
     Details: '' as IntlString,
     AiUsage: '' as IntlString,
     AiUsageDashboard: '' as IntlString,
-    AiUsageConfiguration: '' as IntlString
+    AiUsageConfiguration: '' as IntlString,
+    Shifts: '' as IntlString,
+    ShiftType: '' as IntlString,
+    ShiftName: '' as IntlString,
+    ShiftDescription: '' as IntlString,
+    DayStartsAt: '' as IntlString,
+    UsualHours: '' as IntlString,
+    AssignedEmployees: '' as IntlString,
+    Archived: '' as IntlString,
+    AddShiftType: '' as IntlString,
+    ShiftHelp: '' as IntlString,
+    ShiftHelpExample: '' as IntlString,
+    DayStartInsideHours: '' as IntlString,
+    DayStartAppliesToNew: '' as IntlString,
+    ShiftArchivedHasEmployees: '' as IntlString,
+    NextDay: '' as IntlString
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,

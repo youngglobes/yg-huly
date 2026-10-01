@@ -8,13 +8,20 @@
 // same for its triggers.
 //
 import { type Builder } from '@hcengineering/model'
-import core from '@hcengineering/core'
+import core, { type Class, type Doc, type Mixin, type Ref } from '@hcengineering/core'
 import contact from '@hcengineering/contact'
 import serverCore from '@hcengineering/server-core'
 import ygHr from '@hcengineering/yg-hr'
 import serverYgHr from '@hcengineering/server-yg-hr'
 
 export { serverYgHrId } from '@hcengineering/server-yg-hr'
+
+// yg-timesheet ids guarded by OnEmployeeHrGuard (shift-aware attendance, 2026-10-01). Spelled as
+// literal ids because this model package does not depend on @hcengineering/yg-timesheet and the
+// fix wave adds no dependencies; they are exactly what plugin('yg-timesheet', ...) generates for
+// ygTimesheet.mixin.WorkProfile and ygTimesheet.class.ShiftType.
+const workProfileMixin = 'yg-timesheet:mixin:WorkProfile' as Ref<Mixin<Doc>>
+const shiftTypeClass = 'yg-timesheet:class:ShiftType' as Ref<Class<Doc>>
 
 export function createModel (builder: Builder): void {
   // Auto-assign employee id on Employee-mixin creation (server trigger, Task 7). objectClass-only
@@ -46,7 +53,9 @@ export function createModel (builder: Builder): void {
     isAsync: true,
     txMatch: {
       _class: core.class.TxMixin,
-      mixin: { $in: [ygHr.mixin.EmployeePersonal, ygHr.mixin.EmployeeContact, ygHr.mixin.EmployeeJob] }
+      // WorkProfile is the server-maintained mirror of EmployeeJob that attendance reads; guarded so
+      // its shift/designation fields cannot be written around the EmployeeJob guard.
+      mixin: { $in: [ygHr.mixin.EmployeePersonal, ygHr.mixin.EmployeeContact, ygHr.mixin.EmployeeJob, workProfileMixin] }
     }
   })
 
@@ -88,7 +97,9 @@ export function createModel (builder: Builder): void {
         $in: [
           ygHr.class.Department, ygHr.class.Designation, ygHr.class.EmploymentStatus, ygHr.class.Location,
           ygHr.class.TerminationReason, ygHr.class.EducationLevel, ygHr.class.SkillType,
-          ygHr.class.LanguageType, ygHr.class.LicenseType
+          ygHr.class.LanguageType, ygHr.class.LicenseType,
+          // HR-managed shift types (create/update/remove reverted for non-HR, like the lists above).
+          shiftTypeClass
         ]
       }
     }

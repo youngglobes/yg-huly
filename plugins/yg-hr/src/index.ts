@@ -148,6 +148,9 @@ export interface EmployeeJob extends Employee {
   // Unified here from ygTimesheet.mixin.WorkProfile.shiftStart; a server sync mirrors it back to
   // WorkProfile so the attendance flows read it unchanged (OnEmployeeJobSync, server-plugins/yg-hr-resources).
   shiftStart?: number
+  // Ref to a yg-timesheet ShiftType (typed Ref<Doc> here: this plugin does not depend on
+  // yg-timesheet). Mirrored to WorkProfile.shiftType by the server sync, like shiftStart.
+  shiftType?: Ref<Doc>
 }
 
 export const HR_DESIGNATION_FALLBACK = 'HR Executive'
@@ -255,6 +258,7 @@ export default plugin(ygHrId, {
     JoinedDate: '' as IntlString,
     Location: '' as IntlString,
     ShiftStart: '' as IntlString,
+    ShiftType: '' as IntlString,
     ContractStart: '' as IntlString,
     ContractEnd: '' as IntlString,
     Termination: '' as IntlString,

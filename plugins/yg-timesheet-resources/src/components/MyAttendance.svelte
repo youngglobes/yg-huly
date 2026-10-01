@@ -15,14 +15,21 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
   import { getCurrentEmployee } from '@hcengineering/contact'
-  import core from '@hcengineering/core'
+  import core, { type Ref } from '@hcengineering/core'
   import { translate } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label, themeStore, showPopup } from '@hcengineering/ui'
-  import ygTimesheet, { type AttendanceSession, type AttendanceMode, type LatePermission } from '@hcengineering/yg-timesheet'
+  import ygTimesheet, {
+    type AttendanceSession,
+    type AttendanceMode,
+    type LatePermission,
+    type ShiftType,
+    istWorkDayStart,
+    minutesLateInWorkDay,
+    dayStartFor
+  } from '@hcengineering/yg-timesheet'
   import { localDayKey } from '../utils/week'
   import {
-    localMidnight,
     findOpenSession,
     dailyTotal,
     dayStats,
@@ -31,7 +38,7 @@
   } from '../utils/attendance'
   import { createPunchIn, closePunchOut } from '../utils/attendance-write'
   import { isMobileDevice } from '../utils/user-agent'
-  import { isLate, minutesLateOf, dayLateStatus } from '../utils/late'
+  import { dayLateStatus } from '../utils/late'
   import AttendanceSessionRow from './AttendanceSessionRow.svelte'
   import HolidayCalendarView from './HolidayCalendarView.svelte'
   import LateReasonPopup from './LateReasonPopup.svelte'
@@ -46,7 +53,22 @@
   // Current employee's shift start (minutes since midnight), or undefined = exempt from late flow.
   let shiftStart: number | undefined = undefined
   const profQuery = createQuery()
-  $: profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => { shiftStart = res[0]?.shiftStart })
+  let shiftType: Ref<ShiftType> | undefined = undefined
+  // dayStartMin is only right once BOTH the profile and the shift types have arrived.
+  let profileLoaded = false
+  let shiftTypesLoaded = false
+  $: profQuery.query(ygTimesheet.mixin.WorkProfile, { _id: me }, (res) => {
+    shiftStart = res[0]?.shiftStart ?? undefined
+    shiftType = res[0]?.shiftType ?? undefined
+    profileLoaded = true
+  })
+  const shiftTypesQuery = createQuery()
+  let shiftTypes: ShiftType[] = []
+  shiftTypesQuery.query(ygTimesheet.class.ShiftType, {}, (res) => {
+    shiftTypes = res
+    shiftTypesLoaded = true
+  })
+  $: dayStartMin = dayStartFor(shiftType, shiftTypes)
 
   // This employee's late permissions, keyed by day (local midnight) - drives the Late/Excused/
   // Pending chip next to the day-log date.
@@ -67,8 +89,10 @@
   const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const timeFmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
   const hourLabel = (h: number): string => {
-    const ap = h < 12 || h === 24 ? 'a' : 'p'
-    const hr = h % 12 === 0 ? 12 : h % 12
+    // A shifted work day runs past 24:00 (e.g. 26 = 2am next day): label by the clock hour.
+    const clock = h % 24
+    const ap = clock < 12 ? 'a' : 'p'
+    const hr = clock % 12 === 0 ? 12 : clock % 12
     return `${hr}${ap}`
   }
 
@@ -89,7 +113,7 @@
   )
 
   // Today drives the live punch zone (hero). `nowMs` feeds these so timers/totals retick each second.
-  $: todayMid = localMidnight(nowMs)
+  $: todayMid = istWorkDayStart(nowMs, dayStartMin)
   $: todays = sessions.filter((s) => s.date === todayMid)
   $: openSession = findOpenSession(sessions)
   $: punchedIn = openSession !== undefined
@@ -151,15 +175,18 @@
     busy = true
     pending = 'in'
 
-    // Late check only on the FIRST punch of the day, and only when a shiftStart is set.
+    // Late check only on the FIRST punch of the work day, and only when a shiftStart is set. The
+    // server makes the authoritative decision (OnAttendancePunch); this only asks for the reason.
     let lateReason: string | undefined
-    if (shiftStart !== undefined && isLate(at, shiftStart)) {
+    const workDay = istWorkDayStart(at, dayStartMin)
+    const lateBy = shiftStart === undefined ? 0 : minutesLateInWorkDay(at, workDay, shiftStart, dayStartMin)
+    if (lateBy > 0 && profileLoaded && shiftTypesLoaded) {
       const priorToday = await client.findAll(
-        ygTimesheet.class.AttendanceSession, { employee: me, date: localMidnight(at) }, { limit: 1 }
+        ygTimesheet.class.AttendanceSession, { employee: me, date: workDay }, { limit: 1 }
       )
       if (priorToday.length === 0) {
         const res = await new Promise<{ reason: string } | null | undefined>((resolve) => {
-          showPopup(LateReasonPopup, { minutesLate: minutesLateOf(at, shiftStart as number) }, undefined, resolve)
+          showPopup(LateReasonPopup, { minutesLate: lateBy }, undefined, resolve)
         })
         if (res == null) {
           busy = false
@@ -211,8 +238,13 @@
 
   // The day log: one browsable full-width view. A native <input type="date"> (yyyy-mm-dd) picks the
   // day, defaulting to today; the timeline and the table below both follow it.
-  let logKey = localDayKey(Date.now())
-  $: logMid = new Date(`${logKey}T00:00:00`).getTime()
+  // The log opens on the WORK day (todayMid) until the user explicitly picks a date.
+  // The input is NOT bound: a `$:` block assigning a bind:value variable re-runs after the input
+  // event and before on:change sets userPicked, which snapped the first pick back to the work day.
+  let userPicked = false
+  let pickedKey = ''
+  $: shownKey = userPicked ? pickedKey : localDayKey(todayMid)
+  $: logMid = userPicked ? new Date(`${pickedKey}T00:00:00`).getTime() : todayMid
   $: logIsToday = logMid === todayMid
   $: logSessions = sessions.filter((s) => s.date === logMid).sort((a, b) => a.punchIn - b.punchIn)
   $: logTotal = dailyTotal(logSessions, nowMs)
@@ -347,7 +379,7 @@
           {:else if logLateStatus === 'late'}
             <span class="att-latechip att-latechip--late"><Label label={ygTimesheet.string.LateStatusLate} /></span>
           {/if}
-          <input class="att-date" type="date" bind:value={logKey} />
+          <input class="att-date" type="date" value={shownKey} on:change={(e) => { pickedKey = e.currentTarget.value; userPicked = pickedKey !== '' }} />
         </div>
       </div>
 

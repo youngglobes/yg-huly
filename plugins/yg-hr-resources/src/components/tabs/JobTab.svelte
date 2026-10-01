@@ -23,9 +23,10 @@
 -->
 <script lang="ts">
   import type { Employee } from '@hcengineering/contact'
-  import type { Ref } from '@hcengineering/core'
-  import { getClient } from '@hcengineering/presentation'
+  import type { Doc, Ref } from '@hcengineering/core'
+  import { createQuery, getClient } from '@hcengineering/presentation'
   import { Label } from '@hcengineering/ui'
+  import ygTimesheet, { type ShiftType } from '@hcengineering/yg-timesheet'
   import ygHr, {
     type Department,
     type Designation,
@@ -58,6 +59,13 @@
   $: locationName = locations.find((d) => d._id === job?.location)?.name
   $: shiftStartDisplay = minutesToTime(job?.shiftStart)
 
+  let shiftTypes: ShiftType[] = []
+  createQuery().query(ygTimesheet.class.ShiftType, {}, (res) => { shiftTypes = res }, { sort: { name: 1 } })
+  $: shiftTypeDoc = shiftTypes.find((t) => t._id === job?.shiftType)
+  // Archived types are not offered for new assignment, but the current one stays selectable.
+  $: pickable = shiftTypes.filter((t) => t.archived !== true || t._id === job?.shiftType)
+  $: pickedDescription = shiftTypes.find((t) => t._id === fShiftType)?.description
+
   // shiftStart is stored as minutes since local midnight (540 = 09:00), unified from WorkProfile. The
   // <input type="time"> uses a "HH:MM" string, so convert both ways.
   function minutesToTime (m: number | undefined): string | undefined {
@@ -78,6 +86,7 @@
   let fEmploymentStatus = ''
   let fLocation = ''
   let fShiftStart = ''
+  let fShiftType = ''
 
   // Seed the edit-mode fields ONCE when edit mode turns on, through plain functions. They must not
   // be assigned inside a `$:` block: Svelte 4 links a two-way bound variable to the reactive block
@@ -90,6 +99,7 @@
     fEmploymentStatus = job?.employmentStatus ?? ''
     fLocation = job?.location ?? ''
     fShiftStart = minutesToTime(job?.shiftStart) ?? ''
+    fShiftType = (job?.shiftType as string | undefined) ?? ''
   }
 
   async function saveRole (): Promise<void> {
@@ -98,7 +108,8 @@
       department: fDepartment === '' ? undefined : (fDepartment as Ref<Department>),
       employmentStatus: fEmploymentStatus === '' ? undefined : (fEmploymentStatus as Ref<EmploymentStatus>),
       location: fLocation === '' ? undefined : (fLocation as Ref<Location>),
-      shiftStart: timeToMinutes(fShiftStart)
+      shiftStart: timeToMinutes(fShiftStart),
+      shiftType: fShiftType === '' ? (null as unknown as Ref<Doc>) : (fShiftType as Ref<Doc>)
     }
     await saveEmployeeMixin(client, h, employee, ygHr.mixin.EmployeeJob, upd)
   }
@@ -182,6 +193,14 @@
           <span><Label label={ygHr.string.ShiftStart} /></span>
           <input class="yg-input" type="time" bind:value={fShiftStart} on:change={saveRole} />
         </label>
+        <label class="yg-input-f">
+          <span><Label label={ygHr.string.ShiftType} /></span>
+          <select class="yg-input" bind:value={fShiftType} on:change={saveRole}>
+            <option value="">-</option>
+            {#each pickable as t (t._id)}<option value={t._id}>{t.name}</option>{/each}
+          </select>
+          {#if pickedDescription}<small class="yg-hint">{pickedDescription}</small>{/if}
+        </label>
       </FieldGroup>
     {:else}
       <FieldGroup>
@@ -194,6 +213,7 @@
         <FieldRow label={ygHr.string.EmploymentStatus} value={employmentStatusName} />
         <FieldRow label={ygHr.string.Location} value={locationName} />
         <FieldRow label={ygHr.string.ShiftStart} value={shiftStartDisplay} mono />
+        <FieldRow label={ygHr.string.ShiftType} value={shiftTypeDoc?.name} />
       </FieldGroup>
     {/if}
   </SectionCard>
@@ -256,4 +276,11 @@
 
 <style lang="scss">
   @use '../yg-profile' as *;
+
+  .yg-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--theme-dark-color);
+  }
 </style>

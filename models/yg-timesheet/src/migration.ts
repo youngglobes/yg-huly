@@ -1,5 +1,5 @@
 //
-// YoungGlobes: yg-timesheet migrations — provision the private HR space.
+// YoungGlobes: yg-timesheet migrations - provision the private HR space.
 //
 import { DOMAIN_SPACE, generateId, TxOperations, type Ref, type Timestamp } from '@hcengineering/core'
 import {
@@ -16,6 +16,23 @@ import contact, { type Employee } from '@hcengineering/contact'
 import type { Issue, Project, TimeSpendReport } from '@hcengineering/tracker'
 import ygTimesheet, { ygTimesheetId, type Timesheet, type TimesheetDay, type WorkDesignation } from '@hcengineering/yg-timesheet'
 import { DOMAIN_YG_TIMESHEET } from '.'
+
+// Default shift types (IST). Seeded by name, so renaming or archiving one never brings it back.
+const DEFAULT_SHIFT_TYPES = [
+  { name: 'Day', dayStartMin: 360, hoursFromMin: 540, hoursToMin: 1200, description: 'Indian day shift. The work day runs 06:00 to 06:00, so late evening work stays on the day it started.' },
+  { name: 'UK', dayStartMin: 360, hoursFromMin: 810, hoursToMin: 60, description: 'UK hours worked from India. Sessions after midnight (until 06:00) count on the day the shift started.' },
+  { name: 'US', dayStartMin: 360, hoursFromMin: 1110, hoursToMin: 270, description: 'US East-coast hours worked from India. Sessions after midnight (until 06:00) count on the day the shift started.' },
+  { name: 'Aus', dayStartMin: 0, hoursFromMin: 240, hoursToMin: 960, description: 'Australian hours worked from India (early morning start, evening support until 22:00). The work day is the calendar day.' }
+]
+
+async function seedShiftTypes (client: MigrationUpgradeClient): Promise<void> {
+  const ops = new TxOperations(client, core.account.System)
+  const have = new Set((await ops.findAll(ygTimesheet.class.ShiftType, {})).map((t) => t.name.trim().toLowerCase()))
+  for (const t of DEFAULT_SHIFT_TYPES) {
+    if (have.has(t.name.toLowerCase())) continue // idempotent
+    await ops.createDoc(ygTimesheet.class.ShiftType, core.space.Workspace, t)
+  }
+}
 
 async function createHrSpace (tx: TxOperations): Promise<void> {
   const existing = await tx.findOne(core.class.Space, { _id: ygTimesheet.space.HrData })
@@ -104,7 +121,7 @@ async function migrateApproversToArrays (client: MigrationClient): Promise<void>
 
 // Hide Huly's built-in HR app so there is one HR menu (ours). Best-effort: an existing app doc can
 // only be updated by a TxOperations client (not the model Builder), and updating a model-space doc
-// is not guaranteed on every backend — so never let this fail the workspace provision.
+// is not guaranteed on every backend - so never let this fail the workspace provision.
 async function hideStockHrApp (tx: TxOperations): Promise<void> {
   try {
     const app = await tx.findOne(workbench.class.Application, { _id: hr.app.HR })
@@ -168,10 +185,10 @@ async function hideStockWidgets (tx: TxOperations): Promise<void> {
 
 // Per-task approval (2026-07-23): existing TimesheetDay rows carry a single status and a
 // snapshot of their lines. Derive one TimesheetTask per snapshot line so history survives.
-// Days with no snapshot yield no tasks and therefore read as Draft — accepted.
+// Days with no snapshot yield no tasks and therefore read as Draft - accepted.
 //
 // NOTE: this runs in the `migrate` phase (raw MigrationClient, domain-level writes only). It
-// deliberately does NOT create the TimesheetApproval rows for Approved days here — those
+// deliberately does NOT create the TimesheetApproval rows for Approved days here - those
 // reference ygTimesheet.space.Approvals, which is only provisioned in the `upgrade` phase
 // (createApprovalsSpace). Creating a doc against a space that doesn't exist yet is fragile, so
 // the approval-row backfill is a separate step (migrateApprovalRows, below) that runs in
@@ -185,7 +202,7 @@ async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
       _class: ygTimesheet.class.TimesheetTask,
       attachedTo: day._id
     })
-    if (already.length > 0) continue // idempotent — safe to re-run
+    if (already.length > 0) continue // idempotent - safe to re-run
     for (const line of day.snapshot ?? []) {
       const taskId = generateId()
       await client.create(DOMAIN_YG_TIMESHEET, {
@@ -213,9 +230,9 @@ async function migrateDaysToTasks (client: MigrationClient): Promise<void> {
 }
 
 // Backfill the private Approvals-space overlay for tasks migrated (above) from an already-
-// Approved day, so approved history is not lost. Approved hours default to what was submitted —
+// Approved day, so approved history is not lost. Approved hours default to what was submitted -
 // nobody re-judged these retrospectively. Runs in the `upgrade` phase, AFTER createApprovalsSpace
-// has provisioned ygTimesheet.space.Approvals (see ygTimesheetOperation.upgrade — this state is
+// has provisioned ygTimesheet.space.Approvals (see ygTimesheetOperation.upgrade - this state is
 // ordered after 'approvals-space-0001'). Idempotent: skips any task that already has an
 // approval doc, so it is safe to re-run and safe even if migrateDaysToTasks is re-run first.
 async function migrateApprovalRows (client: MigrationUpgradeClient): Promise<void> {
@@ -223,7 +240,7 @@ async function migrateApprovalRows (client: MigrationUpgradeClient): Promise<voi
   const tasks = await ops.findAll(ygTimesheet.class.TimesheetTask, { status: 'Approved' })
   for (const task of tasks) {
     const existing = await ops.findOne(ygTimesheet.class.TimesheetApproval, { task: task._id })
-    if (existing !== undefined) continue // idempotent — safe to re-run
+    if (existing !== undefined) continue // idempotent - safe to re-run
     const day = await ops.findOne(ygTimesheet.class.TimesheetDay, { _id: task.attachedTo as Ref<TimesheetDay> })
     if (day?.approvedBy == null || day?.approvedOn == null) continue // no sign-off to carry over
     await ops.createDoc(ygTimesheet.class.TimesheetApproval, ygTimesheet.space.Approvals, {
@@ -385,7 +402,7 @@ export const ygTimesheetOperation: MigrateOperation = {
       },
       {
         // Ordered after 'approvals-space-0001' so ygTimesheet.space.Approvals is guaranteed to
-        // exist before any TimesheetApproval doc referencing it is created — see
+        // exist before any TimesheetApproval doc referencing it is created - see
         // migrateApprovalRows above for why this can't run in the `migrate` phase.
         state: 'approval-rows-0001',
         func: migrateApprovalRows
@@ -433,6 +450,10 @@ export const ygTimesheetOperation: MigrateOperation = {
         // show approval data for tasks approved before this denormalization shipped.
         state: 'task-approval-denorm-0001',
         func: backfillTaskApproval
+      },
+      {
+        state: 'shift-types-seed-0001',
+        func: seedShiftTypes
       }
     ])
   }

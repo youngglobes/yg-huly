@@ -5,6 +5,7 @@ import core, {
   AccountRole,
   hasAccountRole,
   systemAccountUuid,
+  SortingOrder,
   TxProcessor,
   type AccountUuid,
   type AttachedDoc,
@@ -20,7 +21,7 @@ import contact, { type Employee, type Person } from '@hcengineering/contact'
 import { type TriggerControl } from '@hcengineering/server-core'
 import { generateToken } from '@hcengineering/server-token'
 import { getClient as getAccountClient } from '@hcengineering/account-client'
-import ygTimesheet from '@hcengineering/yg-timesheet'
+import ygTimesheet, { type ShiftType } from '@hcengineering/yg-timesheet'
 import ygHr, {
   employeeActiveFromStatus,
   EMPLOYEE_SEQ_ID,
@@ -198,9 +199,13 @@ const GUARDED_MIXIN_FIELDS: Record<string, readonly string[]> = {
   ],
   [ygHr.mixin.EmployeeJob]: [
     'designation', 'department', 'employmentStatus', 'joinedDate', 'location', 'contractStart',
-    'contractEnd', 'terminationDate', 'terminationReason'
+    'contractEnd', 'terminationDate', 'terminationReason',
+    // The shift decides which work day a punch belongs to and the late threshold, so it is HR-only
+    // like designation (shift-aware attendance, 2026-10-01).
+    'shiftStart', 'shiftType'
   ]
 }
+// ygTimesheet.mixin.WorkProfile is guarded too, but NOT through this table: see guardWorkProfileWrite.
 
 // Own content fields per guarded child class, restored on an unauthorized UPDATE (see guardChildDocWrite).
 const CHILD_DOC_FIELDS: Record<string, readonly string[]> = {
@@ -225,7 +230,10 @@ const HR_CONFIG_FIELDS: Record<string, readonly string[]> = {
   [ygHr.class.EducationLevel]: ['name'],
   [ygHr.class.SkillType]: ['name'],
   [ygHr.class.LanguageType]: ['name'],
-  [ygHr.class.LicenseType]: ['name']
+  [ygHr.class.LicenseType]: ['name'],
+  // Shift types (Day/UK/US/Aus...) are HR-managed config like the lists above: dayStartMin moves
+  // every assigned employee's work-day boundary, so a non-HR write would re-date their punches.
+  [ygTimesheet.class.ShiftType]: ['name', 'description', 'dayStartMin', 'hoursFromMin', 'hoursToMin', 'archived']
 }
 
 // Every Employee child-collection class whose writes are HR-only (reverted for non-HR). All six route
@@ -238,6 +246,29 @@ const GUARDED_CHILD_CLASSES = new Set<Ref<Class<Doc>>>([
   ygHr.class.EmployeeLanguage,
   ygHr.class.EmployeeLicense
 ])
+
+// The object's own tx log BEFORE `tx`, oldest first, for the TxProcessor.buildDoc2Doc replay that
+// reconstructs pre-tx state (triggers only see post-apply state).
+//
+// Two corrections found on beta 2026-10-01 (shift-aware fix wave):
+//  - Order: findAll returns the log in storage order (random _id order on CockroachDB) and
+//    buildDoc2Doc does NOT sort, so the replay picked an arbitrary historic value. Sorted here by
+//    modifiedOn.
+//  - Reverted writes stay in the log: the System revert txes a guard applies never reach the tx
+//    table, but the unauthorized tx it reverted does. A replay would therefore treat an earlier,
+//    already-reverted forgery as accepted, and a second forgery would be "reverted" to the first
+//    one. With dropActorTxes (the revert paths), every earlier tx by the same actor is left out:
+//    that actor is unauthorized now, so their earlier writes were reverted too. The create tx is
+//    always kept. Not covered: an earlier forgery by a DIFFERENT non-HR member stays in the log.
+async function priorTxLog (control: TriggerControl, tx: TxCUD<Doc>, dropActorTxes: boolean): Promise<Tx[]> {
+  const log = await control.findAll(
+    control.ctx, core.class.TxCUD, { objectId: tx.objectId }, { sort: { modifiedOn: SortingOrder.Ascending } }
+  )
+  return Array.from(log)
+    .filter((it) => it._id !== tx._id)
+    .filter((it) => !dropActorTxes || it._class === core.class.TxCreateDoc || it.modifiedBy !== tx.modifiedBy)
+    .sort((a, b) => a.modifiedOn - b.modifiedOn)
+}
 
 // "HR" = membership in the Roster-managed HR team (ygTimesheet.space.HrData) - the single source of
 // truth for who is HR, shared with the timesheet/attendance features (PO decision 2026-09-03,
@@ -267,9 +298,7 @@ async function isSelfPendingActivation (mtx: TxMixin<Person, Employee>, control:
   if (attrs == null || Object.keys(attrs).length !== 1 || attrs.status !== 'active') return false
 
   // Prior status must be exactly 'pending' (reconstruct pre-tx state, same idiom as the reverts).
-  const logTxes = Array.from(
-    await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
-  ).filter((it) => it._id !== mtx._id)
+  const logTxes = await priorTxLog(control, mtx, false)
   const prevDoc = TxProcessor.buildDoc2Doc<Person>(logTxes)
   const prevStatus =
     prevDoc !== undefined && prevDoc !== null && control.hierarchy.hasMixin(prevDoc, ygHr.mixin.EmployeePersonal)
@@ -302,9 +331,7 @@ async function guardMixinWrite (mtx: TxMixin<Person, Employee>, control: Trigger
   if (await isHrAuthorized(control)) return
   if (await isSelfPendingActivation(mtx, control)) return
 
-  const logTxes = Array.from(
-    await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
-  ).filter((it) => it._id !== mtx._id)
+  const logTxes = await priorTxLog(control, mtx, true)
   const prevDoc = TxProcessor.buildDoc2Doc<Person>(logTxes)
   const prevMixin: any =
     prevDoc !== undefined && prevDoc !== null ? control.hierarchy.as(prevDoc, mtx.mixin) : undefined
@@ -358,9 +385,7 @@ async function guardChildDocWrite (cud: TxCUD<AttachedDoc>, control: TriggerCont
 
   // Update/remove: reconstruct the pre-tx state (see guardMixinWrite for why POST-APPLY state
   // alone is not enough).
-  const logTxes = Array.from(
-    await control.findAll(control.ctx, core.class.TxCUD, { objectId: cud.objectId })
-  ).filter((it) => it._id !== cud._id)
+  const logTxes = await priorTxLog(control, cud, true)
   const prevDoc = TxProcessor.buildDoc2Doc<AttachedDoc>(logTxes)
 
   if (prevDoc === undefined || prevDoc === null) {
@@ -475,9 +500,7 @@ async function guardChildDocWrite (cud: TxCUD<AttachedDoc>, control: TriggerCont
 async function isSystemDesignationMutation (cud: TxCUD<Doc>, control: TriggerControl): Promise<boolean> {
   if (cud.objectClass !== ygHr.class.Designation) return false
   if (cud._class === core.class.TxCreateDoc) return false
-  const logTxes = Array.from(
-    await control.findAll(control.ctx, core.class.TxCUD, { objectId: cud.objectId })
-  ).filter((it) => it._id !== cud._id)
+  const logTxes = await priorTxLog(control, cud, false)
   const prevName = (TxProcessor.buildDoc2Doc<Doc>(logTxes) as any)?.name
   if (!isSystemDesignation(prevName)) return false
   if (cud._class === core.class.TxRemoveDoc) return true
@@ -490,7 +513,7 @@ async function isSystemDesignationMutation (cud: TxCUD<Doc>, control: TriggerCon
 
 async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Promise<void> {
   const fields = HR_CONFIG_FIELDS[cud.objectClass]
-  if (fields === undefined) return // not one of the five guarded HrConfig list classes
+  if (fields === undefined) return // not one of the guarded HrConfig list classes (or ShiftType)
 
   // System designations are locked for EVERYONE (their name drives role detection), so a rename/
   // remove of one is reverted even when the actor IS HR/admin. All other writes pass for HR/admin.
@@ -512,9 +535,7 @@ async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Pr
 
   // Update/remove: reconstruct the pre-tx state (see guardMixinWrite for why POST-APPLY state
   // alone is not enough).
-  const logTxes = Array.from(
-    await control.findAll(control.ctx, core.class.TxCUD, { objectId: cud.objectId })
-  ).filter((it) => it._id !== cud._id)
+  const logTxes = await priorTxLog(control, cud, true)
   const prevDoc = TxProcessor.buildDoc2Doc<Doc>(logTxes)
 
   if (prevDoc === undefined || prevDoc === null) {
@@ -564,12 +585,44 @@ async function guardHrConfigWrite (cud: TxCUD<Doc>, control: TriggerControl): Pr
   if (reverts.length > 0) await control.apply(control.ctx, reverts)
 }
 
+// WorkProfile is the timesheet-side mirror that OnEmployeeJobSync maintains from EmployeeJob, and the
+// copy the attendance punch trigger (work day, late threshold) and the HR/late-permission checks
+// actually READ. Guarding EmployeeJob alone would leave it writable straight through the API.
+//
+// It cannot use guardMixinWrite's tx-log replay: the mirror values are written by the System sync,
+// and System-authored trigger txes do not reach the tx table (verified on beta 2026-10-01, and the
+// 2026-09-22 attendance-guard finding), so a replay would "restore" them to unset. EmployeeJob is the
+// source of truth, so an unauthorized write is reverted by re-deriving the mirror from it - the same
+// values OnEmployeeJobSync would write. employeeId is not mirrored and is left alone.
+async function guardWorkProfileWrite (mtx: TxMixin<Person, Employee>, control: TriggerControl): Promise<void> {
+  if (await isHrAuthorized(control)) return
+
+  const person = (
+    await control.findAll(control.ctx, contact.class.Person, { _id: mtx.objectId }, { limit: 1 })
+  )[0]
+  if (person === undefined) return
+
+  control.ctx.warn('yg-hr: unauthorized WorkProfile write reverted from EmployeeJob', {
+    employee: mtx.objectId, actor: mtx.modifiedBy
+  })
+  await control.apply(control.ctx, [
+    control.txFactory.createTxMixin(
+      person._id, mtx.objectClass, person.space, ygTimesheet.mixin.WorkProfile,
+      (await workProfileMirror(person, control)) as any, Date.now(), core.account.System
+    )
+  ])
+}
+
 export async function OnEmployeeHrGuard (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     // Loop-safety guard - see file header above. Must stay first.
     if (tx.modifiedBy === core.account.System) continue
 
     if (tx._class === core.class.TxMixin) {
+      if ((tx as TxMixin<Person, Employee>).mixin === ygTimesheet.mixin.WorkProfile) {
+        await guardWorkProfileWrite(tx as TxMixin<Person, Employee>, control)
+        continue
+      }
       await guardMixinWrite(tx as TxMixin<Person, Employee>, control)
       continue
     }
@@ -637,9 +690,7 @@ export async function OnEmployeeStatusChange (txes: Tx[], control: TriggerContro
 
     // Reconstruct the PRE-tx status (triggers see post-apply state) to act only on a real change -
     // same buildDoc2Doc replay idiom the guards above use.
-    const logTxes = Array.from(
-      await control.findAll(control.ctx, core.class.TxCUD, { objectId: mtx.objectId })
-    ).filter((it) => it._id !== mtx._id)
+    const logTxes = await priorTxLog(control, mtx, false)
     const prevDoc = TxProcessor.buildDoc2Doc<Person>(logTxes)
     const prevStatus =
       prevDoc !== undefined && prevDoc !== null && control.hierarchy.hasMixin(prevDoc, ygHr.mixin.EmployeePersonal)
@@ -704,45 +755,70 @@ async function revokeWorkspaceAccess (control: TriggerControl, person: Person): 
 
 //
 // Sync trigger: mirror the yg-hr EmployeeJob (now the single edit source for designation/department/
-// shiftStart) BACK into ygTimesheet.mixin.WorkProfile, so the timesheet flows that still read
+// shiftStart/shiftType) BACK into ygTimesheet.mixin.WorkProfile, so the timesheet flows that still read
 // WorkProfile (attendance shiftStart, dashboard role routing, HR/late-permission detection,
 // leadership project-creation, Performance) keep reading the same shape WITHOUT being modified.
 // WorkProfile is now server-maintained plumbing - nothing writes it via the UI (the Team Profiles
 // editor was removed). designation/department Refs are resolved to their Designation/Department NAME
-// (WorkProfile stores strings; the role-driving names are locked so they stay valid). shiftStart
-// copies directly.
+// (WorkProfile stores strings; the role-driving names are locked so they stay valid). shiftStart and shiftType
+// copy directly.
 //
 // Loop-safety: the WorkProfile write is System-authored AND on a DIFFERENT mixin (WorkProfile) than
 // this trigger matches (EmployeeJob), so it cannot re-enter; the top-of-loop System guard backstops.
 // Only writes when a value actually differs from the current WorkProfile mirror (no churn).
 //
+// The WorkProfile values that mirror a person's EmployeeJob (designation/department Refs resolved to
+// their NAME). Shared by OnEmployeeJobSync and the WorkProfile guard's revert so they cannot drift.
+// Shift fields are null (not undefined) so a cleared value survives JSON and actually clears WorkProfile.
+async function workProfileMirror (
+  person: Person,
+  control: TriggerControl
+): Promise<{ designation?: string, department?: string, shiftStart: number | null, shiftType: Ref<ShiftType> | null }> {
+  const job: any = control.hierarchy.hasMixin(person, ygHr.mixin.EmployeeJob)
+    ? control.hierarchy.as(person, ygHr.mixin.EmployeeJob)
+    : {}
+  const designation = job.designation !== undefined && job.designation !== null
+    ? (await control.findAll(control.ctx, ygHr.class.Designation, { _id: job.designation }, { limit: 1 }))[0]?.name
+    : undefined
+  const department = job.department !== undefined && job.department !== null
+    ? (await control.findAll(control.ctx, ygHr.class.Department, { _id: job.department }, { limit: 1 }))[0]?.name
+    : undefined
+  return {
+    designation,
+    department,
+    shiftStart: job.shiftStart ?? null,
+    shiftType: (job.shiftType ?? null) as Ref<ShiftType> | null
+  }
+}
+
 export async function OnEmployeeJobSync (txes: Tx[], control: TriggerControl): Promise<Tx[]> {
   for (const tx of txes) {
     if (tx.modifiedBy === core.account.System) continue
     if (tx._class !== core.class.TxMixin) continue
     const mtx = tx as TxMixin<Person, Employee>
     if (mtx.mixin !== ygHr.mixin.EmployeeJob) continue
+    // Never mirror a write that OnEmployeeHrGuard rejects. Every EmployeeJob field is guarded and the
+    // guard's rule for this mixin is exactly isHrAuthorized (the self-activation carve-out is
+    // EmployeePersonal-only), so a non-HR write is always reverted. Mirroring it first would leave
+    // the forged value in WorkProfile: the guard's revert is System-authored, which this trigger
+    // skips, so nothing would ever re-sync it. Checking here keeps the outcome independent of the
+    // order in which the two async triggers run.
+    if (!(await isHrAuthorized(control))) continue
 
     const person = (
       await control.findAll(control.ctx, contact.class.Person, { _id: mtx.objectId }, { limit: 1 })
     )[0]
     if (person === undefined || !control.hierarchy.hasMixin(person, contact.mixin.Employee)) continue
 
-    const job = control.hierarchy.as(person, ygHr.mixin.EmployeeJob)
-    const desigName = job.designation !== undefined
-      ? (await control.findAll(control.ctx, ygHr.class.Designation, { _id: job.designation }, { limit: 1 }))[0]?.name
-      : undefined
-    const deptName = job.department !== undefined
-      ? (await control.findAll(control.ctx, ygHr.class.Department, { _id: job.department }, { limit: 1 }))[0]?.name
-      : undefined
-
+    const mirror = await workProfileMirror(person, control)
     const wp = control.hierarchy.hasMixin(person, ygTimesheet.mixin.WorkProfile)
       ? control.hierarchy.as(person, ygTimesheet.mixin.WorkProfile)
       : undefined
     const wpUpdate: Record<string, any> = {}
-    if (wp?.designation !== desigName) wpUpdate.designation = desigName
-    if (wp?.department !== deptName) wpUpdate.department = deptName
-    if (wp?.shiftStart !== job.shiftStart) wpUpdate.shiftStart = job.shiftStart
+    if (wp?.designation !== mirror.designation) wpUpdate.designation = mirror.designation
+    if (wp?.department !== mirror.department) wpUpdate.department = mirror.department
+    if ((wp?.shiftStart ?? null) !== mirror.shiftStart) wpUpdate.shiftStart = mirror.shiftStart
+    if ((wp?.shiftType ?? null) !== mirror.shiftType) wpUpdate.shiftType = mirror.shiftType
     if (Object.keys(wpUpdate).length === 0) continue
 
     await control.apply(control.ctx, [
