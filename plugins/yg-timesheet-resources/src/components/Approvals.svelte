@@ -313,6 +313,9 @@
           {#each open ? g.tasks : [] as task (task._id)}
             {@const history = historyFor(task, cyclesByKey)}
             {@const latest = history[history.length - 1]}
+            <!-- A round an approver recalled (Reports page) was undone, not a rejection the employee
+                 answered: it is shown as recalled and does not make the next approval a "Reapprove". -->
+            {@const reapproval = history.some((c) => c.recalledOn == null)}
             <div class="approw">
               <span class="approw__date">{dayFmt.format(task.date)}</span>
               <span class="yg-idbadge">{task.identifier}</span>
@@ -325,8 +328,8 @@
               </a>
               <span class="approw__hrs">{formatHours(task.submittedHours)}</span>
               <span class="ap-actions">
-                <button class="yg-btn yg-btn--primary" on:click={() => { void onApprove(task, history.length > 0) }}>
-                  <Label label={history.length > 0 ? ygTimesheet.string.Reapprove : ygTimesheet.string.Approve} />
+                <button class="yg-btn yg-btn--primary" on:click={() => { void onApprove(task, reapproval) }}>
+                  <Label label={reapproval ? ygTimesheet.string.Reapprove : ygTimesheet.string.Approve} />
                 </button>
                 <button class="yg-btn yg-btn--danger" on:click={() => onReject(task)}>
                   <Label label={ygTimesheet.string.Reject} />
@@ -335,7 +338,9 @@
             </div>
             {#if latest !== undefined}
               <div class="prior">
-                <div class="prior__line">⟲ previously rejected: "{latest.rejectReason}"</div>
+                <div class="prior__line">
+                  ⟲ previously rejected{#if latest.recalledOn != null} (<Label label={ygTimesheet.string.Recalled} />){/if}: "{latest.rejectReason}"
+                </div>
                 {#if (latest.resubmitNote ?? '') !== ''}
                   <div class="prior__reply">{g.name} replied: "{latest.resubmitNote}"</div>
                 {/if}
@@ -347,6 +352,7 @@
                     {#each history.slice(0, -1) as round, ri (round._id)}
                       <div class="prior__round">
                         <b>round {ri + 1}:</b> "{round.rejectReason}"
+                        {#if round.recalledOn != null}(<Label label={ygTimesheet.string.Recalled} />){/if}
                         {#if (round.resubmitNote ?? '') !== ''}
                           <span class="prior__reply">replied: "{round.resubmitNote}"</span>
                         {/if}

@@ -25,6 +25,7 @@ import { weekRange } from './week'
 import { asRefArray, buildSnapshot, resolveApprovers, type DayReportLike, type ProjectApproverLike } from './workflow'
 import { buildTaskUnits } from './task-approval'
 import { cyclesToClose } from './reject-cycle'
+import { updateDocWithUnset } from './update-ops'
 
 export { buildSnapshot, resolveApprovers }
 export type { DayReportLike, ProjectApproverLike }
@@ -32,7 +33,7 @@ export type { DayReportLike, ProjectApproverLike }
 /** Sentinel returned by submitDay when no approver resolves for the day's projects. */
 export const NO_APPROVER = 'no-approver' as const
 
-/** Monday-00:00 (local) week start for a given instant — the Timesheet.weekStart key. */
+/** Monday-00:00 (local) week start for a given instant - the Timesheet.weekStart key. */
 export function weekStartOf (dateMs: number): number {
   return weekRange(dateMs).start
 }
@@ -95,7 +96,7 @@ export interface NoApproverResult {
 /**
  * Submit a day: collapse the day's reports into one task unit per issue (buildTaskUnits), each
  * stamped with the approvers of ITS OWN project only. If ANY task's project has no PM/TL
- * configured we do not write at all — the UI surfaces the offending projects (via NoApproverResult)
+ * configured we do not write at all - the UI surfaces the offending projects (via NoApproverResult)
  * so the missing project config gets fixed, rather than silently parking that task where nobody
  * will ever see it. Otherwise lazily materialise Timesheet + TimesheetDay and write one
  * TimesheetTask row per issue.
@@ -106,7 +107,7 @@ export async function submitDay (
 ): Promise<Ref<TimesheetDay> | NoApproverResult> {
   const units = buildTaskUnits(reports, approversByProject, employee)
   // Every task must have somewhere to go. If ANY task's project has no PM/TL configured we do not
-  // write at all — the UI surfaces the error so the missing project config gets fixed, rather than
+  // write at all - the UI surfaces the error so the missing project config gets fixed, rather than
   // silently parking that task where nobody will ever see it.
   //
   // NOTE this is STRICTER than the old day-level rule, which submitted as long as ONE project in
@@ -125,7 +126,7 @@ export async function submitDay (
   const dayId = await ensureDay(client, tsId, date)
 
   // Replace any task rows from a previous submit of this day so a re-submit after edits cannot
-  // leave stale issues behind. Approved rows are preserved — re-submitting a corrected task must
+  // leave stale issues behind. Approved rows are preserved - re-submitting a corrected task must
   // not silently discard a sibling task an approver already signed off.
   const existing = await client.findAll(ygTimesheet.class.TimesheetTask, { attachedTo: dayId })
   for (const t of existing) {
@@ -185,10 +186,10 @@ export async function submitDay (
 
 /**
  * Recall a submitted day back to Draft. The day label is DERIVED from its TimesheetTask rows, so
- * clearing only TimesheetDay (the old day-level flow) leaves every task at status='Submitted' —
+ * clearing only TimesheetDay (the old day-level flow) leaves every task at status='Submitted'  -
  * the derived status stays 'Submitted', the Recall button never clears, and the tasks stay in the
  * approver queue. Recall is offered ONLY when the derived status is 'Submitted' (i.e. every task
- * is Submitted, none Approved/Rejected — see deriveDayStatus), so returning the day's Submitted
+ * is Submitted, none Approved/Rejected - see deriveDayStatus), so returning the day's Submitted
  * tasks to Draft is exactly what un-submits it: no Approved task can be present to worry about
  * preserving, and no Rejected task is touched (it stays Rejected until the employee fixes/resubmits).
  * The TimesheetDay cleanup below is kept (harmless) for the deprecated status/approvers/submittedOn.
@@ -196,19 +197,19 @@ export async function submitDay (
 export async function recallDay (client: TxOperations, dayId: Ref<TimesheetDay>): Promise<void> {
   const tasks = await client.findAll(ygTimesheet.class.TimesheetTask, { attachedTo: dayId, status: 'Submitted' })
   for (const t of tasks) {
-    await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, t._id, {
+    await updateDocWithUnset(client, ygTimesheet.class.TimesheetTask, core.space.Workspace, t._id, {
       status: 'Draft', $unset: { submittedOn: '' }
     })
   }
   // keep the existing TimesheetDay cleanup (harmless; clears the deprecated status/approvers/submittedOn)
-  await client.updateDoc(ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
+  await updateDocWithUnset(client, ygTimesheet.class.TimesheetDay, core.space.Workspace, dayId, {
     status: 'Draft', approvers: [], $unset: { submittedOn: '' }
   })
 }
 
 /**
  * Approve a day (Task 7-facing): write the live snapshot + totalHours and move to Approved.
- * The server trigger stamps approvedBy / approvedOn — do NOT set them here.
+ * The server trigger stamps approvedBy / approvedOn - do NOT set them here.
  */
 export async function approveDay (
   client: TxOperations,
@@ -245,7 +246,7 @@ export async function rejectDay (
 
 /**
  * Load the ProjectApprovers mixin (pm / teamLead) for a set of project refs.
- * Returns a Map keyed by project ref — the shape resolveApprovers expects.
+ * Returns a Map keyed by project ref - the shape resolveApprovers expects.
  */
 export async function loadProjectApprovers (
   client: TxOperations,
@@ -274,16 +275,16 @@ export async function loadProjectApprovers (
  * readable TimesheetTask (Reports and the PM dashboard read them from there - the private
  * `TimesheetApproval` doc, in ygTimesheet.space.Approvals, is not readable by a non-member, i.e.
  * any employee). This function therefore:
- *  - sets `status: 'Approved'` plus the three approval fields (+ clears any stale rejectReason)
+ * - sets `status: 'Approved'` plus the three approval fields (+ clears any stale rejectReason)
  *    on the TimesheetTask; and
- *  - ALSO creates (or, on re-approval after a change, updates) the TimesheetApproval row with
+ * - ALSO creates (or, on re-approval after a change, updates) the TimesheetApproval row with
  *    `task` + `approvedHours` as before, purely as an audit trail.
  * Never touches the employee's TimeSpendReport: their logged time stays their record.
  */
 export async function approveTask (
   client: TxOperations, taskId: Ref<TimesheetTask>, approvedHours: number
 ): Promise<void> {
-  await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
+  await updateDocWithUnset(client, ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
     status: 'Approved',
     approvedHours,
     approvedBy: getCurrentEmployee(),
@@ -347,7 +348,7 @@ export async function rejectTask (
 ): Promise<void> {
   const task = await client.findOne(ygTimesheet.class.TimesheetTask, { _id: taskId })
 
-  await client.updateDoc(ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
+  await updateDocWithUnset(client, ygTimesheet.class.TimesheetTask, core.space.Workspace, taskId, {
     status: 'Rejected',
     rejectReason: reason,
     $unset: { approvedHours: '', approvedBy: '', approvedOn: '' }
@@ -373,6 +374,42 @@ export async function rejectTask (
     rejectedBy: getCurrentEmployee(),
     rejectedOn: Date.now()
   })
+}
+
+/**
+ * Recall an approval or rejection (Reports page). The task goes back to Submitted (pending
+ * approval) with its approval fields cleared. ORDER MATTERS: the TimesheetApproval row is removed
+ * FIRST; if the server then reverts an unauthorized recall it recreates the row, and nothing here
+ * runs afterwards to delete it again. A recalled rejection's open TimesheetRejectCycle is closed
+ * with recalledOn/recalledBy so the employee is no longer asked to fix it. No notification.
+ */
+export async function recallTask (
+  client: TxOperations,
+  task: TimesheetTask,
+  employee?: Ref<Employee>
+): Promise<void> {
+  const approval = await client.findOne(ygTimesheet.class.TimesheetApproval, { task: task._id })
+  if (approval !== undefined) await client.remove(approval)
+  await updateDocWithUnset(client, ygTimesheet.class.TimesheetTask, core.space.Workspace, task._id, {
+    status: 'Submitted',
+    $unset: { approvedHours: '', approvedBy: '', approvedOn: '', rejectReason: '' }
+  })
+  if (task.status !== 'Rejected') return
+  const owner = employee ?? (await resolveTaskEmployee(client, task))
+  if (owner === undefined) return
+  const cycles = await client.findAll(ygTimesheet.class.TimesheetRejectCycle, {
+    employee: owner,
+    issue: task.issue,
+    date: task.date
+  })
+  const now = Date.now()
+  for (const c of cycles) {
+    if (c.resubmittedOn != null || c.recalledOn != null) continue
+    await client.updateDoc(ygTimesheet.class.TimesheetRejectCycle, core.space.Workspace, c._id, {
+      recalledOn: now,
+      recalledBy: getCurrentEmployee()
+    })
+  }
 }
 
 /**

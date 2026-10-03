@@ -51,6 +51,8 @@
     "@hcengineering/task": "workspace:^0.7.426",
     "@hcengineering/text-core": "workspace:^0.7.426",
     "@hcengineering/yg-timesheet": "workspace:^0.7.426",
-    "@hcengineering/server-yg-timesheet": "workspace:^0.7.426"
+    "@hcengineering/server-yg-timesheet": "workspace:^0.7.426",
+    "@hcengineering/server-token": "workspace:^0.7.426",
+    "@hcengineering/account-client": "workspace:^0.7.426"
   }
 }

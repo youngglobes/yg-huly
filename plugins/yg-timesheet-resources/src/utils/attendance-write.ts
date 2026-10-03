@@ -11,6 +11,7 @@ import ygTimesheet, {
 } from '@hcengineering/yg-timesheet'
 import { localMidnight } from './attendance'
 import { capturePunchContext, readDeviceFields } from './capture'
+import { updateDocWithUnset } from './update-ops'
 
 export async function createPunchIn (
   client: TxOperations, employee: Ref<Employee>, mode: AttendanceMode, note?: string, lateReason?: string
@@ -56,7 +57,7 @@ export async function closePunchOut (
 export async function approveLatePermission (
   client: TxOperations, id: Ref<LatePermission>, reason: string
 ): Promise<void> {
-  await client.updateDoc(ygTimesheet.class.LatePermission, core.space.Workspace, id, {
+  await updateDocWithUnset(client, ygTimesheet.class.LatePermission, core.space.Workspace, id, {
     status: 'Approved',
     approvedBy: getCurrentEmployee(),
     approvedOn: Date.now(),
@@ -68,7 +69,7 @@ export async function approveLatePermission (
 export async function rejectLatePermission (
   client: TxOperations, id: Ref<LatePermission>, reason: string
 ): Promise<void> {
-  await client.updateDoc(ygTimesheet.class.LatePermission, core.space.Workspace, id, {
+  await updateDocWithUnset(client, ygTimesheet.class.LatePermission, core.space.Workspace, id, {
     status: 'Rejected',
     rejectReason: reason.trim(),
     $unset: { approvedBy: '', approvedOn: '', approveReason: '' }

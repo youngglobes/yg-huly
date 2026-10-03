@@ -53,7 +53,7 @@ describe('toCSV', () => {
   const HEAD =
     'Date,Employee,Project,Huly ID,Issue Title,Estimated,Spent,' +
     'TL/PM Approved Hours,TL/PM Approved By,Client Approved Hours,Client Approved By,' +
-    'Status,Priority,Due date,Notes'
+    'Priority,Due date,Notes'
   it('emits a header + quoted rows, escaping quotes/commas', () => {
     const csv = toCSV([row({ note: 'a,"b"', title: 'x' })])
     const lines = csv.trim().split('\n')
@@ -66,7 +66,7 @@ describe('toCSV', () => {
     const csv = toCSV([row({})])
     const cells = csv.trim().split('\n')[1].split(',')
     // indices: 0 Date,1 Employee,2 Project,3 HulyID,4 Title,5 Estimated,6 Spent,
-    //          7 TL/PM hrs,8 TL/PM by,9 Client hrs,10 Client by,11 Status,...
+    //          7 TL/PM hrs,8 TL/PM by,9 Client hrs,10 Client by,11 Priority,...
     expect(cells.slice(7, 11)).toEqual(['', '', '', ''])
   })
   it('includes the issue title, priority label and formatted due date', () => {
@@ -78,7 +78,7 @@ describe('toCSV', () => {
   })
   it('leaves due date blank when unset', () => {
     const csv = toCSV([row({ dueDate: null })])
-    // trailing ...,"",note — the due-date cell is an empty quoted string.
+    // trailing ...,"",note , the due-date cell is an empty quoted string.
     expect(csv.trim().split('\n')[1]).toContain(',"",""')
   })
   it('guards a formula-like text cell with a leading apostrophe', () => {

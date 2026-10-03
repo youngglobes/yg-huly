@@ -131,6 +131,8 @@ export class TTimesheetRejectCycle extends TDoc implements TimesheetRejectCycle 
   @Prop(TypeDate(), core.string.Object) rejectedOn!: Timestamp
   @Prop(TypeString(), core.string.Object) resubmitNote?: string
   @Prop(TypeDate(), core.string.Object) resubmittedOn?: Timestamp
+  @Prop(TypeDate(), core.string.Object) recalledOn?: Timestamp
+  @Prop(TypeRef(contact.mixin.Employee), core.string.Object) recalledBy?: Ref<Employee>
 }
 
 @Mixin(ygTimesheet.mixin.ProjectApprovers, tracker.class.Project)
@@ -282,7 +284,7 @@ export function createModel (builder: Builder): void {
             label: ygTimesheet.string.Reports,
             icon: tracker.icon.TimeReport,
             component: ygTimesheet.component.Reports,
-            visibleIf: ygTimesheet.function.CanApprove,
+            visibleIf: ygTimesheet.function.CanViewReports,
             position: 'top'
           },
           {

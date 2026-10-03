@@ -103,6 +103,9 @@ export interface TimesheetRejectCycle extends Doc {
   resubmitNote?: string
   /** Absent = the cycle is still open (rejected, not yet resubmitted). */
   resubmittedOn?: Timestamp
+  /** Set when an approver recalls the rejection (Reports page): the round is closed without a resubmit. */
+  recalledOn?: Timestamp
+  recalledBy?: Ref<Employee>
 }
 
 export interface ProjectApprovers extends Project {
@@ -221,6 +224,31 @@ export function dayStartFor (
 ): number {
   if (shiftType === undefined) return 0
   return types.find((t) => t._id === shiftType)?.dayStartMin ?? 0
+}
+
+/** Who is acting on a TimesheetTask and on whose behalf. Same rule on server and client. */
+export interface TaskActorContext {
+  actor?: Ref<Employee>
+  owner?: Ref<Employee>
+  isAdmin: boolean
+  isHr: boolean
+  /** PM and team-lead refs of the task's project, read from the project (never from the task). */
+  projectApprovers: Array<Ref<Employee>>
+}
+
+/** May `actor` approve, reject or recall this task? Fails closed; nobody acts on their own timesheet. */
+export function canActOnTimesheetTask (c: TaskActorContext): boolean {
+  if (c.owner === undefined || c.actor === undefined || c.actor === c.owner) return false
+  return c.isAdmin || c.isHr || c.projectApprovers.includes(c.actor)
+}
+
+export type ReportTaskAction = 'approve-reject' | 'recall' | 'none'
+
+/** The Reports Action column for a task in this state. */
+export function reportTaskAction (status: TaskStatus | undefined): ReportTaskAction {
+  if (status === 'Submitted') return 'approve-reject'
+  if (status === 'Approved' || status === 'Rejected') return 'recall'
+  return 'none'
 }
 
 /** Denormalized mirror of a TimeSpendReport, readable by HR (see hr-timesheet spec). */
@@ -379,6 +407,9 @@ export default plugin(ygTimesheetId, {
     Reapprove: '' as IntlString,
     ApproveWeek: '' as IntlString,
     Reject: '' as IntlString,
+    Action: '' as IntlString,
+    RecallApprovalConfirm: '' as IntlString,
+    RecallRejectionConfirm: '' as IntlString,
     Approvals: '' as IntlString,
     NothingToApprove: '' as IntlString,
     RejectReason: '' as IntlString,
@@ -522,6 +553,7 @@ export default plugin(ygTimesheetId, {
     OfficeVsWfh: '' as IntlString,
     HoursByPerson: '' as IntlString,
     NotSubmitted: '' as IntlString,
+    Recalled: '' as IntlString,
     LastActive: '' as IntlString,
     DaysLogged: '' as IntlString,
     Performance: '' as IntlString,
@@ -580,6 +612,8 @@ export default plugin(ygTimesheetId, {
   },
   function: {
     CanApprove: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
+    // Reports menu: CanApprove OR an HR member (HrData space).
+    CanViewReports: '' as Resource<(spaces: Space[]) => Promise<boolean>>,
     // view.mixin.ObjectTitle provider for TimesheetDay - supplies the Inbox card's subtitle (the
     // sheet date), under the @UX class-label title ("Timesheet"). Signature per getDocTitle.
     TimesheetDayTitle: '' as Resource<(client: Client, id: Ref<Doc>, doc?: Doc) => Promise<string>>,

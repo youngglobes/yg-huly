@@ -16,6 +16,7 @@ export interface RejectCycleLike {
   rejectedOn: number
   resubmitNote?: string
   resubmittedOn?: number
+  recalledOn?: number
 }
 
 /** Stable grouping key for one unit of work. */
@@ -40,9 +41,9 @@ export function groupCycles<T extends RejectCycleLike> (cycles: T[]): Map<string
   return out
 }
 
-/** Open = rejected, not yet resubmitted. */
+/** Open = rejected, not yet resubmitted, and not recalled by an approver. */
 export function isOpen (c: RejectCycleLike): boolean {
-  return c.resubmittedOn == null
+  return c.resubmittedOn == null && c.recalledOn == null
 }
 
 /**

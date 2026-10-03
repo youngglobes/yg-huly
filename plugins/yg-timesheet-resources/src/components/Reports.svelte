@@ -20,12 +20,22 @@
 <script lang="ts">
   import contact, { formatName, getCurrentEmployee, type Employee, type Person } from '@hcengineering/contact'
   import { Avatar, UserBoxList } from '@hcengineering/contact-resources'
-  import { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type WithLookup } from '@hcengineering/core'
+  import core, { AccountRole, getCurrentAccount, hasAccountRole, type Ref, type Space, type WithLookup } from '@hcengineering/core'
   import { setPlatformStatus, unknownError } from '@hcengineering/platform'
   import { createQuery, getClient } from '@hcengineering/presentation'
   import tracker, { type Issue, type IssueStatus, type Project, type TimeSpendReport } from '@hcengineering/tracker'
-  import { DropdownLabels, getPanelURI, Label, type DropdownTextItem } from '@hcengineering/ui'
+  import {
+    addNotification,
+    DropdownLabels,
+    getPanelURI,
+    Label,
+    NotificationSeverity,
+    showPopup,
+    type DropdownTextItem
+  } from '@hcengineering/ui'
   import ygTimesheet, {
+    canActOnTimesheetTask,
+    reportTaskAction,
     type ProjectApprovers,
     type Timesheet,
     type TimesheetDay,
@@ -33,6 +43,12 @@
   } from '@hcengineering/yg-timesheet'
   import { filterRows, type ReportFilter, type ReportRow } from '../utils/reports'
   import { exportReportXlsx } from '../utils/report-xlsx'
+  import { indexTasks, taskForRow, type TaskRef } from '../utils/report-actions'
+  import { approveTask, recallTask, rejectTask } from '../utils/day'
+  import ApproveTaskPopup from './ApproveTaskPopup.svelte'
+  import RejectTaskPopup from './RejectTaskPopup.svelte'
+  import RecallTaskPopup from './RecallTaskPopup.svelte'
+  import SubmitErrorNotification from './SubmitErrorNotification.svelte'
   import { formatHours, localDayKey, weekRange, withinDay } from '../utils/week'
   import { asRefArray } from '../utils/workflow'
 
@@ -40,9 +56,10 @@
   const client = getClient()
   const hierarchy = client.getHierarchy()
 
-  // Role gate - mirrors Approvals.svelte EXACTLY (UI convenience only; render-block for direct-URL
-  // access, since the sidebar `visibleIf` only hides the menu item). Any PM/TL on ANY project, or
-  // an HR admin (Maintainer), can view Reports.
+  // Role gate - mirrors ygTimesheet.function.CanViewReports (UI convenience only; render-block for
+  // direct-URL access, since the sidebar `visibleIf` only hides the menu item; the server guard is
+  // the real boundary). Any PM/TL on ANY project, an admin (Maintainer), or an HR member (HrData
+  // space, `isHr` below) can view Reports.
   const isHRAdmin = hasAccountRole(getCurrentAccount(), AccountRole.Maintainer)
   let isApprover = false
   const approverProjQuery = createQuery()
@@ -53,7 +70,7 @@
       return asRefArray(a.pm).includes(me) || asRefArray(a.teamLead).includes(me)
     })
   })
-  $: canApprove = isHRAdmin || isApprover
+  $: canApprove = isHRAdmin || isApprover || isHr
 
   // --- Filter state (default = current week) -------------------------------
   const initialWeek = weekRange(Date.now())
@@ -186,20 +203,30 @@
   // the columns on refresh + in the CSV export (2026-07-27). Three flat live queries (each in a
   // world-readable space) feed one reactive join.
   const taskInfoQuery = createQuery()
-  let taskInfo = new Map<string, { day: string, issue: string, date: number, approvedHours?: number, approvedBy?: string }>() // TimesheetTask._id
-  taskInfoQuery.query(ygTimesheet.class.TimesheetTask, { status: 'Approved' }, (res: TimesheetTask[]) => {
-    const m = new Map<string, { day: string, issue: string, date: number, approvedHours?: number, approvedBy?: string }>()
-    for (const t of res) {
-      m.set(t._id, {
-        day: t.attachedTo as string,
-        issue: t.issue as string,
-        date: t.date,
-        approvedHours: t.approvedHours,
-        approvedBy: t.approvedBy as string | undefined
-      })
+  let taskInfo = new Map<string, { day: string, issue: string, date: number, approvedHours?: number, approvedBy?: string }>() // Approved TimesheetTask._id
+  // Every task (not only approved) feeds the Action column; the Approved columns still read only Approved tasks.
+  let tasksById = new Map<string, TimesheetTask>()
+  taskInfoQuery.query(
+    ygTimesheet.class.TimesheetTask,
+    { status: { $in: ['Submitted', 'Approved', 'Rejected'] } },
+    (res: TimesheetTask[]) => {
+      const m = new Map<string, { day: string, issue: string, date: number, approvedHours?: number, approvedBy?: string }>()
+      const all = new Map<string, TimesheetTask>()
+      for (const t of res) {
+        all.set(t._id, t)
+        if (t.status !== 'Approved') continue
+        m.set(t._id, {
+          day: t.attachedTo as string,
+          issue: t.issue as string,
+          date: t.date,
+          approvedHours: t.approvedHours,
+          approvedBy: t.approvedBy as string | undefined
+        })
+      }
+      taskInfo = m
+      tasksById = all
     }
-    taskInfo = m
-  })
+  )
 
   const dayQuery = createQuery()
   let dayTimesheet = new Map<string, string>() // TimesheetDay._id -> Timesheet._id
@@ -239,6 +266,36 @@
     }
     return m
   })()
+
+  // Action column: every loaded task indexed by employee|issue. An unresolved day/timesheet chain is
+  // skipped (fail safe, like the Approved columns).
+  $: taskIndex = indexTasks(
+    [...tasksById.values()].flatMap((t): TaskRef[] => {
+      const tsId = dayTimesheet.get(t.attachedTo as string)
+      const emp = tsId != null ? tsEmployee.get(tsId) : undefined
+      if (emp == null) return []
+      return [{ id: t._id, employee: emp, issue: t.issue as string, start: t.date, status: t.status }]
+    })
+  )
+
+  // Who am I: HR = member of the HrData space; per-project approvers from the ProjectApprovers mixin.
+  // The server reverts any unauthorized action, so this only decides which buttons to show.
+  let isHr = false
+  const hrQuery = createQuery()
+  hrQuery.query(core.class.Space, { _id: ygTimesheet.space.HrData }, (res: Space[]) => {
+    isHr = res.some((sp) => sp.members.includes(getCurrentAccount().uuid))
+  })
+  let approversByProject = new Map<string, Array<Ref<Employee>>>()
+  const approversQuery = createQuery()
+  approversQuery.query(tracker.class.Project, {}, (projects: Project[]) => {
+    const m = new Map<string, Array<Ref<Employee>>>()
+    for (const p of projects) {
+      if (!hierarchy.hasMixin(p, ygTimesheet.mixin.ProjectApprovers)) continue
+      const a = hierarchy.as(p, ygTimesheet.mixin.ProjectApprovers) as ProjectApprovers
+      m.set(p._id as string, [...asRefArray(a.pm), ...asRefArray(a.teamLead)] as Array<Ref<Employee>>)
+    }
+    approversByProject = m
+  })
 
   // --- Build ReportRow[] ---------------------------------------------------
   $: allRows = reports.map((r): ReportRow => {
@@ -293,7 +350,7 @@
   // Column sorting. Click a header to sort by it; click again to flip direction. Text columns
   // default to ascending, Date/Spent to descending (most recent / largest first). A stable
   // tiebreak (date desc, then employee, then issue id) keeps equal rows grouped and predictable.
-  type SortKey = 'date' | 'person' | 'project' | 'spent' | 'status'
+  type SortKey = 'date' | 'person' | 'project' | 'spent'
   let sortKey: SortKey = 'date'
   let sortDir: 1 | -1 = -1
   function toggleSort (key: SortKey): void {
@@ -310,7 +367,6 @@
     else if (sortKey === 'person') r = a.employeeName.localeCompare(b.employeeName)
     else if (sortKey === 'project') r = a.projectName.localeCompare(b.projectName)
     else if (sortKey === 'spent') r = a.hours - b.hours
-    else if (sortKey === 'status') r = a.statusName.localeCompare(b.statusName)
     if (r !== 0) return r * sortDir
     // Stable, direction-independent tiebreak so equal rows stay grouped across pages.
     return (
@@ -365,16 +421,132 @@
 
   const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
 
-  // --- Presentation-only helpers (no data/query impact) ---------------------
-  // Best-effort status-chip variant from the issue workflow status NAME (statusQuery/statusNames
-  // is preserved as-is and only ever carries names, no category ref) - purely a display bucket,
-  // same idiom as HrTimesheet's `deriveDayStatus`-driven pill classing. Unrecognized/custom
-  // status names fall back to the neutral "back" (backlog-style) look.
-  function statusChipVariant (name: string): 'done' | 'prog' | 'back' {
-    const n = name.toLowerCase()
-    if (n.includes('done') || n.includes('complet') || n.includes('closed') || n.includes('resolved')) return 'done'
-    if (n.includes('progress') || n.includes('review') || n.includes('active') || n.includes('doing')) return 'prog'
-    return 'back'
+  // --- Action column ----------------------------------------------------------
+  // Svelte has no per-row `$:`, so the row's task / action / permission come from this helper.
+  // Reads taskIndex, isAdmin-style role and approvers so the call in the template stays reactive.
+  function rowAction (
+    r: ReportRow,
+    index: Map<string, TaskRef[]>,
+    hr: boolean,
+    approvers: Map<string, Array<Ref<Employee>>>
+  ): { t: TaskRef | undefined, action: ReturnType<typeof reportTaskAction>, allowed: boolean } {
+    const t = taskForRow(index, r.employee, r.issue, r.date)
+    const action = reportTaskAction(t?.status)
+    const allowed = canActOnTimesheetTask({
+      actor: me,
+      owner: r.employee as Ref<Employee>,
+      isAdmin: isHRAdmin,
+      isHr: hr,
+      projectApprovers: approvers.get(r.project) ?? []
+    })
+    return { t, action, allowed }
+  }
+
+  let busy = new Set<string>() // TimesheetTask ids with an action in flight
+  function setBusy (id: string, on: boolean): void {
+    const next = new Set(busy)
+    if (on) next.add(id)
+    else next.delete(id)
+    busy = next
+  }
+  async function runAction (id: string, fn: () => Promise<void>): Promise<void> {
+    setBusy(id, true)
+    try {
+      await fn()
+    } catch (err: any) {
+      await setPlatformStatus(unknownError(err))
+    } finally {
+      setBusy(id, false)
+    }
+  }
+
+  // Same flow as Approvals.svelte: ApproveTaskPopup then approveTask. The row is busy from the click
+  // until the popup closes, so a double click cannot open two popups; a failed lookup surfaces like
+  // the other handlers instead of becoming an unhandled rejection.
+  async function onApprove (ref: TaskRef, r: ReportRow): Promise<void> {
+    const task = tasksById.get(ref.id)
+    if (task === undefined || busy.has(task._id)) return
+    setBusy(task._id, true)
+    const DAY = 86_400_000
+    let issue: Issue | undefined
+    let notes: string[]
+    try {
+      issue = await client.findOne(tracker.class.Issue, { _id: task.issue })
+      const spent: TimeSpendReport[] = await client.findAll(tracker.class.TimeSpendReport, {
+        employee: r.employee as Ref<Employee>,
+        attachedTo: task.issue,
+        date: { $gte: task.date, $lt: task.date + DAY }
+      })
+      notes = spent.map((s) => (s.description ?? '').trim()).filter((d) => d !== '')
+    } catch (err: any) {
+      setBusy(task._id, false)
+      await setPlatformStatus(unknownError(err))
+      return
+    }
+    showPopup(
+      ApproveTaskPopup,
+      {
+        identifier: task.identifier,
+        title: task.title,
+        submittedHours: task.submittedHours,
+        estimation: issue?.estimation,
+        notes,
+        isReapproval: false
+      },
+      undefined,
+      (res?: { approvedHours: number } | null) => {
+        // Cancel dispatches `close` with no detail (null), treat it as cancelled.
+        if (res != null) {
+          void runAction(task._id, async () => {
+            await approveTask(client, task._id, res.approvedHours)
+            addNotification('Time approved', `${task.identifier} approved.`, SubmitErrorNotification, undefined, NotificationSeverity.Success)
+          })
+        } else {
+          setBusy(task._id, false)
+        }
+      }
+    )
+  }
+
+  // Same flow as Approvals.svelte: RejectTaskPopup then rejectTask.
+  function onReject (ref: TaskRef, r: ReportRow): void {
+    const task = tasksById.get(ref.id)
+    if (task === undefined) return
+    showPopup(
+      RejectTaskPopup,
+      { identifier: task.identifier, title: task.title },
+      undefined,
+      (res?: { reason: string } | null) => {
+        if (res != null) {
+          void runAction(task._id, async () => {
+            await rejectTask(client, task._id, res.reason, r.employee as Ref<Employee>)
+            addNotification('Time rejected', `${task.identifier} sent back to the employee.`, SubmitErrorNotification, undefined, NotificationSeverity.Info)
+          })
+        }
+      }
+    )
+  }
+
+  function onRecall (ref: TaskRef, r: ReportRow): void {
+    const task = tasksById.get(ref.id)
+    if (task === undefined) return
+    showPopup(
+      RecallTaskPopup,
+      {
+        identifier: r.identifier,
+        employeeName: r.employeeName,
+        dateLabel: dateFmt.format(r.date),
+        wasApproved: ref.status === 'Approved'
+      },
+      undefined,
+      (res?: { confirmed: boolean } | null) => {
+        if (res?.confirmed === true) {
+          void runAction(task._id, async () => {
+            await recallTask(client, task, r.employee as Ref<Employee>)
+          })
+        }
+      }
+    )
   }
 
   // Clears every filter back to its default (current week, All projects, All members, All statuses).
@@ -532,16 +704,12 @@
               </th>
               <th class="yg-num"><Label label={ygTimesheet.string.Approved} /></th>
               <th class="left">Approved by</th>
-              <th class="left rp-sortable" class:rp-sorted={sortKey === 'status'} on:click={() => toggleSort('status')}>
-                <span class="rp-hcell">
-                  <Label label={ygTimesheet.string.Status} />
-                  <svg class="rp-sortarrow" class:up={sortKey === 'status' && sortDir === 1} viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5 6 7.5 9 4.5" /></svg>
-                </span>
-              </th>
+              <th class="left"><Label label={ygTimesheet.string.Action} /></th>
             </tr>
           </thead>
           <tbody>
             {#each pageRows as r, i (r.issue + '|' + r.date + '|' + r.employee + '|' + i)}
+              {@const ra = rowAction(r, taskIndex, isHr, approversByProject)}
               <tr class="yg-row">
                 <td class="left rp-date-cell">{dateFmt.format(r.date)}</td>
                 <td class="left">
@@ -585,10 +753,18 @@
                   {/if}
                 </td>
                 <td class="left">
-                  <span class="schip schip--{statusChipVariant(r.statusName)}">
-                    <span class="schip__dot" />
-                    {r.statusName}
-                  </span>
+                  {#if ra.t === undefined || ra.action === 'none'}
+                    <span class="rp-muted"><Label label={ygTimesheet.string.NotSubmitted} /></span>
+                  {:else if !ra.allowed}
+                    <span class="rp-muted">-</span>
+                  {:else if ra.action === 'approve-reject'}
+                    <span class="rp-actions">
+                      <button class="rp-act" disabled={busy.has(ra.t.id)} on:click={() => { if (ra.t !== undefined) void onApprove(ra.t, r) }}><Label label={ygTimesheet.string.Approve} /></button>
+                      <button class="rp-act rp-act--danger" disabled={busy.has(ra.t.id)} on:click={() => { if (ra.t !== undefined) onReject(ra.t, r) }}><Label label={ygTimesheet.string.Reject} /></button>
+                    </span>
+                  {:else}
+                    <button class="rp-act rp-act--danger" disabled={busy.has(ra.t.id)} on:click={() => { if (ra.t !== undefined) onRecall(ra.t, r) }}><Label label={ygTimesheet.string.Recall} /></button>
+                  {/if}
                 </td>
               </tr>
             {/each}
@@ -600,7 +776,7 @@
               </td>
               <td class="yg-num"><b>{formatHours(totalSpent)}</b></td>
               <td class="yg-num"><b>{formatHours(totalApproved)}</b></td>
-              <td colspan="2" />
+              <td colspan="3" />
             </tr>
           </tfoot>
         </table>
@@ -700,15 +876,17 @@
   .rp-proj { color: var(--yg-text-dim); }
   .rp-muted { color: var(--yg-text-faint); }
 
-  // Issue workflow-status chip (dot + label). Not part of the shared `yg-table.scss` vocabulary
-  // (that file has no `.schip`), so it is defined locally here - mirrors the mockup's
-  // `.schip`/`.schip.done`/`.schip.prog`/`.schip.back` family 1:1.
-  .schip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--yg-text-dim); font-weight: 500; }
-  .schip__dot { width: 7px; height: 7px; border-radius: 2px; background: var(--yg-grey); flex: none; }
-  .schip--done { color: var(--yg-green); }
-  .schip--done .schip__dot { background: var(--yg-green); }
-  .schip--prog .schip__dot { background: var(--yg-amber); }
-  .schip--back .schip__dot { background: var(--yg-grey); }
+  // Action column buttons: compact text buttons built from the page's tokens.
+  .rp-actions { display: inline-flex; gap: 6px; }
+  .rp-act {
+    height: 26px; padding: 0 10px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--yg-border-strong); border-radius: 7px; cursor: pointer;
+    background: var(--yg-panel); color: var(--yg-text); font: inherit; font-size: 12px; font-weight: 600;
+  }
+  .rp-act:hover:not(:disabled) { background: var(--yg-panel-soft); }
+  .rp-act:disabled { opacity: 0.45; cursor: default; }
+  .rp-act--danger { color: var(--yg-red); border-color: var(--yg-red-line); }
+  .rp-act--danger:hover:not(:disabled) { background: var(--yg-red-bg); }
 
   // --- Pager -------------------------------------------------------------------
   .rp-pager {

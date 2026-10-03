@@ -66,7 +66,7 @@ export function ddmmyyyy (ms: number): string {
 const COLS = [
   'Date', 'Employee', 'Project', 'Huly ID', 'Issue Title', 'Estimated', 'Spent',
   'TL/PM Approved Hours', 'TL/PM Approved By', 'Client Approved Hours', 'Client Approved By',
-  'Status', 'Priority', 'Due date', 'Notes'
+  'Priority', 'Due date', 'Notes'
 ]
 export function toCSV (rows: ReportRow[]): string {
   const head = COLS.join(',')
@@ -83,7 +83,6 @@ export function toCSV (rows: ReportRow[]): string {
     r.approvedByName != null ? escText(r.approvedByName) : '', // TL/PM Approved By (from approval)
     '', // Client Approved Hours - manual
     '', // Client Approved By - manual
-    escText(r.statusName),
     escText(priorityLabel(r.priority)),
     r.dueDate != null ? esc(ddmmyyyy(r.dueDate)) : '""',
     escText(r.note)

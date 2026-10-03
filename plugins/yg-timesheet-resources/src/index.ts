@@ -52,6 +52,15 @@ async function CanApprove (_spaces: Space[]): Promise<boolean> {
   return canApproveView(isAdmin, pairs, me)
 }
 
+// Reports menu item: everyone who may approve, plus HR members (HrData space). The spec lets HR act
+// on any task from Reports; the Approvals page keeps CanApprove. UI convenience only: the server
+// guard (OnTimesheetTaskUpdate) is the boundary.
+async function CanViewReports (spaces: Space[]): Promise<boolean> {
+  if (await CanApprove(spaces)) return true
+  const hr = await getClient().findOne(core.class.Space, { _id: ygTimesheet.space.HrData })
+  return hr !== undefined && (hr.members ?? []).includes(getCurrentAccount().uuid)
+}
+
 // Leadership designations (ygTimesheet.mixin.WorkProfile) that may create a project even without
 // an Owner role, an HR-space membership, or a ProjectApprovers assignment.
 const PROJECT_CREATOR_DESIGNATIONS: WorkDesignation[] = [
@@ -157,6 +166,7 @@ export default async (): Promise<Resources> => ({
   },
   function: {
     CanApprove,
+    CanViewReports,
     TimesheetDayTitle: timesheetDayTitle,
     CanCreateProject,
     CheckHrAppAccess: checkHrAppAccess,

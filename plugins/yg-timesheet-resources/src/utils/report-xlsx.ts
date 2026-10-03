@@ -1,8 +1,8 @@
 //
 // Excel (.xlsx) export of the PM report. Same column set as the report's table/legacy CSV, but
-// real typed cells: dates as dates, hours as numbers — so Excel sorts dates and sums hour columns
+// real typed cells: dates as dates, hours as numbers - so Excel sorts dates and sums hour columns
 // natively (no CSV re-parsing quirks). Client-side via write-excel-file (browser build); the
-// `fileName` option triggers the download directly. The two Client-Approved columns stay blank —
+// `fileName` option triggers the download directly. The two Client-Approved columns stay blank -
 // they are a separate, manual, out-of-scope process, exactly as in the sheet.
 //
 import writeXlsxFile, { type Schema } from 'write-excel-file'
@@ -22,7 +22,6 @@ const schema: Schema<ReportRow> = [
   { column: 'TL/PM Approved By', type: String, value: (r) => r.approvedByName ?? null },
   { column: 'Client Approved Hours', type: Number, value: () => null },
   { column: 'Client Approved By', type: String, value: () => null },
-  { column: 'Status', type: String, value: (r) => r.statusName || null },
   { column: 'Priority', type: String, value: (r) => priorityLabel(r.priority) },
   { column: 'Due date', type: Date, format: DATE_FMT, value: (r) => (r.dueDate != null ? new Date(r.dueDate) : null) },
   { column: 'Notes', type: String, value: (r) => r.note || null }

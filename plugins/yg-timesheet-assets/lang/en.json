@@ -1,5 +1,9 @@
 {
   "string": {
+    "Action": "Action",
+    "RecallApprovalConfirm": "Recall the approval of {identifier} for {employee} on {date}? It goes back to Pending approval and its approved hours are removed.",
+    "RecallRejectionConfirm": "Recall the rejection of {identifier} for {employee} on {date}? It goes back to Pending approval.",
+    "Recalled": "Recalled",
     "ShiftNameRequired": "Enter a name",
     "ShiftNameTaken": "A shift with this name already exists",
     "ShiftDayStartRequired": "Set the time the day starts",
