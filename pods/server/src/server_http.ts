@@ -56,9 +56,9 @@ import http, { type IncomingMessage } from 'http'
 import morgan from 'morgan'
 import os from 'os'
 import { compress } from 'snappy'
-import { setImmediate } from 'timers/promises'
 import 'utf-8-validate'
 import { WebSocketServer, type RawData, type WebSocket } from 'ws'
+import { waitForDrain } from './backpressure'
 import { registerRPC } from './rpc'
 import { retrieveJson } from './utils'
 
@@ -670,9 +670,7 @@ function createWebsocketClientSocket (
         return
       }
       await ctx.with('backpressure', {}, async () => {
-        while (ws.bufferedAmount > backpressureSize) {
-          await setImmediate()
-        }
+        await waitForDrain(ws, backpressureSize, () => cs.isClosed)
       })
     },
     checkState: () => {
